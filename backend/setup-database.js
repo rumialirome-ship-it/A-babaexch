@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { v4: uuidv4 } = require('uuid');
 
 const DB_PATH = path.join(__dirname, 'database.sqlite');
 const JSON_DB_PATH = path.join(__dirname, 'db.json');
@@ -108,18 +109,18 @@ function main() {
             // Admin
             const admin = jsonData.admin;
             insertAdmin.run(admin.id, admin.name, admin.password, admin.wallet, JSON.stringify(admin.prizeRates), admin.avatarUrl);
-            admin.ledger.forEach(l => insertLedger.run(l.id, admin.id, 'ADMIN', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+            admin.ledger.forEach(l => insertLedger.run(uuidv4(), admin.id, 'ADMIN', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
             
             // Dealers
             jsonData.dealers.forEach(dealer => {
                 insertDealer.run(dealer.id, dealer.name, dealer.password, dealer.area, dealer.contact, dealer.wallet, dealer.commissionRate, dealer.isRestricted ? 1 : 0, JSON.stringify(dealer.prizeRates), dealer.avatarUrl);
-                dealer.ledger.forEach(l => insertLedger.run(l.id, dealer.id, 'DEALER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+                dealer.ledger.forEach(l => insertLedger.run(uuidv4(), dealer.id, 'DEALER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
             });
 
             // Users
             jsonData.users.forEach(user => {
                 insertUser.run(user.id, user.name, user.password, user.dealerId, user.area, user.contact, user.wallet, user.commissionRate, user.isRestricted ? 1 : 0, JSON.stringify(user.prizeRates), user.betLimit, user.avatarUrl);
-                user.ledger.forEach(l => insertLedger.run(l.id, user.id, 'USER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+                user.ledger.forEach(l => insertLedger.run(uuidv4(), user.id, 'USER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
             });
 
             // Games
