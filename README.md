@@ -223,8 +223,18 @@ Nginx will act as the web server. It will serve your built frontend files and fo
         }
     }
     ```
-    > ### 🔴 **CRITICAL CONFIGURATION NOTE** 🔴
-    > The `root` directive **must** point to the `/dist` subfolder, which contains the optimized production build from `npm run build`. Pointing it to the project's main directory (`/var/www/html/A-babaexch`) **will cause your application to fail** with a blank page and a `MIME type` error in the browser console.
+    > ## 🔴 CRITICAL: The `root` Path is EVERYTHING! 🔴
+    >
+    > The most common deployment failure is setting this path incorrectly. It **MUST** point to the `/dist` subfolder.
+    >
+    > **Correct Structure:**
+    > ```
+    > /var/www/html/A-babaexch/   <-- DO NOT point here
+    > └── dist/                   <-- DO point here
+    >     └── index.html          <-- The real app
+    > ```
+    >
+    > If you point it to the project root, your site will show a **"CRITICAL DEPLOYMENT MISCONFIGURATION"** error page and will not load. Double-check this line before saving.
 
     Save and close the file.
 
@@ -335,26 +345,11 @@ When you have new code changes to deploy, follow these steps to ensure they are 
     -   Check if the backend is running with `pm2 status`. If it has stopped or is in an errored state, check the logs with `pm2 logs ababa-backend`.
 -   **Permission Errors**: If you have issues with the database file, ensure its directory has the correct permissions: `sudo chown -R $USER:$USER /var/www/html/A-babaexch/backend`.
 -   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 reload ababa-backend`.
--   **Blank Page or Error: `Failed to load module script... MIME type of "application/octet-stream"`**:
-    -   **Important**: The latest version of the application includes a full-screen diagnostic error message that appears if your server is misconfigured. If you see a large red "CRITICAL DEPLOYMENT ERROR" page, follow the instructions on that page to fix your Nginx `root` path.
+-   **Blank Page or "CRITICAL DEPLOYMENT MISCONFIGURATION" Error**:
     -   **Cause**: This is the most common deployment error. It means your Nginx web server is serving the **development** folder (`/var/www/html/A-babaexch`) instead of the **production build** folder (`/var/www/html/A-babaexch/dist`). The browser is receiving a raw TypeScript file (`.tsx`) which it cannot execute.
-    -   **Solution**: You must fix your Nginx configuration. Follow these steps exactly:
-        1.  Open the configuration file on your server:
-            ```bash
-            sudo nano /etc/nginx/sites-available/abexch.live
-            ```
-        2.  Find the line that starts with `root`. It will look like `root /path/to/your/project;`.
-        3.  Ensure the line reads **exactly**:
-            ```nginx
-            root /var/www/html/A-babaexch/dist;
-            ```
-        4.  Save the file (`Ctrl+X`, then `Y`, then `Enter`).
-        5.  Test the Nginx configuration for errors:
-            ```bash
-            sudo nginx -t
-            ```
-        6.  If the test is successful, restart Nginx to apply the change:
-            ```bash
-            sudo systemctl restart nginx
-            ```
-        7.  Finally, clear your browser's cache completely (a hard refresh with `Ctrl+Shift+R` or `Cmd+Shift+R` is recommended) and reload your website. The error should be gone.
+    -   **Solution**: The error page itself contains the exact steps to fix this. You must edit your Nginx configuration and change the `root` directive to point to the correct `/dist` directory.
+        1.  Open the configuration file on your server: `sudo nano /etc/nginx/sites-available/abexch.live`
+        2.  Find the line `root /var/www/html/A-babaexch;`
+        3.  Change it to **`root /var/www/html/A-babaexch/dist;`**
+        4.  Save the file, then restart Nginx: `sudo systemctl restart nginx`
+        5.  Clear your browser's cache completely and reload your website. The error will be gone.
