@@ -13,7 +13,6 @@ app.use(cors());
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const PORT = 3001; // Hardcode to match Nginx and documentation
 const API_KEY = process.env.API_KEY;
 
 // --- AI SETUP ---
@@ -418,8 +417,10 @@ app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
 // --- MAIN ---
 const startServer = () => {
   database.connect();
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  // The port is hardcoded here to ensure it matches the Nginx config and deployment guide.
+  // This avoids conflicts from environment variables.
+  app.listen(3001, () => {
+    console.log(`Server running on http://localhost:3001`);
   });
 };
 
