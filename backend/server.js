@@ -1,3 +1,4 @@
+console.log('--- EXECUTING LATEST SERVER.JS - PORT IS HARDCODED TO 3001 ---');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -420,7 +421,7 @@ const startServer = () => {
   // The port is hardcoded here to ensure it matches the Nginx config and deployment guide.
   // This avoids conflicts from environment variables.
   app.listen(3001, () => {
-    console.log(`Server running on http://localhost:3001`);
+    console.log('>>> A-BABA BACKEND IS LIVE ON PORT 3001 <<<');
   });
 };
 
