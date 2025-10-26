@@ -225,8 +225,7 @@ interface DealerPanelProps {
   toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
 }
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: allUsers, onSaveUser, topUpUserWallet, toggleAccountRestriction }) => {
-  const myUsers = allUsers.filter(u => u.dealerId === dealer.id);
+const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSaveUser, topUpUserWallet, toggleAccountRestriction }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
@@ -361,7 +360,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: allUsers, onSa
       )}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedUser ? "Edit User" : "Create User"}>
-        <UserForm user={selectedUser} users={allUsers} onSave={handleSaveUser} onCancel={() => setIsModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerId={dealer.id} />
+        <UserForm user={selectedUser} users={myUsers} onSave={handleSaveUser} onCancel={() => setIsModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerId={dealer.id} />
       </Modal>
 
       <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up User Wallet">
