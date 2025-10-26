@@ -179,7 +179,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         if (!game) return [];
         if (game.name === 'AK' || game.name === 'LS2') return [SubGameType.OneDigitOpen];
         if (game.name === 'AKC' || game.name === 'LS3') return [SubGameType.OneDigitClose];
-        // Allow Bulk game for all 2-digit compatible games
+        // Allow Bulk and Combo game for all 2-digit compatible games
         return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
     }, [game]);
 
