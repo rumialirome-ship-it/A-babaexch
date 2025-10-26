@@ -231,6 +231,101 @@ const getFinancialSummary = () => {
     };
 };
 
+const createDealer = (dealerData) => {
+    const existing = db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(dealerData.id.toLowerCase());
+    if (existing) {
+        throw { status: 400, message: "This Dealer Login ID is already taken." };
+    }
+    const initialAmount = dealerData.wallet || 0;
+    db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, isRestricted, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(dealerData.id, dealerData.name, dealerData.password, dealerData.area, dealerData.contact, 0, dealerData.commissionRate, 0, JSON.stringify(dealerData.prizeRates), dealerData.avatarUrl);
+
+    addLedgerEntry(dealerData.id, 'DEALER', initialAmount > 0 ? 'Initial Deposit' : 'Account Created', 0, initialAmount);
+    return findAccountById(dealerData.id, 'dealers');
+};
+
+const updateDealer = (dealerData, originalId) => {
+    const dealer = db.prepare('SELECT * FROM dealers WHERE id = ?').get(originalId);
+    if (!dealer) {
+        throw { status: 404, message: 'Dealer not found.' };
+    }
+    const idChanged = dealerData.id !== originalId;
+    if (idChanged) {
+        const existing = db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(dealerData.id.toLowerCase());
+        if (existing) {
+            throw { status: 400, message: 'Dealer Login ID already taken.' };
+        }
+    }
+    const updatedDealer = { ...dealer, ...dealerData };
+    db.prepare('UPDATE dealers SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, avatarUrl = ? WHERE id = ?')
+        .run(updatedDealer.id, updatedDealer.name, updatedDealer.password, updatedDealer.area, updatedDealer.contact, updatedDealer.commissionRate, JSON.stringify(updatedDealer.prizeRates), updatedDealer.avatarUrl, originalId);
+    if (idChanged) {
+        db.prepare('UPDATE users SET dealerId = ? WHERE dealerId = ?').run(updatedDealer.id, originalId);
+    }
+    return findAccountById(updatedDealer.id, 'dealers');
+};
+
+const createUser = (userData, dealerId, initialDeposit) => {
+    const dealer = findAccountById(dealerId, 'dealers');
+    if (!dealer) throw { status: 404, message: 'Dealer not found.' };
+
+    const existingUser = db.prepare('SELECT id FROM users WHERE lower(id) = ?').get(userData.id.toLowerCase());
+    if (existingUser) throw { status: 400, message: "This User Login ID is already taken." };
+
+    if (initialDeposit > 0 && dealer.wallet < initialDeposit) {
+        throw { status: 400, message: `Insufficient funds for initial deposit. Available: ${dealer.wallet}` };
+    }
+    const newUser = { ...userData, wallet: 0, isRestricted: 0 };
+    db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimit, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(newUser.id, newUser.name, newUser.password, newUser.dealerId, newUser.area, newUser.contact, 0, newUser.commissionRate, 0, JSON.stringify(newUser.prizeRates), newUser.betLimit, newUser.avatarUrl);
+
+    if (initialDeposit > 0) {
+        addLedgerEntry(dealer.id, 'DEALER', `Initial Deposit for new user: ${newUser.name}`, initialDeposit, 0);
+        addLedgerEntry(newUser.id, 'USER', `Initial Deposit from Dealer: ${dealer.name}`, 0, initialDeposit);
+    } else {
+        addLedgerEntry(newUser.id, 'USER', 'Account Created', 0, 0);
+    }
+    return findAccountById(newUser.id, 'users');
+};
+
+const updateUser = (userData, userId, dealerId) => {
+    const user = db.prepare('SELECT * FROM users WHERE id = ? AND dealerId = ?').get(userId, dealerId);
+    if (!user) throw { status: 404, message: "User not found or you don't have permission." };
+
+    const updatedUser = { ...user, ...userData };
+    const stmt = db.prepare('UPDATE users SET name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimit = ?, avatarUrl = ? WHERE id = ?');
+    stmt.run(updatedUser.name, updatedUser.password, updatedUser.area, updatedUser.contact, updatedUser.commissionRate, JSON.stringify(updatedUser.prizeRates), updatedUser.betLimit, updatedUser.avatarUrl, userId);
+
+    return findAccountById(userId, 'users');
+};
+
+const findUserByDealer = (userId, dealerId) => {
+     const user = db.prepare('SELECT * FROM users WHERE id = ? AND dealerId = ?').get(userId, dealerId);
+     return user;
+}
+
+const toggleUserRestrictionByDealer = (userId, dealerId) => {
+    const user = db.prepare('SELECT isRestricted FROM users WHERE id = ? AND dealerId = ?').get(userId, dealerId);
+    if (!user) throw { status: 404, message: 'User not found or you do not have permission.' };
+    
+    const newStatus = !user.isRestricted;
+    db.prepare('UPDATE users SET isRestricted = ? WHERE id = ?').run(newStatus ? 1 : 0, userId);
+    
+    return findAccountById(userId, 'users');
+};
+
+const toggleAccountRestrictionByAdmin = (accountId, accountType) => {
+    const table = accountType === 'user' ? 'users' : 'dealers';
+    const account = db.prepare(`SELECT isRestricted FROM ${table} WHERE id = ?`).get(accountId);
+    if (!account) throw { status: 404, message: 'Account not found.' };
+    
+    const newStatus = !account.isRestricted;
+    db.prepare(`UPDATE ${table} SET isRestricted = ? WHERE id = ?`).run(newStatus ? 1 : 0, accountId);
+    
+    return findAccountById(accountId, table);
+};
+
+
 module.exports = {
     connect,
     verifySchema,
@@ -242,5 +337,12 @@ module.exports = {
     runInTransaction,
     addLedgerEntry,
     getFinancialSummary,
-    db, // Export db for complex transactions
+    createDealer,
+    updateDealer,
+    createUser,
+    updateUser,
+    findUserByDealer,
+    toggleUserRestrictionByDealer,
+    toggleAccountRestrictionByAdmin,
+    db, // Export db for complex transactions that don't have dedicated functions yet
 };

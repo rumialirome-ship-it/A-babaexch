@@ -192,37 +192,12 @@ app.get('/api/dealer/data', authMiddleware, (req, res) => {
 app.post('/api/dealer/users', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     const { userData, initialDeposit = 0 } = req.body;
-    
     try {
+        let newUser;
         database.runInTransaction(() => {
-            const dealer = database.findAccountById(req.user.id, 'dealers');
-            if (!dealer) throw { status: 404, message: 'Dealer not found.' };
-
-            const existingUser = database.db.prepare('SELECT id FROM users WHERE lower(id) = ?').get(userData.id.toLowerCase());
-            if (existingUser) throw { status: 400, message: "This User Login ID is already taken." };
-
-            if (initialDeposit > 0 && dealer.wallet < initialDeposit) {
-                throw { status: 400, message: `Insufficient funds for initial deposit. Available: ${dealer.wallet}` };
-            }
-
-            const newUser = {
-                ...userData,
-                wallet: 0,
-                isRestricted: 0,
-            };
-
-            database.db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimit, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                .run(newUser.id, newUser.name, newUser.password, newUser.dealerId, newUser.area, newUser.contact, 0, newUser.commissionRate, 0, JSON.stringify(newUser.prizeRates), newUser.betLimit, newUser.avatarUrl);
-
-            if (initialDeposit > 0) {
-                database.addLedgerEntry(dealer.id, 'DEALER', `Initial Deposit for new user: ${newUser.name}`, initialDeposit, 0);
-                database.addLedgerEntry(newUser.id, 'USER', `Initial Deposit from Dealer: ${dealer.name}`, 0, initialDeposit);
-            } else {
-                database.addLedgerEntry(newUser.id, 'USER', 'Account Created', 0, 0);
-            }
-            
-            res.status(201).json(database.findAccountById(newUser.id, 'users'));
+            newUser = database.createUser(userData, req.user.id, initialDeposit);
         });
+        res.status(201).json(newUser);
     } catch (error) {
         res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
     }
@@ -231,16 +206,15 @@ app.post('/api/dealer/users', authMiddleware, (req, res) => {
 app.put('/api/dealer/users/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     const userData = req.body;
-    
-    const user = database.db.prepare('SELECT * FROM users WHERE id = ? AND dealerId = ?').get(req.params.id, req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found or you don't have permission." });
-
-    const updatedUser = { ...user, ...userData };
-
-    const stmt = database.db.prepare('UPDATE users SET name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimit = ?, avatarUrl = ? WHERE id = ?');
-    stmt.run(updatedUser.name, updatedUser.password, updatedUser.area, updatedUser.contact, updatedUser.commissionRate, JSON.stringify(updatedUser.prizeRates), updatedUser.betLimit, updatedUser.avatarUrl, req.params.id);
-
-    res.json(database.findAccountById(req.params.id, 'users'));
+    try {
+        let updatedUser;
+        database.runInTransaction(() => {
+            updatedUser = database.updateUser(userData, req.params.id, req.user.id);
+        });
+        res.json(updatedUser);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
 });
 
 app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
@@ -250,7 +224,7 @@ app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
     try {
         database.runInTransaction(() => {
             const dealer = database.findAccountById(req.user.id, 'dealers');
-            const user = database.db.prepare('SELECT * FROM users WHERE id = ? AND dealerId = ?').get(userId, req.user.id);
+            const user = database.findUserByDealer(userId, req.user.id);
             
             if (!user) throw { status: 404, message: "User not found." };
             if (!dealer || dealer.wallet < amount) throw { status: 400, message: "Insufficient funds." };
@@ -267,13 +241,12 @@ app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
 
 app.put('/api/dealer/users/:id/toggle-restriction', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    const user = database.db.prepare('SELECT isRestricted FROM users WHERE id = ? AND dealerId = ?').get(req.params.id, req.user.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    
-    const newStatus = !user.isRestricted;
-    database.db.prepare('UPDATE users SET isRestricted = ? WHERE id = ?').run(newStatus ? 1 : 0, req.params.id);
-    
-    res.json(database.findAccountById(req.params.id, 'users'));
+    try {
+        const updatedUser = database.toggleUserRestrictionByDealer(req.params.id, req.user.id);
+        res.json(updatedUser);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
 });
 
 
@@ -302,22 +275,12 @@ app.get('/api/admin/summary', authMiddleware, (req, res) => {
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     const dealerData = req.body;
-    
     try {
+        let newDealer;
         database.runInTransaction(() => {
-            const existing = database.db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(dealerData.id.toLowerCase());
-            if (existing) {
-                throw { status: 400, message: "This Dealer Login ID is already taken." };
-            }
-
-            const initialAmount = dealerData.wallet || 0;
-            database.db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, isRestricted, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                .run(dealerData.id, dealerData.name, dealerData.password, dealerData.area, dealerData.contact, 0, dealerData.commissionRate, 0, JSON.stringify(dealerData.prizeRates), dealerData.avatarUrl);
-
-            database.addLedgerEntry(dealerData.id, 'DEALER', initialAmount > 0 ? 'Initial Deposit' : 'Account Created', 0, initialAmount);
-            
-            res.status(201).json(database.findAccountById(dealerData.id, 'dealers'));
+            newDealer = database.createDealer(dealerData);
         });
+        res.status(201).json(newDealer);
     } catch (error) {
         if (!res.headersSent) {
             res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
@@ -329,33 +292,12 @@ app.put('/api/admin/dealers/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     const dealerData = req.body;
     const originalId = req.params.id;
-
     try {
+        let updatedDealer;
         database.runInTransaction(() => {
-            const dealer = database.db.prepare('SELECT * FROM dealers WHERE id = ?').get(originalId);
-            if (!dealer) {
-                throw { status: 404, message: 'Dealer not found.' };
-            }
-
-            const idChanged = dealerData.id !== originalId;
-            if (idChanged) {
-                const existing = database.db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(dealerData.id.toLowerCase());
-                if (existing) {
-                    throw { status: 400, message: 'Dealer Login ID already taken.' };
-                }
-            }
-            
-            const updatedDealer = { ...dealer, ...dealerData };
-            
-            database.db.prepare('UPDATE dealers SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, avatarUrl = ? WHERE id = ?')
-                .run(updatedDealer.id, updatedDealer.name, updatedDealer.password, updatedDealer.area, updatedDealer.contact, updatedDealer.commissionRate, JSON.stringify(updatedDealer.prizeRates), updatedDealer.avatarUrl, originalId);
-            
-            if (idChanged) {
-                database.db.prepare('UPDATE users SET dealerId = ? WHERE dealerId = ?').run(updatedDealer.id, originalId);
-            }
-            
-            res.json(database.findAccountById(updatedDealer.id, 'dealers'));
+            updatedDealer = database.updateDealer(dealerData, originalId);
         });
+        res.json(updatedDealer);
     } catch (error) {
         if (!res.headersSent) {
             res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
@@ -368,7 +310,7 @@ app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
     const { dealerId, amount } = req.body;
 
     database.runInTransaction(() => {
-        const dealer = database.db.prepare('SELECT * FROM dealers WHERE id = ?').get(dealerId);
+        const dealer = database.findAccountById(dealerId, 'dealers');
         if (!dealer) return res.status(404).json({ message: 'Dealer not found.' });
         database.addLedgerEntry(dealerId, 'DEALER', 'Admin Top-Up', 0, amount);
         res.json({ message: 'Top-up successful' });
@@ -377,16 +319,13 @@ app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
 
 app.put('/api/admin/accounts/:type/:id/toggle-restriction', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
-    const { type, id } = req.params;
-    const table = type === 'user' ? 'users' : 'dealers';
-    
-    const account = database.db.prepare(`SELECT isRestricted FROM ${table} WHERE id = ?`).get(id);
-    if (!account) return res.status(404).json({ message: 'Account not found.' });
-    
-    const newStatus = !account.isRestricted;
-    database.db.prepare(`UPDATE ${table} SET isRestricted = ? WHERE id = ?`).run(newStatus ? 1 : 0, id);
-    
-    res.json(database.findAccountById(id, table));
+    try {
+        const { type, id } = req.params;
+        const updatedAccount = database.toggleAccountRestrictionByAdmin(id, type);
+        res.json(updatedAccount);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
 });
 
 app.post('/api/admin/games/:id/declare-winner', authMiddleware, (req, res) => {
