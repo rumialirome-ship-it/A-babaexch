@@ -3,32 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>A-Baba Exchange - Deployment Error</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>A-Baba Exchange</title>
     <meta name="description" content="A digital lottery platform where Admins manage Dealers, Dealers manage Users, and Users play various daily games using a wallet system." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
-    <style>
-      body { background-color: #0c111d; color: #e2e8f0; font-family: 'Consolas', 'Monaco', monospace; line-height: 1.6; padding: 2rem; }
-      .container { max-width: 900px; margin: 0 auto; border: 4px solid #f87171; background-color: #1a2233; box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }
-      .header { background-color: #f87171; color: #1a2233; padding: 1rem 2rem; font-size: 1.25rem; font-weight: bold; display: flex; align-items: center; font-family: 'Russo One', sans-serif; }
-      .header svg { width: 32px; height: 32px; margin-right: 1rem; }
-      .content { padding: 2.5rem; }
-      h2 { font-size: 1.75rem; color: #fca5a5; margin-bottom: 1.5rem; border-bottom: 2px solid #475569; padding-bottom: 0.5rem; font-family: 'Russo One', sans-serif; }
-      p, li { font-size: 1.1rem; margin-bottom: 1rem; }
-      code, pre, kbd { background-color: #293548; padding: 0.2em 0.4em; border-radius: 4px; font-size: 1rem; }
-      pre { padding: 1rem; white-space: pre-wrap; word-break: break-all; border: 1px solid #475569; }
-      kbd { padding: 0.2em 0.6em; border: 1px solid #94a3b8; box-shadow: 1px 1px 0 #94a3b8; }
-      .highlight-bad { color: #fda4af; background-color: #9f123955; border: 1px solid #f43f5e; }
-      .highlight-good { color: #a7f3d0; background-color: #064e3b55; border: 1px solid #34d399; }
-      .directory-structure { background-color: #0f172a; border: 1px solid #334155; padding: 1.5rem; border-radius: 8px; margin: 2rem 0; }
-      .directory-structure h3 { font-size: 1.25rem; color: #94a3b8; margin-bottom: 1rem; font-family: 'Russo One', sans-serif;}
-      .directory-structure pre { background: none; border: none; padding: 0; font-size: 1.1rem; }
-      .dir-wrong { color: #f87171; font-weight: bold; }
-      .dir-right { color: #4ade80; font-weight: bold; }
-      li::marker { color: #67e8f9; font-weight: bold; }
-    </style>
   <script type="importmap">
 {
   "imports": {
@@ -43,58 +22,7 @@
 </head>
   <body class="bg-slate-900">
     <div class="animated-bg"></div>
-    <div id="root">
-        <div class="container">
-          <div class="header">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
-            <span>CRITICAL DEPLOYMENT MISCONFIGURATION</span>
-          </div>
-          <div class="content">
-            <h2>What's Wrong?</h2>
-            <p>Your web server (Nginx) is pointing to the wrong directory.</p>
-            <p>It's showing this development placeholder page instead of the final, compiled application. This is why you see a <code class="highlight-bad">MIME type</code> error in your browser's console.</p>
-            
-            <div class="directory-structure">
-              <h3>Server Directory Structure:</h3>
-              <pre>
-/var/www/html/A-babaexch/
-├── backend/
-├── node_modules/
-├── <span class="dir-wrong">index.html  &lt;-- WRONG: Your server points here & serves this page.</span>
-└── dist/
-    └── <span class="dir-right">index.html  &lt;-- RIGHT: The REAL application is in here.</span></pre>
-            </div>
-      
-            <h2>How to Fix It</h2>
-            <p>You must change a single line in your Nginx configuration to point to the correct <code class="highlight-good">dist</code> folder.</p>
-            
-            <ol style="list-style-type: decimal; padding-left: 2rem; margin-top: 1.5rem;">
-              <li>SSH into your server and open this file:
-                <pre>sudo nano /etc/nginx/sites-available/abexch.live</pre>
-              </li>
-              <li>
-                Find the <span style="font-weight: bold; color: white;">INCORRECT</span> line that looks like this:
-                <pre class="highlight-bad">root /var/www/html/A-babaexch;</pre>
-              </li>
-              <li>
-                Change it to the <span style="font-weight: bold; color: white;">CORRECT</span> path:
-                <pre class="highlight-good">root /var/www/html/A-babaexch/dist;</pre>
-              </li>
-              <li>
-                Save the file (in nano: <kbd>Ctrl</kbd>+<kbd>X</kbd>, then <kbd>Y</kbd>, then <kbd>Enter</kbd>).
-              </li>
-              <li>
-                Restart Nginx to apply the change:
-                <pre>sudo systemctl restart nginx</pre>
-              </li>
-              <li>
-                <span style="font-weight: bold; color: white;">Finally, clear your browser's cache completely</span> and reload the website. The error will be gone.
-              </li>
-            </ol>
-          </div>
-        </div>
-    </div>
-    <!-- This script will fail to load due to the incorrect server config, keeping the error message visible. -->
+    <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

@@ -288,22 +288,41 @@ app.get('/api/admin/data', authMiddleware, (req, res) => {
     });
 });
 
+app.get('/api/admin/summary', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try {
+        const summary = database.getFinancialSummary();
+        res.json(summary);
+    } catch (error) {
+        console.error("Error generating financial summary:", error);
+        res.status(500).json({ message: "Failed to generate financial summary." });
+    }
+});
+
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     const dealerData = req.body;
     
-    database.runInTransaction(() => {
-        const existing = database.db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(dealerData.id.toLowerCase());
-        if (existing) return res.status(400).json({ message: "This Dealer Login ID is already taken." });
+    try {
+        database.runInTransaction(() => {
+            const existing = database.db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(dealerData.id.toLowerCase());
+            if (existing) {
+                throw { status: 400, message: "This Dealer Login ID is already taken." };
+            }
 
-        const initialAmount = dealerData.wallet || 0;
-        database.db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, isRestricted, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-            .run(dealerData.id, dealerData.name, dealerData.password, dealerData.area, dealerData.contact, 0, dealerData.commissionRate, 0, JSON.stringify(dealerData.prizeRates), dealerData.avatarUrl);
+            const initialAmount = dealerData.wallet || 0;
+            database.db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, isRestricted, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                .run(dealerData.id, dealerData.name, dealerData.password, dealerData.area, dealerData.contact, 0, dealerData.commissionRate, 0, JSON.stringify(dealerData.prizeRates), dealerData.avatarUrl);
 
-        database.addLedgerEntry(dealerData.id, 'DEALER', initialAmount > 0 ? 'Initial Deposit' : 'Account Created', 0, initialAmount);
-        
-        res.status(201).json(database.findAccountById(dealerData.id, 'dealers'));
-    });
+            database.addLedgerEntry(dealerData.id, 'DEALER', initialAmount > 0 ? 'Initial Deposit' : 'Account Created', 0, initialAmount);
+            
+            res.status(201).json(database.findAccountById(dealerData.id, 'dealers'));
+        });
+    } catch (error) {
+        if (!res.headersSent) {
+            res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+        }
+    }
 });
 
 app.put('/api/admin/dealers/:id', authMiddleware, (req, res) => {
@@ -311,27 +330,37 @@ app.put('/api/admin/dealers/:id', authMiddleware, (req, res) => {
     const dealerData = req.body;
     const originalId = req.params.id;
 
-    database.runInTransaction(() => {
-        const dealer = database.db.prepare('SELECT * FROM dealers WHERE id = ?').get(originalId);
-        if (!dealer) return res.status(404).json({ message: 'Dealer not found.' });
+    try {
+        database.runInTransaction(() => {
+            const dealer = database.db.prepare('SELECT * FROM dealers WHERE id = ?').get(originalId);
+            if (!dealer) {
+                throw { status: 404, message: 'Dealer not found.' };
+            }
 
-        const idChanged = dealerData.id !== originalId;
-        if (idChanged) {
-            const existing = database.db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(dealerData.id.toLowerCase());
-            if (existing) return res.status(400).json({ message: 'Dealer Login ID already taken.' });
+            const idChanged = dealerData.id !== originalId;
+            if (idChanged) {
+                const existing = database.db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(dealerData.id.toLowerCase());
+                if (existing) {
+                    throw { status: 400, message: 'Dealer Login ID already taken.' };
+                }
+            }
+            
+            const updatedDealer = { ...dealer, ...dealerData };
+            
+            database.db.prepare('UPDATE dealers SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, avatarUrl = ? WHERE id = ?')
+                .run(updatedDealer.id, updatedDealer.name, updatedDealer.password, updatedDealer.area, updatedDealer.contact, updatedDealer.commissionRate, JSON.stringify(updatedDealer.prizeRates), updatedDealer.avatarUrl, originalId);
+            
+            if (idChanged) {
+                database.db.prepare('UPDATE users SET dealerId = ? WHERE dealerId = ?').run(updatedDealer.id, originalId);
+            }
+            
+            res.json(database.findAccountById(updatedDealer.id, 'dealers'));
+        });
+    } catch (error) {
+        if (!res.headersSent) {
+            res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
         }
-        
-        const updatedDealer = { ...dealer, ...dealerData };
-        
-        database.db.prepare('UPDATE dealers SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, avatarUrl = ? WHERE id = ?')
-            .run(updatedDealer.id, updatedDealer.name, updatedDealer.password, updatedDealer.area, updatedDealer.contact, updatedDealer.commissionRate, JSON.stringify(updatedDealer.prizeRates), updatedDealer.avatarUrl, originalId);
-        
-        if (idChanged) {
-            database.db.prepare('UPDATE users SET dealerId = ? WHERE dealerId = ?').run(updatedDealer.id, originalId);
-        }
-        
-        res.json(database.findAccountById(updatedDealer.id, 'dealers'));
-    });
+    }
 });
 
 app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {

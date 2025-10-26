@@ -1,8 +1,33 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet } from '../types';
 import { Icons } from '../constants';
+import { useAuth } from '../hooks/useAuth';
 
-// Internal components
+// --- TYPE DEFINITIONS FOR NEW DASHBOARD ---
+interface GameSummary {
+  gameName: string;
+  winningNumber: string;
+  totalStake: number;
+  totalPayouts: number;
+  totalDealerProfit: number;
+  totalCommissions: number;
+  netProfit: number;
+}
+
+interface FinancialSummary {
+  games: GameSummary[];
+  totals: {
+    totalStake: number;
+    totalPayouts: number;
+    totalDealerProfit: number;
+    totalCommissions: number;
+    netProfit: number;
+  };
+  totalBets: number;
+}
+
+
+// --- INTERNAL COMPONENTS (UNCHANGED) ---
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'cyan' }) => {
     if (!isOpen) return null;
     const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
@@ -211,8 +236,75 @@ const TopUpForm: React.FC<{ dealers: Dealer[]; onTopUp: (dealerId: string, amoun
     );
 };
 
+// --- NEW DASHBOARD COMPONENT ---
+const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: {name: string, wallet: number} }> = ({ summary, admin }) => {
+    if (!summary) {
+        return <div className="text-center p-8 text-slate-400">Loading financial summary...</div>;
+    }
+
+    const SummaryCard: React.FC<{ title: string; value: number; color: string }> = ({ title, value, color }) => (
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+            <p className="text-sm text-slate-400 uppercase tracking-wider">{title}</p>
+            <p className={`text-3xl font-bold font-mono ${color}`}>{value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+    );
+    
+    return (
+        <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Financial Dashboard</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <SummaryCard title="System Wallet" value={admin.wallet} color="text-cyan-400" />
+                <SummaryCard title="Total Bets Placed" value={summary.totals.totalStake} color="text-white" />
+                <SummaryCard title="Total Prize Payouts" value={summary.totals.totalPayouts} color="text-amber-400" />
+                <SummaryCard title="Net System Profit" value={summary.totals.netProfit} color={summary.totals.netProfit >= 0 ? "text-green-400" : "text-red-400"} />
+            </div>
+
+            <h3 className="text-xl font-semibold text-white mb-4">Game-by-Game Breakdown</h3>
+            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-800/50">
+                            <tr>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Payouts</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Dealer Profit</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Commissions</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Net Profit</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {summary.games.map(game => (
+                                <tr key={game.gameName} className="hover:bg-cyan-500/10 transition-colors">
+                                    <td className="p-4 font-medium text-white">{game.gameName} <span className="text-xs text-slate-400">({game.winningNumber})</span></td>
+                                    <td className="p-4 text-right font-mono text-white">{game.totalStake.toFixed(2)}</td>
+                                    <td className="p-4 text-right font-mono text-amber-400">{game.totalPayouts.toFixed(2)}</td>
+                                    <td className="p-4 text-right font-mono text-emerald-400">{game.totalDealerProfit.toFixed(2)}</td>
+                                    <td className="p-4 text-right font-mono text-sky-400">{game.totalCommissions.toFixed(2)}</td>
+                                    <td className={`p-4 text-right font-mono font-bold ${game.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>{game.netProfit.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-slate-800/50 border-t-2 border-slate-600">
+                            <tr className="font-bold text-white">
+                                <td className="p-4 text-sm uppercase">Grand Total</td>
+                                <td className="p-4 text-right font-mono">{summary.totals.totalStake.toFixed(2)}</td>
+                                <td className="p-4 text-right font-mono text-amber-300">{summary.totals.totalPayouts.toFixed(2)}</td>
+                                <td className="p-4 text-right font-mono text-emerald-300">{summary.totals.totalDealerProfit.toFixed(2)}</td>
+                                <td className="p-4 text-right font-mono text-sky-300">{summary.totals.totalCommissions.toFixed(2)}</td>
+                                <td className={`p-4 text-right font-mono ${summary.totals.netProfit >= 0 ? "text-green-300" : "text-red-300"}`}>{summary.totals.netProfit.toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 interface AdminPanelProps {
-  admin: { name: string, prizeRates: PrizeRates }; 
+  admin: { name: string, prizeRates: PrizeRates, wallet: number }; 
   dealers: Dealer[]; 
   onSaveDealer: (dealer: Dealer, originalId?: string) => Promise<void>;
   users: User[]; 
@@ -226,7 +318,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, approvePayouts, topUpDealerWallet, toggleAccountRestriction }) => {
-  const [activeTab, setActiveTab] = useState('dealers');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
   const [winningNumbers, setWinningNumbers] = useState<{[key: string]: string}>({});
@@ -235,6 +327,26 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [betSearchQuery, setBetSearchQuery] = useState('');
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
+  const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
+  const { fetchWithAuth } = useAuth();
+  
+  useEffect(() => {
+    const fetchSummary = async () => {
+      try {
+        const response = await fetchWithAuth('/api/admin/summary');
+        if (!response.ok) throw new Error('Failed to fetch summary');
+        const data = await response.json();
+        setSummaryData(data);
+      } catch (error) {
+        console.error("Error fetching financial summary:", error);
+      }
+    };
+
+    if (activeTab === 'dashboard') {
+      fetchSummary();
+    }
+  }, [activeTab, fetchWithAuth]);
+
 
   const handleSaveDealer = async (dealerData: Dealer, originalId?: string) => {
       try {
@@ -286,8 +398,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const searchSummary = useMemo(() => !betSearchQuery.trim() || filteredBets.length === 0 ? null : { number: betSearchQuery.trim(), count: filteredBets.length, totalStake: filteredBets.reduce((s, b) => s + b.amount, 0) }, [filteredBets, betSearchQuery]);
 
   const tabs = [
-    { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, { id: 'games', label: 'Games', icon: Icons.gamepad },
-    { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search }, { id: 'users', label: 'Users', icon: Icons.clipboardList },
+    { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
+    { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
+    { id: 'games', label: 'Games', icon: Icons.gamepad },
+    { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search }, 
+    { id: 'users', label: 'Users', icon: Icons.clipboardList },
     { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
   ];
 
@@ -301,6 +416,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
           </button>
         ))}
       </div>
+      
+      {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
 
       {activeTab === 'dealers' && (
         <div>
