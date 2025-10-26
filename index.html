@@ -23,27 +23,31 @@
 </head>
   <body class="bg-slate-900">
     <div class="animated-bg"></div>
-    <div id="root"></div>
-    <!--
-  /======================================================================================\
-  |                                                                                      |
-  |   ██     ██ ██ ███    ██  ██████  ██ ███    ███ ███    ███  ██████  ████████ ███████   |
-  |   ██     ██ ██ ████   ██ ██    ██ ██ ████  ████ ████  ████ ██    ██    ██    ██        |
-  |   ██  █  ██ ██ ██ ██  ██ ██    ██ ██ ██ ████ ██ ██ ████ ██ ██    ██    ██    ███████   |
-  |   ██ ███ ██ ██ ██  ██ ██ ██    ██ ██ ██  ██  ██ ██  ██  ██ ██    ██    ██         ██   |
-  |    ███ ███  ██ ██   ████  ██████  ██ ██      ██ ██      ██  ██████     ██    ███████   |
-  |                                                                                      |
-  |                                                                                      |
-  |    >>>>>  THIS IS A DEVELOPMENT FILE AND MUST NOT BE SERVED IN PRODUCTION  <<<<<     |
-  |                                                                                      |
-  |    Your web server (Nginx) is configured incorrectly. It MUST serve the index.html   |
-  |    from the `/dist` folder, which is created after running `npm run build`.          |
-  |                                                                                      |
-  |    CORRECT NGINX ROOT: /var/www/html/A-babaexch/dist                                 |
-  |    INCORRECT NGINX ROOT: /var/www/html/A-babaexch                                    |
-  |                                                                                      |
-  \======================================================================================/
--->
+    <div id="root">
+      <!-- THIS CONTENT IS REPLACED BY REACT ON SUCCESSFUL LOAD -->
+      <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background-color: #020617; color: white; font-family: monospace; padding: 2rem; z-index: 100;">
+        <div style="border: 4px dashed #ef4444; padding: 2rem; max-width: 800px; text-align: left; background-color: #1e293b;">
+          <h1 style="color: #ef4444; font-size: 2rem; margin-bottom: 1rem; font-family: 'Russo One', sans-serif;">[CRITICAL DEPLOYMENT ERROR]</h1>
+          <p style="font-size: 1.1rem; line-height: 1.6;">You are seeing this message because the web server (Nginx) is configured incorrectly.</p>
+          <p style="font-size: 1.1rem; line-height: 1.6; margin-top: 1rem;">It is serving the wrong <code style="background: #334155; padding: 2px 5px; border-radius: 4px;">index.html</code> file. You MUST configure it to serve the production-ready files from the <code style="background: #334155; padding: 2px 5px; border-radius: 4px;">/dist</code> folder.</p>
+          
+          <div style="background-color: #0f172a; padding: 1.5rem; margin-top: 2rem; border-radius: 8px; border: 1px solid #334155">
+            <h2 style="color: #f87171; font-size: 1.25rem; margin-bottom: 0.5rem; font-family: 'Russo One', sans-serif;">ACTION REQUIRED: Fix Nginx Configuration</h2>
+            <p style="margin-bottom: 1rem;">1. SSH into your server.</p>
+            <p style="margin-bottom: 1rem;">2. Open this file with a text editor (like nano):</p>
+            <pre style="background: #334155; padding: 0.75rem; border-radius: 4px; color: #e2e8f0; word-break: break-all;">sudo nano /etc/nginx/sites-available/abexch.live</pre>
+            <p style="margin-bottom: 0.5rem; margin-top: 1.5rem;">3. Find this INCORRECT line:</p>
+            <pre style="background: #475569; padding: 0.75rem; border-radius: 4px; color: #fecaca;">root /var/www/html/A-babaexch;</pre>
+            <p style="margin-bottom: 0.5rem; margin-top: 1.5rem;">4. Change it to this CORRECT line:</p>
+            <pre style="background: #475569; padding: 0.75rem; border-radius: 4px; color: #a7f3d0;">root /var/www/html/A-babaexch/dist;</pre>
+            <p style="margin-top: 1.5rem;">5. Save the file, then restart Nginx:</p>
+            <pre style="background: #334155; padding: 0.75rem; border-radius: 4px; color: #e2e8f0;">sudo systemctl restart nginx</pre>
+          </div>
+          <p style="margin-top: 2rem; font-size: 0.9rem; color: #94a3b8;">For more details, see the Troubleshooting section in the <code style="background: #334155; padding: 2px 5px; border-radius: 4px;">README.md</code> file.</p>
+        </div>
+      </div>
+    </div>
+    <!-- The script below will FAIL to load due to the incorrect server config, keeping the error message above visible. -->
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

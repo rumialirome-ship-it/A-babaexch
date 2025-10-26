@@ -336,6 +336,7 @@ When you have new code changes to deploy, follow these steps to ensure they are 
 -   **Permission Errors**: If you have issues with the database file, ensure its directory has the correct permissions: `sudo chown -R $USER:$USER /var/www/html/A-babaexch/backend`.
 -   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 reload ababa-backend`.
 -   **Blank Page or Error: `Failed to load module script... MIME type of "application/octet-stream"`**:
+    -   **Important**: The latest version of the application includes a full-screen diagnostic error message that appears if your server is misconfigured. If you see a large red "CRITICAL DEPLOYMENT ERROR" page, follow the instructions on that page to fix your Nginx `root` path.
     -   **Cause**: This is the most common deployment error. It means your Nginx web server is serving the **development** folder (`/var/www/html/A-babaexch`) instead of the **production build** folder (`/var/www/html/A-babaexch/dist`). The browser is receiving a raw TypeScript file (`.tsx`) which it cannot execute.
     -   **Solution**: You must fix your Nginx configuration. Follow these steps exactly:
         1.  Open the configuration file on your server:
