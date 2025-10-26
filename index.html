@@ -24,18 +24,26 @@
   <body class="bg-slate-900">
     <div class="animated-bg"></div>
     <div id="root"></div>
-    <!-- 
-      /*********************************************************************************\
-      |*                                                                                 *|
-      |*                             ! ! ! WARNING ! ! !                                 *|
-      |*                                                                                 *|
-      |*  This file is for DEVELOPMENT purposes only.                                    *|
-      |*  For PRODUCTION, you MUST build the project by running `npm run build` and      *|
-      |*  configure your web server (e.g., Nginx) to serve the `index.html` file         *|
-      |*  from the `/dist` directory, NOT from the project root.                         *|
-      |*                                                                                 *|
-      \*********************************************************************************/
-    -->
+    <!--
+  /======================================================================================\
+  |                                                                                      |
+  |   ██     ██ ██ ███    ██  ██████  ██ ███    ███ ███    ███  ██████  ████████ ███████   |
+  |   ██     ██ ██ ████   ██ ██    ██ ██ ████  ████ ████  ████ ██    ██    ██    ██        |
+  |   ██  █  ██ ██ ██ ██  ██ ██    ██ ██ ██ ████ ██ ██ ████ ██ ██    ██    ██    ███████   |
+  |   ██ ███ ██ ██ ██  ██ ██ ██    ██ ██ ██  ██  ██ ██  ██  ██ ██    ██    ██         ██   |
+  |    ███ ███  ██ ██   ████  ██████  ██ ██      ██ ██      ██  ██████     ██    ███████   |
+  |                                                                                      |
+  |                                                                                      |
+  |    >>>>>  THIS IS A DEVELOPMENT FILE AND MUST NOT BE SERVED IN PRODUCTION  <<<<<     |
+  |                                                                                      |
+  |    Your web server (Nginx) is configured incorrectly. It MUST serve the index.html   |
+  |    from the `/dist` folder, which is created after running `npm run build`.          |
+  |                                                                                      |
+  |    CORRECT NGINX ROOT: /var/www/html/A-babaexch/dist                                 |
+  |    INCORRECT NGINX ROOT: /var/www/html/A-babaexch                                    |
+  |                                                                                      |
+  \======================================================================================/
+-->
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
