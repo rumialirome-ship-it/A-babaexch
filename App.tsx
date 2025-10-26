@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates } from './types';
 import { Icons, GAME_LOGOS } from './constants';
@@ -141,6 +140,25 @@ const AppContent: React.FC = () => {
         }
     }, [fetchWithAuth, fetchData]);
 
+    const onSaveDealer = useCallback(async (dealerData: Dealer, originalId?: string) => {
+        try {
+            let response;
+            if (originalId) {
+                response = await fetchWithAuth(`/api/admin/dealers/${originalId}`, { method: 'PUT', body: JSON.stringify(dealerData) });
+            } else {
+                response = await fetchWithAuth('/api/admin/dealers', { method: 'POST', body: JSON.stringify(dealerData) });
+            }
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message);
+            }
+            await fetchData();
+        } catch (error: any) {
+            alert(`Error saving dealer: ${error.message}`);
+            throw error;
+        }
+    }, [fetchWithAuth, fetchData]);
+
     const topUpUserWallet = useCallback(async (dealerId: string, userId: string, amount: number) => {
         try {
             const response = await fetchWithAuth('/api/dealer/topup/user', { method: 'POST', body: JSON.stringify({ userId, amount }) });
@@ -229,7 +247,7 @@ const AppContent: React.FC = () => {
             <main className="flex-grow">
                 {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
                 {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} toggleAccountRestriction={toggleAccountRestriction} />}
-                {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} setDealers={setDealers} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} toggleAccountRestriction={toggleAccountRestriction} />}
+                {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} toggleAccountRestriction={toggleAccountRestriction} />}
             </main>
         </div>
     );

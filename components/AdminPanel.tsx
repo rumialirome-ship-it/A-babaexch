@@ -8,12 +8,12 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
     const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className={`bg-slate-900/80 rounded-lg shadow-2xl w-full border border-${themeColor}-500/30 ${sizeClasses[size]}`}>
-                <div className="flex justify-between items-center p-5 border-b border-slate-700">
+            <div className={`bg-slate-900/80 rounded-lg shadow-2xl w-full border border-${themeColor}-500/30 ${sizeClasses[size]} flex flex-col max-h-[90vh]`}>
+                <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
                     <h3 className={`text-lg font-bold text-${themeColor}-400 uppercase tracking-widest`}>{title}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
                 </div>
-                <div className="p-6">{children}</div>
+                <div className="p-6 overflow-y-auto">{children}</div>
             </div>
         </div>
     );
@@ -49,7 +49,7 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
 );
 
 
-const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => void; onCancel: () => void; adminPrizeRates: PrizeRates }> = ({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
+const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => Promise<void>; onCancel: () => void; adminPrizeRates: PrizeRates }> = ({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
     // For new dealers, password is part of formData. For edits, it's handled separately.
     const [formData, setFormData] = useState(() => {
         const defaults = { id: '', name: '', password: '', area: '', contact: '', commissionRate: 0, prizeRates: { ...adminPrizeRates }, avatarUrl: '', wallet: '' };
@@ -214,7 +214,7 @@ const TopUpForm: React.FC<{ dealers: Dealer[]; onTopUp: (dealerId: string, amoun
 interface AdminPanelProps {
   admin: { name: string, prizeRates: PrizeRates }; 
   dealers: Dealer[]; 
-  setDealers: React.Dispatch<React.SetStateAction<Dealer[]>>;
+  onSaveDealer: (dealer: Dealer, originalId?: string) => Promise<void>;
   users: User[]; 
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   games: Game[]; 
@@ -225,7 +225,7 @@ interface AdminPanelProps {
   toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, setDealers, users, setUsers, games, bets, declareWinner, approvePayouts, topUpDealerWallet, toggleAccountRestriction }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, approvePayouts, topUpDealerWallet, toggleAccountRestriction }) => {
   const [activeTab, setActiveTab] = useState('dealers');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -236,27 +236,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, setDealers, use
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
 
-  const handleSaveDealer = (dealerData: Dealer, originalId?: string) => {
-      if (originalId) { // This is an update
-          const idChanged = dealerData.id !== originalId;
-          if (idChanged) {
-              const idTaken = dealers.some(d => d.id.toLowerCase() === dealerData.id.toLowerCase() && d.id !== originalId);
-              if (idTaken) {
-                  alert('This Dealer Login ID is already taken. Please choose another one.');
-                  return;
+  const handleSaveDealer = async (dealerData: Dealer, originalId?: string) => {
+      try {
+          if (originalId) { // This is an update
+              const idChanged = dealerData.id !== originalId;
+              if (idChanged) {
+                  const idTaken = dealers.some(d => d.id.toLowerCase() === dealerData.id.toLowerCase() && d.id !== originalId);
+                  if (idTaken) {
+                      alert('This Dealer Login ID is already taken. Please choose another one.');
+                      return;
+                  }
+                  // Cascade ID change to users
+                  setUsers(prev => prev.map(u => u.dealerId === originalId ? { ...u, dealerId: dealerData.id } : u));
               }
-              // Cascade ID change to users
-              setUsers(prev => prev.map(u => u.dealerId === originalId ? { ...u, dealerId: dealerData.id } : u));
           }
-          setDealers(prev => prev.map(d => (d.id === originalId ? dealerData : d)));
-      } else { // This is a create
-          const initialAmount = dealerData.wallet || 0;
-          const newDealer = { ...dealerData, ledger: [{ id: `l1-${Date.now()}`, timestamp: new Date(), description: initialAmount > 0 ? 'Initial Deposit' : 'Account Created', debit: 0, credit: initialAmount, balance: initialAmount }]};
-          setDealers(prev => [...prev, newDealer]);
-      }
 
-      setIsModalOpen(false);
-      setSelectedDealer(undefined);
+          await onSaveDealer(dealerData, originalId);
+
+          setIsModalOpen(false);
+          setSelectedDealer(undefined);
+      } catch (error) {
+          console.error("Failed to save dealer:", error);
+          // Error alert is handled by the parent component, so the modal remains open for correction.
+      }
   };
 
   const handleDeclareWinner = (gameId: string) => {

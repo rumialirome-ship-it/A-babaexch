@@ -8,12 +8,12 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
      const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
     return (
         <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className={`bg-slate-900/80 rounded-lg shadow-2xl w-full m-4 border border-${themeColor}-500/30 ${sizeClasses[size]}`}>
-                <div className="flex justify-between items-center p-5 border-b border-slate-700">
+            <div className={`bg-slate-900/80 rounded-lg shadow-2xl w-full border border-${themeColor}-500/30 ${sizeClasses[size]} flex flex-col max-h-[90vh]`}>
+                <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
                     <h3 className={`text-lg font-bold text-${themeColor}-400 uppercase tracking-widest`}>{title}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
                 </div>
-                <div className="p-6">{children}</div>
+                <div className="p-6 overflow-y-auto">{children}</div>
             </div>
         </div>
     );
@@ -88,20 +88,22 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
         const betLimitValue = Number(formData.betLimit);
 
         if (user) { // Editing
-            finalData = { 
-                ...user, 
-                ...formData, 
-                // Fix: Explicitly convert `formData.wallet` to a number to satisfy the `User` type.
-                // The wallet is not editable in this form, so this ensures type correctness without changing the value.
-                wallet: Number(formData.wallet),
+            // FIX: Replaced broad `...formData` spread with explicit properties from the form
+            // to avoid type mismatch on properties like `wallet` which are not editable here.
+            finalData = {
+                ...user,
+                name: formData.name,
                 password: newPassword ? newPassword : user.password,
+                area: formData.area,
+                contact: formData.contact,
+                avatarUrl: formData.avatarUrl,
                 betLimit: betLimitValue > 0 ? betLimitValue : undefined,
                 commissionRate: Number(formData.commissionRate) || 0,
                 prizeRates: {
                     oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
                     oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
                     twoDigit: Number(formData.prizeRates.twoDigit) || 0,
-                }
+                },
             };
         } else { // Creating
             finalData = {
