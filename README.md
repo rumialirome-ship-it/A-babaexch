@@ -4,6 +4,7 @@ This comprehensive guide provides step-by-step instructions to deploy the A-Baba
 
 We will use:
 -   **Vite** to build the frontend into optimized static assets.
+-   **SQLite** as the SQL database engine.
 -   **Nginx** as a reverse proxy to serve the frontend and route API requests.
 -   **PM2** as a process manager to keep the Node.js backend running continuously.
 -   **Certbot (Let's Encrypt)** to secure the application with a free SSL certificate (HTTPS).
@@ -123,8 +124,22 @@ Now, let's configure and launch the Node.js backend application.
     ```bash
     npm install
     ```
+    
+3.  **Install SQLite and Setup Database**:
+    The application uses SQLite for its database.
+    ```bash
+    # Install the SQLite command-line tool
+    sudo apt update && sudo apt install sqlite3 -y
 
-3.  **Create Environment File (`.env`)**:
+    # Run the database setup script
+    # This reads the initial data from db.json, creates a database.sqlite file,
+    # and populates it with the necessary tables and data.
+    npm run db:setup
+    ```
+    > **Note**: This setup script is designed to run only once. If you need to reset the database, you must first delete the `backend/database.sqlite` file. You can now safely remove `backend/db.json`.
+
+
+4.  **Create Environment File (`.env`)**:
     This file stores your application's secrets.
     ```bash
     nano .env
@@ -139,26 +154,26 @@ Now, let's configure and launch the Node.js backend application.
     
     Save and close the file (`Ctrl+X`, then `Y`, then `Enter`).
 
-4.  **Install PM2 Globally**:
+5.  **Install PM2 Globally**:
     PM2 is the process manager that will keep your backend running.
     ```bash
     sudo npm install pm2 -g
     ```
 
-5.  **Start the Backend with PM2**:
+6.  **Start the Backend with PM2**:
     This command starts the server, names the process `ababa-backend`, and will restart it automatically if it crashes.
     ```bash
     pm2 start server.js --name ababa-backend
     ```
 
-6.  **Configure PM2 to Start on Boot**:
+7.  **Configure PM2 to Start on Boot**:
     This ensures that if your server reboots, your application will automatically restart.
     ```bash
     pm2 startup
     ```
     Run the command that PM2 gives you (it will start with `sudo env...`).
 
-7.  **Save the Process List**:
+8.  **Save the Process List**:
     ```bash
     pm2 save
     ```
@@ -271,5 +286,5 @@ Your A-Baba Exchange platform is now live and secure. You can access it at **`ht
 
 -   **502 Bad Gateway Error**: This usually means Nginx can't connect to your backend.
     -   Check if the backend is running with `pm2 status`. If it has stopped or is in an errored state, check the logs with `pm2 logs ababa-backend`.
--   **Permission Errors**: If you have issues writing files (like `db.json`), ensure the directory permissions are correct: `sudo chown -R $USER:$USER /var/www/html/A-babaexch`.
+-   **Permission Errors**: If you have issues with the database file, ensure its directory has the correct permissions: `sudo chown -R $USER:$USER /var/www/html/A-babaexch/backend`.
 -   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 restart ababa-backend`.
