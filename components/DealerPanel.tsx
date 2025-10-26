@@ -1,0 +1,378 @@
+import React, { useState } from 'react';
+import { Dealer, User, PrizeRates, LedgerEntry } from '../types';
+import { Icons } from '../constants';
+
+// Internal components
+const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'emerald' }) => {
+    if (!isOpen) return null;
+     const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+            <div className={`bg-slate-900/80 rounded-lg shadow-2xl w-full m-4 border border-${themeColor}-500/30 ${sizeClasses[size]}`}>
+                <div className="flex justify-between items-center p-5 border-b border-slate-700">
+                    <h3 className={`text-lg font-bold text-${themeColor}-400 uppercase tracking-widest`}>{title}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
+                </div>
+                <div className="p-6">{children}</div>
+            </div>
+        </div>
+    );
+};
+
+const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
+    <div className="bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
+        <div className="overflow-y-auto max-h-[60vh]">
+            <table className="w-full text-left">
+                <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
+                    <tr>
+                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
+                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
+                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Debit</th>
+                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Credit</th>
+                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                    {[...entries].reverse().map(entry => (
+                        <tr key={entry.id} className="hover:bg-emerald-500/10 text-sm transition-colors">
+                            <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
+                            <td className="p-3 text-white">{entry.description}</td>
+                            <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
+                            <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
+                            <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    </div>
+);
+
+const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, originalId?: string, initialDeposit?: number) => void; onCancel: () => void; dealerPrizeRates: PrizeRates, dealerId: string }> = ({ user, users, onSave, onCancel, dealerPrizeRates, dealerId }) => {
+    const [formData, setFormData] = useState(() => {
+        const defaults = { id: '', name: '', password: '', area: '', contact: '', commissionRate: 0, prizeRates: { ...dealerPrizeRates }, avatarUrl: '', wallet: '', betLimit: '' };
+        if (user) { return { ...user, password: '' }; }
+        return defaults;
+    });
+
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+    const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value, type, checked } = e.target;
+        if (name.includes('.')) {
+            const [parent, child] = name.split('.');
+            setFormData(prev => ({ ...prev, [parent]: { ...(prev[parent as keyof typeof prev] as object), [child]: type === 'number' ? parseFloat(value) : value } }));
+        } else {
+            if(!user && name === 'password') { setFormData(prev => ({ ...prev, password: value })); return; }
+            setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? (checked as any) : (type === 'number' ? (value ? parseFloat(value) : '') : value) }));
+        }
+    };
+    
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const newPassword = user ? password : formData.password!;
+        if (newPassword && newPassword !== confirmPassword) { alert("New passwords do not match."); return; }
+        if (!user && !newPassword) { alert("Password is required for new users."); return; }
+        
+        const formId = (formData.id as string).toLowerCase();
+        if (!user && users.some(u => u.id.toLowerCase() === formId)) {
+            alert("This User Login ID is already taken. Please choose another one.");
+            return;
+        }
+
+        let finalData: User;
+        const initialDeposit = Number(formData.wallet) || 0;
+        const betLimitValue = Number(formData.betLimit);
+
+        if (user) { // Editing
+            finalData = { 
+                ...user, 
+                ...formData, 
+                // Fix: Explicitly convert `formData.wallet` to a number to satisfy the `User` type.
+                // The wallet is not editable in this form, so this ensures type correctness without changing the value.
+                wallet: Number(formData.wallet),
+                password: newPassword ? newPassword : user.password,
+                betLimit: betLimitValue > 0 ? betLimitValue : undefined,
+                commissionRate: Number(formData.commissionRate) || 0,
+                prizeRates: {
+                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
+                }
+            };
+        } else { // Creating
+            finalData = {
+                id: formData.id as string,
+                dealerId,
+                name: formData.name,
+                password: newPassword,
+                area: formData.area,
+                contact: formData.contact,
+                wallet: 0, // Wallet is set by parent logic
+                commissionRate: Number(formData.commissionRate) || 0,
+                betLimit: betLimitValue > 0 ? betLimitValue : undefined,
+                isRestricted: false,
+                prizeRates: {
+                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
+                },
+                ledger: [],
+                avatarUrl: formData.avatarUrl,
+            };
+        }
+        onSave(finalData, user?.id, initialDeposit);
+    };
+
+    const displayPassword = user ? password : formData.password!;
+    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
+            <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">User Login ID</label>
+                <input type="text" name="id" value={formData.id as string} onChange={handleChange} placeholder="User Login ID" className={inputClass} required disabled={!!user}/>
+            </div>
+            <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="User Display Name" className={inputClass} required />
+            <div className="relative">
+                 <input type={isPasswordVisible ? 'text' : 'password'} name="password" value={displayPassword} onChange={user ? (e) => setPassword(e.target.value) : handleChange} placeholder={user ? "New Password (optional)" : "Password"} className={inputClass + " pr-10"} required={!user} />
+                <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">{isPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
+            </div>
+            {displayPassword && (
+                 <div className="relative">
+                    <input type={isConfirmPasswordVisible ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm New Password" className={inputClass + " pr-10"} required />
+                    <button type="button" onClick={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">{isConfirmPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
+                </div>
+            )}
+            <input type="url" name="avatarUrl" value={formData.avatarUrl || ''} onChange={handleChange} placeholder="Avatar Image URL (optional)" className={inputClass} />
+            <input type="text" name="area" value={formData.area} onChange={handleChange} placeholder="Area / Contact" className={inputClass} />
+            <input type="text" name="contact" value={formData.contact} onChange={handleChange} placeholder="Contact Number" className={inputClass} />
+            {!user && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Initial Wallet Amount (PKR)</label>
+                  <input type="number" name="wallet" value={formData.wallet as string} onChange={handleChange} placeholder="e.g. 5000" className={inputClass} />
+                </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Commission Rate (%)</label>
+              <input type="number" name="commissionRate" value={formData.commissionRate} onChange={handleChange} placeholder="e.g. 2" className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Bet Limit per Transaction (PKR)</label>
+              <input type="number" name="betLimit" value={formData.betLimit || ''} onChange={handleChange} placeholder="e.g. 5000 (0 or empty for no limit)" className={inputClass} />
+            </div>
+            
+            <fieldset className="border border-slate-600 p-4 rounded-md">
+                <legend className="px-2 text-sm font-medium text-slate-400">Prize Rates</legend>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-sm">1 Digit Open</label><input type="number" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
+                    <div><label className="text-sm">1 Digit Close</label><input type="number" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
+                    <div className="col-span-2"><label className="text-sm">2 Digit</label><input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
+                </div>
+            </fieldset>
+
+            <div className="flex justify-end space-x-3 pt-4">
+                <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
+                <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Save User</button>
+            </div>
+        </form>
+    );
+};
+
+const TopUpForm: React.FC<{ users: User[]; onTopUp: (userId: string, amount: number) => void; onCancel: () => void; }> = ({ users, onTopUp, onCancel }) => {
+    const [selectedUserId, setSelectedUserId] = useState<string>('');
+    const [amount, setAmount] = useState<number | ''>('');
+    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedUserId || !amount || amount <= 0) { alert('Please select a user and enter a valid positive amount.'); return; }
+        const userName = users.find(u => u.id === selectedUserId)?.name || 'the selected user';
+        if (window.confirm(`Are you sure you want to top up ${userName}'s wallet with PKR ${amount}?`)) { onTopUp(selectedUserId, Number(amount)); }
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
+            <div>
+                <label htmlFor="user-select" className="block text-sm font-medium text-slate-400 mb-1">Select User</label>
+                <select id="user-select" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className={inputClass} required >
+                    <option value="" disabled>-- Choose a user --</option>
+                    {users.map(user => <option key={user.id} value={user.id}>{user.name} ({user.id})</option>)}
+                </select>
+            </div>
+            <div>
+                <label htmlFor="topup-amount" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
+                <input id="topup-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 1000" className={inputClass} min="1" required />
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+                <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
+                <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Top-Up Wallet</button>
+            </div>
+        </form>
+    );
+};
+
+interface DealerPanelProps {
+  dealer: Dealer;
+  users: User[];
+  onSaveUser: (userData: User, originalId: string | undefined, initialDeposit?: number) => void;
+  topUpUserWallet: (dealerId: string, userId: string, amount: number) => void;
+  toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
+}
+
+const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: allUsers, onSaveUser, topUpUserWallet, toggleAccountRestriction }) => {
+  const myUsers = allUsers.filter(u => u.dealerId === dealer.id);
+  const [activeTab, setActiveTab] = useState('users');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
+  const [viewingLedgerFor, setViewingLedgerFor] = useState<User | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+
+  const handleSaveUser = (userData: User, originalId?: string, initialDeposit?: number) => {
+      try {
+        onSaveUser(userData, originalId, initialDeposit);
+        setIsModalOpen(false);
+        setSelectedUser(undefined);
+      } catch (error) {
+        console.error("Failed to save user:", error);
+        // Error alerts are handled in the parent component (App.tsx)
+      }
+  };
+  
+  const tabs = [
+    { id: 'users', label: 'Users', icon: Icons.userGroup }, { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
+  ];
+
+  const filteredUsers = myUsers.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.contact.toLowerCase().includes(searchQuery.toLowerCase()) || u.id.toLowerCase().includes(searchQuery.toLowerCase()));
+  
+  return (
+    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+      <h2 className="text-3xl font-bold text-emerald-400 mb-6 uppercase tracking-widest">Dealer Console</h2>
+      <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start border border-slate-700">
+        {tabs.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
+            {tab.icon} <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+       {activeTab === 'users' && (
+        <div>
+          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+            <h3 className="text-xl font-semibold text-white text-left w-full md:w-auto">My Users ({filteredUsers.length})</h3>
+            <div className="flex w-full md:w-auto md:justify-end gap-2">
+                <div className="relative w-full md:w-64">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                    <input type="text" placeholder="Search by name, contact, ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none w-full"/>
+                </div>
+                <button onClick={() => { setSelectedUser(undefined); setIsModalOpen(true); }} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
+                  {Icons.plus} Create User
+                </button>
+            </div>
+          </div>
+          <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+             <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                     <thead className="bg-slate-800/50">
+                         <tr>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Login ID</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Contact</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wallet (PKR)</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Commission</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Bet Limit (PKR)</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                         </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-800">
+                         {filteredUsers.map(user => (
+                             <tr key={user.id} className="hover:bg-emerald-500/10 transition-colors">
+                                 <td className="p-4 font-medium"><div className="flex items-center gap-3">
+                                     {user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
+                                     <span className="font-semibold text-white">{user.name}</span>
+                                 </div></td>
+                                 <td className="p-4 text-slate-400 font-mono">{user.id}</td>
+                                 <td className="p-4 text-slate-400">{user.contact}</td>
+                                 <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
+                                 <td className="p-4 text-slate-300">{user.commissionRate}%</td>
+                                 <td className="p-4 text-slate-300 font-mono">{user.betLimit ? user.betLimit.toLocaleString() : 'No Limit'}</td>
+                                 <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
+                                 <td className="p-4">
+                                     <div className="flex items-center gap-2">
+                                        <button onClick={() => { setSelectedUser(user); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Edit</button>
+                                        <button onClick={() => setViewingLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Ledger</button>
+                                        <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                            {user.isRestricted ? 'Unrestrict' : 'Restrict'}
+                                        </button>
+                                     </div>
+                                 </td>
+                             </tr>
+                         ))}
+                     </tbody>
+                 </table>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div>
+          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+              <h3 className="text-xl font-semibold text-white">User Transaction Ledgers</h3>
+              <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                {Icons.plus} Wallet Top-Up
+              </button>
+          </div>
+          <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-800/50">
+                  <tr>
+                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Contact</th>
+                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance (PKR)</th>
+                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {myUsers.map(user => (
+                    <tr key={user.id} className="hover:bg-emerald-500/10 transition-colors">
+                      <td className="p-4 font-medium"><div className="flex items-center gap-3">
+                          {user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
+                          <span className="font-semibold text-white">{user.name}</span>
+                      </div></td>
+                      <td className="p-4 text-slate-400">{user.contact}</td>
+                      <td className="p-4 font-mono text-white text-right">{user.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="p-4 text-center"><button onClick={() => setViewingLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">View Ledger</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedUser ? "Edit User" : "Create User"}>
+        <UserForm user={selectedUser} users={allUsers} onSave={handleSaveUser} onCancel={() => setIsModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerId={dealer.id} />
+      </Modal>
+
+      <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up User Wallet">
+          <TopUpForm users={myUsers} onTopUp={(userId, amount) => { topUpUserWallet(dealer.id, userId, amount); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
+      </Modal>
+
+      {viewingLedgerFor && (
+        <Modal isOpen={!!viewingLedgerFor} onClose={() => setViewingLedgerFor(null)} title={`Ledger for ${viewingLedgerFor.name}`} size="lg">
+            <LedgerTable entries={viewingLedgerFor.ledger} />
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+export default DealerPanel;

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>A-Baba Exchange</title>
+    <meta name="description" content="A digital lottery platform where Admins manage Dealers, Dealers manage Users, and Users play various daily games using a wallet system." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://aistudiocdn.com/react@^19.2.0",
+          "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+          "react/": "https://aistudiocdn.com/react@^19.2.0/"
+        }
+      }
+    </script>
+    <style>
+      body {
+        font-family: 'Russo One', sans-serif;
+        background-color: #020617; /* slate-950 */
+        overflow: hidden;
+      }
+
+      #root {
+        height: 100vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      
+      .animated-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100vh;
+        z-index: -1;
+        background-color: #020617;
+        background-image: 
+          linear-gradient(rgba(14, 165, 233, 0.1) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(14, 165, 233, 0.1) 1px, transparent 1px);
+        background-size: 50px 50px;
+        animation: pan-grid 60s linear infinite;
+      }
+
+      @keyframes pan-grid {
+        0% { background-position: 0 0; }
+        100% { background-position: 500px 500px; }
+      }
+      
+      /* Custom Scrollbar */
+      #root::-webkit-scrollbar { width: 8px; }
+      #root::-webkit-scrollbar-track { background: #0f172a; }
+      #root::-webkit-scrollbar-thumb { background-color: #0891b2; border-radius: 20px; border: 2px solid #0f172a; }
+
+      /* Text Glitch Effect */
+      .glitch-text {
+        position: relative;
+        color: #67e8f9;
+        text-shadow: 0 0 5px #0891b2, 0 0 10px #0891b2;
+      }
+      .glitch-text::before,
+      .glitch-text::after {
+        content: attr(data-text);
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        clip: rect(0, 900px, 0, 0);
+      }
+      .glitch-text::before {
+        left: 2px;
+        text-shadow: -2px 0 #ec4899;
+        animation: glitch-anim-1 2s infinite linear alternate-reverse;
+      }
+      .glitch-text::after {
+        left: -2px;
+        text-shadow: -2px 0 #34d399, 2px 2px #ec4899;
+        animation: glitch-anim-2 3s infinite linear alternate-reverse;
+      }
+
+      @keyframes glitch-anim-1 {
+        0% { clip: rect(42px, 9999px, 44px, 0); }
+        5% { clip: rect(12px, 9999px, 60px, 0); }
+        /* ... add more steps */
+        100% { clip: rect(90px, 9999px, 98px, 0); }
+      }
+      @keyframes glitch-anim-2 {
+        0% { clip: rect(42px, 9999px, 44px, 0); }
+        /* ... add more steps */
+        100% { clip: rect(10px, 9999px, 95px, 0); }
+      }
+    </style>
+  </head>
+  <body class="bg-slate-900">
+    <div class="animated-bg"></div>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
