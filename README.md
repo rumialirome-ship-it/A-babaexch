@@ -202,7 +202,7 @@ Nginx will act as the web server. It will serve your built frontend files and fo
         listen 80;
         server_name abexch.live www.abexch.live;
 
-        # Path to your project's BUILD folder
+        # CRITICAL: Path to your project's *BUILD* folder.
         root /var/www/html/A-babaexch/dist;
         index index.html;
 
@@ -223,7 +223,8 @@ Nginx will act as the web server. It will serve your built frontend files and fo
         }
     }
     ```
-    > **CRITICAL:** The `root` directive **must** point to the `/dist` subfolder, which contains the optimized production build from `npm run build`. Pointing it to the project's main directory (`/var/www/html/A-babaexch`) **will cause your application to fail** with a blank page and a MIME type error.
+    > ### 🔴 **CRITICAL CONFIGURATION NOTE** 🔴
+    > The `root` directive **must** point to the `/dist` subfolder, which contains the optimized production build from `npm run build`. Pointing it to the project's main directory (`/var/www/html/A-babaexch`) **will cause your application to fail** with a blank page and a `MIME type` error in the browser console.
 
     Save and close the file.
 
@@ -334,12 +335,25 @@ When you have new code changes to deploy, follow these steps to ensure they are 
     -   Check if the backend is running with `pm2 status`. If it has stopped or is in an errored state, check the logs with `pm2 logs ababa-backend`.
 -   **Permission Errors**: If you have issues with the database file, ensure its directory has the correct permissions: `sudo chown -R $USER:$USER /var/www/html/A-babaexch/backend`.
 -   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 reload ababa-backend`.
--   **Error: `Failed to load module script... MIME type of "application/octet-stream"`**:
-    -   **Cause**: This is a critical configuration error. It means your Nginx web server is serving the **development** folder (`/var/www/html/A-babaexch`) instead of the **production build** folder (`/var/www/html/A-babaexch/dist`).
-    -   **Solution**: You must fix your Nginx configuration.
-        1. Open the configuration file: `sudo nano /etc/nginx/sites-available/abexch.live`
-        2. Find the line that starts with `root`.
-        3. Ensure the line reads **exactly**: `root /var/www/html/A-babaexch/dist;`
-        4. Save the file (`Ctrl+X`, `Y`, `Enter`).
-        5. Restart Nginx to apply the change: `sudo systemctl restart nginx`
-        6. Clear your browser cache completely and reload the page.
+-   **Blank Page or Error: `Failed to load module script... MIME type of "application/octet-stream"`**:
+    -   **Cause**: This is a critical configuration error. It means your Nginx web server is serving the **development** folder (`/var/www/html/A-babaexch`) instead of the **production build** folder (`/var/www/html/A-babaexch/dist`). The browser is receiving a raw TypeScript file (`.tsx`) which it cannot execute.
+    -   **Solution**: You must fix your Nginx configuration. Follow these steps exactly:
+        1.  Open the configuration file on your server:
+            ```bash
+            sudo nano /etc/nginx/sites-available/abexch.live
+            ```
+        2.  Find the line that starts with `root`. It will look like `root /path/to/your/project;`.
+        3.  Ensure the line reads **exactly**:
+            ```nginx
+            root /var/www/html/A-babaexch/dist;
+            ```
+        4.  Save the file (`Ctrl+X`, then `Y`, then `Enter`).
+        5.  Test the Nginx configuration for errors:
+            ```bash
+            sudo nginx -t
+            ```
+        6.  If the test is successful, restart Nginx to apply the change:
+            ```bash
+            sudo systemctl restart nginx
+            ```
+        7.  Finally, clear your browser's cache completely (a hard refresh with `Ctrl+Shift+R` or `Cmd+Shift+R` is recommended) and reload your website.

@@ -25,10 +25,16 @@
     <div class="animated-bg"></div>
     <div id="root"></div>
     <!-- 
-      ! ! ! IMPORTANT ! ! !
-      This is the DEVELOPMENT entry point. For production, you MUST serve the index.html 
-      from the 'dist' folder after running 'npm run build'. Your web server (Nginx) root 
-      path should point to the 'dist' directory, NOT the project root.
+      /*********************************************************************************\
+      |*                                                                                 *|
+      |*                             ! ! ! WARNING ! ! !                                 *|
+      |*                                                                                 *|
+      |*  This file is for DEVELOPMENT purposes only.                                    *|
+      |*  For PRODUCTION, you MUST build the project by running `npm run build` and      *|
+      |*  configure your web server (e.g., Nginx) to serve the `index.html` file         *|
+      |*  from the `/dist` directory, NOT from the project root.                         *|
+      |*                                                                                 *|
+      \*********************************************************************************/
     -->
     <script type="module" src="/index.tsx"></script>
   </body>
