@@ -422,6 +422,7 @@ app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
 // --- MAIN ---
 const startServer = () => {
   database.connect();
+  database.verifySchema();
   // The port is hardcoded here to ensure it matches the Nginx config and deployment guide.
   // This avoids conflicts from environment variables.
   app.listen(3001, () => {

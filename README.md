@@ -341,12 +341,39 @@ When you have new code changes to deploy, follow these steps to ensure they are 
 
 ### **Troubleshooting**
 
+-   **Admin Login Fails AND/OR No Games Show on Landing Page**:
+    -   **Cause**: This is the most common issue after the initial deployment. It almost always means the backend database (`database.sqlite`) was not created or populated correctly. The backend server might have started before the setup script was run, creating an empty database file which the setup script then refuses to overwrite.
+    -   **Solution**: You must force a recreation of the database. Follow these steps precisely on your server:
+        1.  **Stop the backend server**:
+            ```bash
+            pm2 stop ababa-backend
+            ```
+        2.  **Navigate to the backend directory**:
+            ```bash
+            cd /var/www/html/A-babaexch/backend
+            ```
+        3.  **Delete the incorrect database file**:
+            ```bash
+            rm database.sqlite
+            ```
+        4.  **Run the setup script again to create a fresh, correct database**:
+            ```bash
+            npm run db:setup
+            ```
+            You should see messages confirming the schema was created and data was migrated.
+        5.  **Restart the backend server**:
+            ```bash
+            pm2 restart ababa-backend
+            ```
+        6.  Check the logs to confirm it started without errors: `pm2 logs ababa-backend`.
+        7.  Refresh the website. The games and login should now work.
+
 -   **502 Bad Gateway Error**: This usually means Nginx can't connect to your backend.
     -   Check if the backend is running with `pm2 status`. If it has stopped or is in an errored state, check the logs with `pm2 logs ababa-backend`.
 -   **Permission Errors**: If you have issues with the database file, ensure its directory has the correct permissions: `sudo chown -R $USER:$USER /var/www/html/A-babaexch/backend`.
 -   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 reload ababa-backend`.
 -   **Blank Page or "CRITICAL DEPLOYMENT MISCONFIGURATION" Error**:
-    -   **Cause**: This is the most common deployment error. It means your Nginx web server is serving the **development** folder (`/var/www/html/A-babaexch`) instead of the **production build** folder (`/var/www/html/A-babaexch/dist`). The browser is receiving a raw TypeScript file (`.tsx`) which it cannot execute.
+    -   **Cause**: This is the other most common deployment error. It means your Nginx web server is serving the **development** folder (`/var/www/html/A-babaexch`) instead of the **production build** folder (`/var/www/html/A-babaexch/dist`). The browser is receiving a raw TypeScript file (`.tsx`) which it cannot execute.
     -   **Solution**: The error page itself contains the exact steps to fix this. You must edit your Nginx configuration and change the `root` directive to point to the correct `/dist` directory.
         1.  Open the configuration file on your server: `sudo nano /etc/nginx/sites-available/abexch.live`
         2.  Find the line `root /var/www/html/A-babaexch;`

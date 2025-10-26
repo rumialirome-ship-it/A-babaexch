@@ -21,6 +21,27 @@ const connect = () => {
 };
 
 /**
+ * Verifies that the database schema seems to exist.
+ */
+const verifySchema = () => {
+    try {
+        const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'");
+        const table = stmt.get();
+        if (!table) {
+            console.error('\n\n--- CRITICAL DATABASE ERROR ---');
+            console.error('Database schema is missing. The "admins" table was not found.');
+            console.error('This means the database setup script was not run or failed.');
+            console.error('ACTION REQUIRED: Please stop the server, delete the database.sqlite file,');
+            console.error('and run "npm run db:setup" in the /backend directory to initialize it.\n\n');
+            process.exit(1);
+        }
+    } catch (error) {
+        console.error('Failed to verify database schema:', error);
+        process.exit(1);
+    }
+};
+
+/**
  * Generic function to find an account by ID and type.
  * @param {string} id - The account ID.
  * @param {'admins' | 'dealers' | 'users'} table - The table to search in.
@@ -132,6 +153,7 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
 
 module.exports = {
     connect,
+    verifySchema,
     findAccountById,
     findAccountForLogin,
     updatePassword,
