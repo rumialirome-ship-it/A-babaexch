@@ -31,15 +31,24 @@ const findAccountById = (id, table) => {
     const account = stmt.get(id);
     if (!account) return null;
 
-    // Attach ledger
-    const ledgerStmt = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC');
-    account.ledger = ledgerStmt.all(id);
+    try {
+        // Attach ledger
+        const ledgerStmt = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC');
+        account.ledger = ledgerStmt.all(id);
 
-    // Parse JSON fields
-    if (account.prizeRates) account.prizeRates = JSON.parse(account.prizeRates);
-    
-    // Convert boolean
-    if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
+        // Parse JSON fields safely
+        if (account.prizeRates && typeof account.prizeRates === 'string') {
+            account.prizeRates = JSON.parse(account.prizeRates);
+        }
+        
+        // Convert boolean
+        if ('isRestricted' in account) {
+            account.isRestricted = !!account.isRestricted;
+        }
+    } catch (e) {
+        console.error(`Failed to parse data for account in table ${table} with id ${id}`, e);
+        // Return account with raw data to avoid crashing the entire request
+    }
 
     return account;
 };
@@ -84,11 +93,19 @@ const getLedgerForAccount = (accountId) => {
 const getAllFromTable = (table, withLedger = false) => {
     let accounts = db.prepare(`SELECT * FROM ${table}`).all();
     return accounts.map(acc => {
-        if (withLedger) {
-            acc.ledger = getLedgerForAccount(acc.id);
+        try {
+            if (withLedger && acc.id) {
+                acc.ledger = getLedgerForAccount(acc.id);
+            }
+            if (acc.prizeRates && typeof acc.prizeRates === 'string') {
+                acc.prizeRates = JSON.parse(acc.prizeRates);
+            }
+            if ('isRestricted' in acc) {
+                acc.isRestricted = !!acc.isRestricted;
+            }
+        } catch (e) {
+            console.error(`Failed to parse data for item in table ${table} with id ${acc.id}`, e);
         }
-        if (acc.prizeRates) acc.prizeRates = JSON.parse(acc.prizeRates);
-        if ('isRestricted' in acc) acc.isRestricted = !!acc.isRestricted;
         return acc;
     });
 };
