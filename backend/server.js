@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const PORT = process.env.PORT || 3001;
+const PORT = 3001; // Hardcode to match Nginx and documentation
 const API_KEY = process.env.API_KEY;
 
 // --- AI SETUP ---
