@@ -233,14 +233,15 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
   const [searchQuery, setSearchQuery] = useState('');
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
 
-  const handleSaveUser = (userData: User, originalId?: string, initialDeposit?: number) => {
+  const handleSaveUser = async (userData: User, originalId?: string, initialDeposit?: number) => {
       try {
-        onSaveUser(userData, originalId, initialDeposit);
+        await onSaveUser(userData, originalId, initialDeposit);
         setIsModalOpen(false);
         setSelectedUser(undefined);
       } catch (error) {
         console.error("Failed to save user:", error);
         // Error alerts are handled in the parent component (App.tsx)
+        // and the modal will correctly stay open now on failure.
       }
   };
   

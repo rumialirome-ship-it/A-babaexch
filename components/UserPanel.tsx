@@ -171,15 +171,27 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     const [manualAmountInput, setManualAmountInput] = useState('');
     const [bulkInput, setBulkInput] = useState('');
     const [comboInput, setComboInput] = useState('');
+    const [selectedComboNumbers, setSelectedComboNumbers] = useState<Set<string>>(new Set());
     const [error, setError] = useState<string | null>(null);
 
     const availableSubGameTabs = useMemo(() => {
         if (!game) return [];
         if (game.name === 'LS2') return [SubGameType.OneDigitOpen];
         if (game.name === 'LS3') return [SubGameType.OneDigitClose];
-        // For all other games, show all available sub-game types.
         return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
     }, [game]);
+    
+    const handleComboNumberToggle = useCallback((number: string) => {
+        setSelectedComboNumbers(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(number)) {
+                newSet.delete(number);
+            } else {
+                newSet.add(number);
+            }
+            return newSet;
+        });
+    }, []);
 
     const handleManualNumberChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const rawValue = e.target.value;
@@ -207,10 +219,10 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     };
     
     useEffect(() => { 
-        if (availableSubGameTabs.length > 0) {
+        if (availableSubGameTabs.length > 0 && !availableSubGameTabs.includes(subGameType)) {
             setSubGameType(availableSubGameTabs[0]); 
         }
-    }, [availableSubGameTabs]);
+    }, [availableSubGameTabs, subGameType]);
 
     if (!game) return null;
 
@@ -269,120 +281,91 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     }, [bulkInput]);
 
     const parsedComboBet = useMemo(() => {
-        const result = {
-            generatedNumbers: [] as string[],
-            stake: 0,
-            totalCost: 0,
-            numberOfCombinations: 0,
-            error: null as string | null,
-            uniqueDigits: [] as string[],
-        };
-
+        const result = { generatedNumbers: [] as string[], stake: 0, numberOfCombinations: 0, error: null as string | null };
         const input = comboInput.trim().toLowerCase();
         if (!input) return result;
 
         const rIndex = input.lastIndexOf('r');
         if (rIndex === -1) {
-            result.error = "Stake not found. Use 'r' to specify amount (e.g., '147 r10').";
-            return result;
+            result.error = "Stake not found. Use 'r' to specify amount (e.g., '147 r10')."; return result;
         }
-
         const digitsPartRaw = input.substring(0, rIndex).trim();
-        const digitsPart = digitsPartRaw.replace(/\D/g, ''); // Sanitize to allow separators
+        const digitsPart = digitsPartRaw.replace(/\D/g, '');
         const stakePart = input.substring(rIndex + 1).trim();
         const stake = parseFloat(stakePart);
 
-        if (isNaN(stake) || stake <= 0) {
-            result.error = "Invalid stake amount. Must be a positive number.";
-        } else {
-            result.stake = stake;
-        }
-
-        if (!digitsPart) {
-            result.error = "No digits entered.";
-            return result;
-        }
-
+        if (isNaN(stake) || stake <= 0) { result.error = "Invalid stake amount."; } else { result.stake = stake; }
+        if (!digitsPart) { result.error = "No digits entered."; return result; }
+        
         const uniqueDigits = [...new Set(digitsPart.split(''))];
-        result.uniqueDigits = uniqueDigits;
-
+        if (uniqueDigits.length > 0 && (uniqueDigits.length < 3 || uniqueDigits.length > 6)) {
+            result.error = "Please enter between 3 and 6 unique digits to form combinations."; return result;
+        }
         if (uniqueDigits.length < 2) {
-            result.error = "Please enter at least two unique digits to form combinations.";
-            return result;
+            if (digitsPart) result.error = "Please enter at least two unique digits."; return result;
         }
 
         const combinations: string[] = [];
         for (let i = 0; i < uniqueDigits.length; i++) {
             for (let j = 0; j < uniqueDigits.length; j++) {
-                if (i !== j) {
-                    combinations.push(uniqueDigits[i] + uniqueDigits[j]);
-                }
+                if (i !== j) { combinations.push(uniqueDigits[i] + uniqueDigits[j]); }
             }
         }
-
         result.generatedNumbers = combinations;
         result.numberOfCombinations = combinations.length;
-        result.totalCost = result.numberOfCombinations * result.stake;
-        
         return result;
     }, [comboInput]);
     
-    const parsedManualBet = useMemo(() => {
-        const result = {
-            numbers: [] as string[],
-            totalCost: 0,
-            error: null as string | null,
-            numberCount: 0,
-            stake: 0,
-        };
-        
-        const amount = parseFloat(manualAmountInput);
-        if (!isNaN(amount) && amount > 0) {
-            result.stake = amount;
+    const finalComboBetDetails = useMemo(() => {
+        const stake = parsedComboBet.stake;
+        const count = selectedComboNumbers.size;
+        const totalCost = count * stake;
+        return { numbers: Array.from(selectedComboNumbers), stake, count, totalCost };
+    }, [selectedComboNumbers, parsedComboBet.stake]);
+
+    useEffect(() => {
+        if (subGameType === SubGameType.Combo) {
+            setSelectedComboNumbers(new Set(parsedComboBet.generatedNumbers));
+        } else {
+            setSelectedComboNumbers(new Set());
         }
+    }, [parsedComboBet.generatedNumbers, subGameType]);
+
+    const handleSelectAllCombo = useCallback(() => { setSelectedComboNumbers(new Set(parsedComboBet.generatedNumbers)); }, [parsedComboBet.generatedNumbers]);
+    const handleClearComboSelection = useCallback(() => { setSelectedComboNumbers(new Set()); }, []);
+    
+    const parsedManualBet = useMemo(() => {
+        const result = { numbers: [] as string[], totalCost: 0, error: null as string | null, numberCount: 0, stake: 0 };
+        const amount = parseFloat(manualAmountInput);
+        if (!isNaN(amount) && amount > 0) { result.stake = amount; }
 
         const digitsOnly = manualNumbersInput.replace(/\D/g, '');
         let numbers: string[] = [];
-
         if (digitsOnly.length > 0) {
             switch (subGameType) {
-                case SubGameType.OneDigitOpen:
-                case SubGameType.OneDigitClose:
-                    numbers = digitsOnly.split('');
-                    break;
+                case SubGameType.OneDigitOpen: case SubGameType.OneDigitClose: numbers = digitsOnly.split(''); break;
                 case SubGameType.TwoDigit:
-                    if (digitsOnly.length % 2 !== 0) {
-                        result.error = "For 2-digit games, the total number of digits must be even.";
-                    } else {
-                        numbers = digitsOnly.match(/.{2}/g) || [];
-                    }
+                    if (digitsOnly.length % 2 !== 0) { result.error = "For 2-digit games, the total number of digits must be even."; } else { numbers = digitsOnly.match(/.{2}/g) || []; }
                     break;
             }
         }
-
         result.numbers = numbers;
         result.numberCount = numbers.length;
-        if (result.stake > 0) {
-            result.totalCost = result.numberCount * result.stake;
-        }
-
+        if (result.stake > 0) { result.totalCost = result.numberCount * result.stake; }
         return result;
     }, [manualNumbersInput, manualAmountInput, subGameType]);
-
 
     const handleBet = () => {
         setError(null);
 
         if (subGameType === SubGameType.Combo) {
             if (parsedComboBet.error) { setError(parsedComboBet.error); return; }
-            if (parsedComboBet.generatedNumbers.length === 0) { setError("No combinations generated."); return; }
-            if (parsedComboBet.stake <= 0) { setError("Invalid stake amount."); return; }
-            
-            const totalCost = parsedComboBet.totalCost;
+            const { numbers, stake, totalCost } = finalComboBetDetails;
+            if (numbers.length === 0) { setError("Please select at least one combination to bet on."); return; }
+            if (stake <= 0) { setError("Invalid stake amount."); return; }
             if (user.betLimit && totalCost > user.betLimit) { setError(`Bet amount (PKR ${totalCost.toFixed(2)}) exceeds your transaction limit of PKR ${user.betLimit.toFixed(2)}.`); return; }
             if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-    
-            onPlaceBet(subGameType, parsedComboBet.generatedNumbers, parsedComboBet.stake);
+            onPlaceBet(subGameType, numbers, stake);
             setComboInput('');
             return;
         }
@@ -392,26 +375,20 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             if (parsedBulkBet.invalidEntries.length > 0) { setError(`Please fix invalid entries before placing a bet.`); return; }
             if (parsedBulkBet.validNumbers.length === 0) { setError("No valid numbers to bet on."); return; }
             if (parsedBulkBet.stake <= 0) { setError("Invalid stake amount."); return; }
-            
             const totalCost = parsedBulkBet.totalCost;
             if (user.betLimit && totalCost > user.betLimit) { setError(`Bet amount (PKR ${totalCost.toFixed(2)}) exceeds your transaction limit of PKR ${user.betLimit.toFixed(2)}.`); return; }
             if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-
             onPlaceBet(subGameType, parsedBulkBet.validNumbers, parsedBulkBet.stake);
             setBulkInput('');
             return;
         }
 
-        // Manual Bet Logic
         const { numbers, totalCost, error: parseError, stake } = parsedManualBet;
-        
         if (stake <= 0) { setError("Please enter a valid amount."); return; }
         if (parseError) { setError(parseError); return; }
         if (numbers.length === 0) { setError("Please enter at least one number."); return; }
-
         if (user.betLimit && totalCost > user.betLimit) { setError(`Bet amount (PKR ${totalCost.toFixed(2)}) exceeds your transaction limit of PKR ${user.betLimit.toFixed(2)}.`); return; }
         if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-
         onPlaceBet(subGameType, numbers, stake);
         setManualNumbersInput(''); setManualAmountInput('');
     };
@@ -479,33 +456,33 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <>
                              <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Digits for Combo</label>
-                                <input 
-                                    type="text" 
-                                    value={comboInput} 
-                                    onChange={e => setComboInput(e.target.value)} 
-                                    placeholder="e.g., 1478 r10" 
-                                    className={inputClass} 
-                                />
-                                <p className="text-xs text-slate-500 mt-1">Enter unique digits (separators allowed), followed by 'r' and the stake per combination.</p>
+                                <input type="text" value={comboInput} onChange={e => setComboInput(e.target.value)} placeholder="e.g., 1478 r10 (3-6 unique digits)" className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Enter 3-6 unique digits, followed by 'r' and the stake per combination.</p>
                             </div>
                             
                             {parsedComboBet.generatedNumbers.length > 0 && (
                                 <div className="mb-4">
-                                    <label className="block text-slate-400 mb-1 text-sm font-medium">Generated Numbers ({parsedComboBet.numberOfCombinations})</label>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="text-slate-400 text-sm font-medium">Generated Combinations ({parsedComboBet.numberOfCombinations})</label>
+                                        <div className="flex gap-2">
+                                            <button onClick={handleSelectAllCombo} className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded transition-colors">Select All</button>
+                                            <button onClick={handleClearComboSelection} className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded transition-colors">Clear</button>
+                                        </div>
+                                    </div>
                                     <div className="bg-slate-800 p-3 rounded-md border border-slate-700 max-h-32 overflow-y-auto flex flex-wrap gap-2">
                                         {parsedComboBet.generatedNumbers.map((num) => (
-                                            <span key={num} className={`px-2 py-1 rounded font-mono text-sm bg-cyan-500/20 text-cyan-300`}>
+                                            <button key={num} onClick={() => handleComboNumberToggle(num)} className={`px-2.5 py-1.5 rounded font-mono text-sm transition-colors ${selectedComboNumbers.has(num) ? 'bg-sky-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>
                                                 {num}
-                                            </span>
+                                            </button>
                                         ))}
                                     </div>
                                 </div>
                             )}
                             
                             <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-3 gap-2 text-center border border-slate-700">
-                                <div><p className="text-slate-400 text-xs uppercase">Combinations</p><p className="font-bold text-white text-lg">{parsedComboBet.numberOfCombinations}</p></div>
-                                <div><p className="text-slate-400 text-xs uppercase">Stake/Combo</p><p className="font-bold text-white text-lg font-mono">{parsedComboBet.stake.toFixed(2)}</p></div>
-                                <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedComboBet.totalCost.toFixed(2)}</p></div>
+                                <div><p className="text-slate-400 text-xs uppercase">Selected</p><p className="font-bold text-white text-lg">{finalComboBetDetails.count}</p></div>
+                                <div><p className="text-slate-400 text-xs uppercase">Stake/Combo</p><p className="font-bold text-white text-lg font-mono">{finalComboBetDetails.stake.toFixed(2)}</p></div>
+                                <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{finalComboBetDetails.totalCost.toFixed(2)}</p></div>
                             </div>
                         </>
                     ) : (

@@ -36,7 +36,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             headers.append('Content-Type', 'application/json');
         }
         
-        const response = await fetch(url, { ...options, headers });
+        // Create a new options object to avoid mutating the original
+        const fetchOptions: RequestInit = { ...options, headers };
+
+        // Add no-cache for GET requests to prevent stale data
+        if (!fetchOptions.method || fetchOptions.method.toUpperCase() === 'GET') {
+            fetchOptions.cache = 'no-cache';
+        }
+
+        const response = await fetch(url, fetchOptions);
 
         if (response.status === 401 || response.status === 403) {
             logout();
