@@ -6,6 +6,7 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const authMiddleware = require('./authMiddleware');
+const { GoogleGenAI } = require('@google/genai');
 
 const app = express();
 app.use(cors());
@@ -13,7 +14,16 @@ app.use(express.json());
 
 const DB_PATH = path.join(__dirname, 'db.json');
 const JWT_SECRET = process.env.JWT_SECRET;
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
+const API_KEY = process.env.API_KEY;
+
+// --- AI SETUP ---
+let ai = null;
+if (!API_KEY) {
+    console.warn("API_KEY for Google Gemini is not set. AI features will be disabled.");
+} else {
+    ai = new GoogleGenAI({ apiKey: API_KEY });
+}
 
 // --- DATABASE HELPERS ---
 let db;
@@ -97,6 +107,57 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
 app.get('/api/games', (req, res) => {
     const publicGames = db.games.map(({logo, ...game}) => game); // remove logo from payload
     res.json(publicGames);
+});
+
+// --- AI ROUTES ---
+app.post('/api/ai/lucky-number', authMiddleware, async (req, res) => {
+    if (!ai) {
+        return res.status(503).json({ message: "AI service is not configured on the server." });
+    }
+    if (req.user.role !== 'USER') return res.sendStatus(403);
+
+    const { userPrompt, gameName, numberType } = req.body;
+    
+    if (!userPrompt || !gameName || !numberType) {
+        return res.status(400).json({ message: "Prompt, game name, and number type are required." });
+    }
+
+    const systemInstruction = `You are a mystical oracle for a digital lottery game called A-Baba Exchange. Your purpose is to interpret dreams, feelings, or simple requests into lucky lottery numbers. The user will specify the type of number they need: '1 Digit Open', '1 Digit Close', or '2 Digit'. You MUST provide only one number in the requested format. Your response must be brief, mystical, and encouraging. First, provide the number, then a short, creative explanation. The number MUST be enclosed in [NUMBER] tags, like [42]. Example for '2 Digit': '[42] The stars align for cosmic balance.'. Example for '1 Digit Open': '[7] The number 7 resonates with freedom and luck.'`;
+
+    try {
+        const fullPrompt = `Game: ${gameName}\nNumber Type: ${numberType}\nUser's Request: "${userPrompt}"`;
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: fullPrompt,
+            config: {
+                systemInstruction: systemInstruction,
+                temperature: 1,
+            },
+        });
+
+        const text = response.text;
+        const numberMatch = text.match(/\[(\d{1,2})\]/);
+        
+        if (!numberMatch || !numberMatch[1]) {
+            // Fallback if the model doesn't follow instructions
+            const fallbackExplanation = text.replace(/\[\d{1,2}\]/g, '').trim();
+            const fallbackNumber = numberType === '2 Digit' ? String(Math.floor(Math.random() * 100)).padStart(2, '0') : String(Math.floor(Math.random() * 10));
+            return res.json({ 
+                suggestedNumber: fallbackNumber, 
+                explanation: fallbackExplanation || "The ether was unclear, but fortune favors this number."
+            });
+        }
+        
+        const suggestedNumber = numberMatch[1];
+        const explanation = text.replace(numberMatch[0], '').trim();
+
+        res.json({ suggestedNumber, explanation });
+
+    } catch (error) {
+        console.error("Gemini API error:", error);
+        res.status(500).json({ message: "Failed to get a response from the AI oracle." });
+    }
 });
 
 // --- USER ROUTES ---

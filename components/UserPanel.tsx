@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates } from '../types';
 import { Icons } from '../constants';
 import { useCountdown } from '../hooks/useCountdown';
+import { useAuth } from '../hooks/useAuth';
 
 const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     <div className="mt-12">
@@ -158,7 +159,15 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
     );
 };
 
-const BettingModal: React.FC<{ game: Game | null; user: User; onClose: () => void; onPlaceBet: (subGameType: SubGameType, numbers: string[], amount: number) => void; }> = ({ game, user, onClose, onPlaceBet }) => {
+interface BettingModalProps {
+    game: Game | null;
+    user: User;
+    onClose: () => void;
+    onPlaceBet: (subGameType: SubGameType, numbers: string[], amount: number) => void;
+    initialData?: { number: string; subGameType: SubGameType } | null;
+}
+
+const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlaceBet, initialData }) => {
     const [subGameType, setSubGameType] = useState<SubGameType>(SubGameType.TwoDigit);
     const [manualNumbersInput, setManualNumbersInput] = useState('');
     const [manualAmountInput, setManualAmountInput] = useState('');
@@ -173,12 +182,41 @@ const BettingModal: React.FC<{ game: Game | null; user: User; onClose: () => voi
         // Allow Bulk game for all 2-digit compatible games
         return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
     }, [game]);
+
+    const handleManualNumberChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const rawValue = e.target.value;
+        const digitsOnly = rawValue.replace(/\D/g, '');
+
+        if (digitsOnly === '') {
+            setManualNumbersInput('');
+            return;
+        }
+
+        let formattedValue = '';
+        switch (subGameType) {
+            case SubGameType.OneDigitOpen:
+            case SubGameType.OneDigitClose:
+                formattedValue = digitsOnly.split('').join(', ');
+                break;
+            case SubGameType.TwoDigit:
+                formattedValue = (digitsOnly.match(/.{1,2}/g) || []).join(', ');
+                break;
+            default:
+                formattedValue = digitsOnly;
+                break;
+        }
+        setManualNumbersInput(formattedValue);
+    };
     
     useEffect(() => { 
         if (availableSubGameTabs.length > 0) {
-            setSubGameType(availableSubGameTabs[0]); 
+            setSubGameType(initialData?.subGameType || availableSubGameTabs[0]); 
         }
-    }, [availableSubGameTabs]);
+         if (initialData) {
+            const fakeEvent = { target: { value: initialData.number } } as React.ChangeEvent<HTMLTextAreaElement>;
+            handleManualNumberChange(fakeEvent);
+        }
+    }, [availableSubGameTabs, initialData]);
 
     if (!game) return null;
 
@@ -382,31 +420,6 @@ const BettingModal: React.FC<{ game: Game | null; user: User; onClose: () => voi
 
         onPlaceBet(subGameType, numbers, stake);
         setManualNumbersInput(''); setManualAmountInput('');
-    };
-
-    const handleManualNumberChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const rawValue = e.target.value;
-        const digitsOnly = rawValue.replace(/\D/g, '');
-
-        if (digitsOnly === '') {
-            setManualNumbersInput('');
-            return;
-        }
-
-        let formattedValue = '';
-        switch (subGameType) {
-            case SubGameType.OneDigitOpen:
-            case SubGameType.OneDigitClose:
-                formattedValue = digitsOnly.split('').join(', ');
-                break;
-            case SubGameType.TwoDigit:
-                formattedValue = (digitsOnly.match(/.{1,2}/g) || []).join(', ');
-                break;
-            default:
-                formattedValue = digitsOnly;
-                break;
-        }
-        setManualNumbersInput(formattedValue);
     };
 
     const getPlaceholder = () => {
@@ -614,6 +627,100 @@ const PrizeRatesView: React.FC<{ rates: PrizeRates }> = ({ rates }) => (
     </div>
 );
 
+type AiNumberType = '1 Digit Open' | '1 Digit Close' | '2 Digit';
+
+const AiLuckyPickModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    games: Game[];
+    onGetNumber: (prompt: string, gameId: string, numberType: AiNumberType) => void;
+    onPlayNumber: (gameId: string, number: string, subGameType: SubGameType) => void;
+    isLoading: boolean;
+    response: { suggestedNumber: string; explanation: string } | null;
+}> = ({ isOpen, onClose, games, onGetNumber, onPlayNumber, isLoading, response }) => {
+    const [prompt, setPrompt] = useState('');
+    const [gameId, setGameId] = useState<string>(games[0]?.id || '');
+    const [numberType, setNumberType] = useState<AiNumberType>('2 Digit');
+
+    useEffect(() => {
+        if (!isOpen) {
+            setPrompt('');
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onGetNumber(prompt, gameId, numberType);
+    };
+
+    const handlePlay = () => {
+        if (response) {
+            onPlayNumber(gameId, response.suggestedNumber, numberType as SubGameType);
+        }
+    };
+    
+    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white";
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+            <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30">
+                <div className="flex justify-between items-center p-5 border-b border-slate-700">
+                    <h3 className="text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        {React.cloneElement(Icons.sparkles, {className: 'w-6 h-6 text-cyan-400'})}
+                        AI Lucky Pick
+                    </h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
+                </div>
+                <div className="p-6">
+                    {response ? (
+                        <div className="text-center">
+                            <p className="text-slate-400 mb-2">The Oracle has spoken...</p>
+                            <div className="bg-slate-900/50 border border-cyan-500/20 p-6 rounded-lg my-4">
+                                <p className="text-7xl font-mono font-bold text-cyan-300 tracking-wider">{response.suggestedNumber}</p>
+                                <p className="text-slate-300 mt-4 italic">"{response.explanation}"</p>
+                            </div>
+                            <div className="flex justify-end space-x-4 pt-2">
+                                <button onClick={onClose} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 px-6 rounded-md transition-colors">Close</button>
+                                <button onClick={handlePlay} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors">Play this Number</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                             <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-1">What's on your mind?</label>
+                                <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} placeholder="e.g., I dreamed of a white horse" className={inputClass} required />
+                            </div>
+                             <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-1">For Game</label>
+                                    <select value={gameId} onChange={e => setGameId(e.target.value)} className={inputClass}>
+                                        {games.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-400 mb-1">Number Type</label>
+                                     <select value={numberType} onChange={e => setNumberType(e.target.value as AiNumberType)} className={inputClass}>
+                                        <option value="2 Digit">2 Digit</option>
+                                        <option value="1 Digit Open">1 Digit Open</option>
+                                        <option value="1 Digit Close">1 Digit Close</option>
+                                    </select>
+                                </div>
+                            </div>
+                             <div className="flex justify-end pt-2">
+                                <button type="submit" disabled={isLoading} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-wait">
+                                    {isLoading ? 'Consulting the Oracle...' : 'Get Lucky Number'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 interface UserPanelProps {
   user: User; games: Game[]; bets: Bet[];
@@ -629,10 +736,17 @@ const getPrizeRateForBet = (subGameType: SubGameType, prizeRates: PrizeRates) =>
 };
 
 const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) => {
+  const { fetchWithAuth } = useAuth();
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [betConfirmation, setBetConfirmation] = useState<BetConfirmationDetails | null>(null);
   const [betToConfirm, setBetToConfirm] = useState<BetConfirmationDetails | null>(null);
 
+  // AI Lucky Pick State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiIsLoading, setAiIsLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState<{ suggestedNumber: string; explanation: string } | null>(null);
+  const [initialBetData, setInitialBetData] = useState<{ number: string; subGameType: SubGameType } | null>(null);
+  
   const userBets = bets.filter(b => b.userId === user.id);
 
   const handleReviewBet = (subGameType: SubGameType, numbers: string[], amountPerNumber: number) => {
@@ -652,6 +766,37 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
     }
   };
 
+  const handleGetLuckyNumber = async (userPrompt: string, gameId: string, numberType: AiNumberType) => {
+    setAiIsLoading(true);
+    setAiResponse(null);
+    try {
+        const game = games.find(g => g.id === gameId);
+        const response = await fetchWithAuth('/api/ai/lucky-number', {
+            method: 'POST',
+            body: JSON.stringify({ userPrompt, gameName: game?.name, numberType }),
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || 'Failed to get lucky number');
+        }
+        const data = await response.json();
+        setAiResponse(data);
+    } catch (error: any) {
+        alert(`Oracle Error: ${error.message}`);
+    } finally {
+        setAiIsLoading(false);
+    }
+  };
+
+  const handlePlayLuckyNumber = (gameId: string, number: string, subGameType: SubGameType) => {
+    const gameToPlay = games.find(g => g.id === gameId);
+    if (!gameToPlay) return;
+
+    setInitialBetData({ number, subGameType });
+    setSelectedGame(gameToPlay);
+    setIsAiModalOpen(false);
+    setAiResponse(null);
+  };
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -687,6 +832,21 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
           </div>
       )}
 
+      <div className="relative p-6 rounded-lg mb-8 bg-slate-800/50 border border-slate-700 text-center overflow-hidden">
+          <div className="absolute -inset-1 bg-gradient-to-r from-sky-600 via-purple-500 to-cyan-500 rounded-lg blur opacity-25"></div>
+          <div className="relative z-10">
+              <h3 className="text-2xl font-bold text-white uppercase tracking-widest mb-2 flex items-center justify-center gap-3">
+                {React.cloneElement(Icons.sparkles, {className: "w-6 h-6 text-cyan-300"})}
+                AI Lucky Pick Assistant
+              </h3>
+              <p className="text-slate-400 mb-4 max-w-2xl mx-auto">Need inspiration? Ask our Gemini-powered oracle for a lucky number based on your dreams or feelings!</p>
+              <button onClick={() => setIsAiModalOpen(true)} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-all duration-300 transform hover:scale-105 shadow-lg shadow-sky-500/30">
+                  Ask Gemini
+              </button>
+          </div>
+      </div>
+
+
       <h2 className="text-3xl font-bold text-sky-400 mb-6 uppercase tracking-widest">Available Games</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {games.map(game => (
@@ -697,9 +857,11 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
       <PrizeRatesView rates={user.prizeRates} />
       <BetHistoryView bets={userBets} games={games} user={user} />
       <LedgerView entries={user.ledger} />
-      {selectedGame && <BettingModal game={selectedGame} user={user} onClose={() => setSelectedGame(null)} onPlaceBet={handleReviewBet} />}
+      
+      {selectedGame && <BettingModal game={selectedGame} user={user} onClose={() => { setSelectedGame(null); setInitialBetData(null); }} onPlaceBet={handleReviewBet} initialData={initialBetData} />}
       {betToConfirm && <BetConfirmationPromptModal details={betToConfirm} onConfirm={handleConfirmBet} onClose={() => setBetToConfirm(null)} />}
       {betConfirmation && <BetConfirmationModal details={betConfirmation} onClose={() => setBetConfirmation(null)} />}
+      <AiLuckyPickModal isOpen={isAiModalOpen} onClose={() => {setIsAiModalOpen(false); setAiResponse(null);}} games={games} onGetNumber={handleGetLuckyNumber} onPlayNumber={handlePlayLuckyNumber} isLoading={aiIsLoading} response={aiResponse} />
     </div>
   );
 };

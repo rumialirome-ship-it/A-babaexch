@@ -3,6 +3,7 @@
 This comprehensive guide provides step-by-step instructions to deploy the A-Baba Exchange full-stack application on a fresh Ubuntu 22.04 server.
 
 We will use:
+-   **Vite** to build the frontend into optimized static assets.
 -   **Nginx** as a reverse proxy to serve the frontend and route API requests.
 -   **PM2** as a process manager to keep the Node.js backend running continuously.
 -   **Certbot (Let's Encrypt)** to secure the application with a free SSL certificate (HTTPS).
@@ -58,44 +59,63 @@ First, connect to your server via SSH and perform these initial configuration st
 
 ### **Step 2: Upload Application Files**
 
-Next, we'll create the necessary directories and upload your application code from your local machine to the server.
+Next, we'll create the necessary directory and upload your application code from your local machine to the server.
 
-1.  **Create Project Directories on the Server**:
-    We will host our application in `/var/www/abexch.live`.
+1.  **Create Project Directory on the Server**:
+    We will host the entire application in `/var/www/html/A-babaexch`.
     ```bash
-    # Create the main directory and subdirectories for frontend (html) and backend
-    sudo mkdir -p /var/www/abexch.live/html
-    sudo mkdir -p /var/www/abexch.live/backend
+    # Create the main project directory
+    sudo mkdir -p /var/www/html/A-babaexch
 
-    # Set the current user as the owner of these directories
-    sudo chown -R $USER:$USER /var/www/abexch.live
+    # Set the current user as the owner of this directory
+    # This allows you to upload files without needing sudo.
+    sudo chown -R $USER:$USER /var/www/html/A-babaexch
     ```
 
 2.  **Upload Files from Local Machine**:
-    Open a **new terminal on your local computer** (not the server SSH session). Use the `scp` (secure copy) command to transfer your files.
+    Open a **new terminal on your local computer**. Use `scp` (secure copy) to transfer all your project files and folders (including the `backend` directory) into the server directory.
 
-    *   **Upload the backend:**
-        ```bash
-        # Replace /path/to/your/local/backend/* with the actual path on your computer
-        # Replace your_server_ip with your server's IP address
-        scp -r /path/to/your/local/backend/* your_username@your_server_ip:/var/www/abexch.live/backend/
-        ```
-    *   **Upload the frontend:**
-        ```bash
-        # Replace /path/to/your/local/frontend/* with the actual path
-        scp -r /path/to/your/local/frontend/* your_username@your_server_ip:/var/www/abexch.live/html/
-        ```
-    *Note: The `frontend` files are everything in your project's root *except* the `backend` directory.*
+    ```bash
+    # Replace /path/to/your/local/project/* with the actual path on your computer.
+    # The '*' ensures the contents of the directory are copied.
+    # Replace your_server_ip with your server's IP address.
+    scp -r /path/to/your/local/project/* your_username@your_server_ip:/var/www/html/A-babaexch/
+    ```
+    After this step, your server's `/var/www/html/A-babaexch/` directory should contain your `index.html`, `package.json`, the `backend/` folder, and all other project files.
 
 ---
 
-### **Step 3: Backend Setup with PM2**
+### **Step 3: Frontend Setup & Build**
+
+Before setting up the backend, we need to install the frontend dependencies and create a production-ready build.
+
+1.  **Navigate to the Project Directory**:
+    ```bash
+    cd /var/www/html/A-babaexch
+    ```
+
+2.  **Install Frontend Dependencies**:
+    This command reads the root `package.json` file and installs libraries like React and Vite.
+    ```bash
+    npm install
+    ```
+
+3.  **Build the Frontend**:
+    This script compiles the React/TypeScript application into static HTML, CSS, and JavaScript files inside a `dist` directory.
+    ```bash
+    npm run build
+    ```
+    After this step, you will have a new `/var/www/html/A-babaexch/dist` folder containing the optimized frontend assets.
+
+---
+
+### **Step 4: Backend Setup with PM2**
 
 Now, let's configure and launch the Node.js backend application.
 
 1.  **Navigate to the Backend Directory on the Server**:
     ```bash
-    cd /var/www/abexch.live/backend
+    cd /var/www/html/A-babaexch/backend
     ```
 
 2.  **Install Dependencies**:
@@ -111,9 +131,12 @@ Now, let's configure and launch the Node.js backend application.
     ```
     Add the following content. **It is critical to generate a strong, unique secret for `JWT_SECRET`**. You can use an online generator or a command like `openssl rand -base64 32`.
     ```
-    PORT=5000
+    PORT=3001
     JWT_SECRET=your_super_secret_and_long_jwt_key_here
+    API_KEY=your_google_gemini_api_key_here
     ```
+    > **Note**: The `API_KEY` is for the Google Gemini API. You can get a key from Google AI Studio. This is required for the "AI Lucky Pick" feature.
+    
     Save and close the file (`Ctrl+X`, then `Y`, then `Enter`).
 
 4.  **Install PM2 Globally**:
@@ -143,9 +166,9 @@ Now, let's configure and launch the Node.js backend application.
 
 ---
 
-### **Step 4: Nginx Configuration (Reverse Proxy)**
+### **Step 5: Nginx Configuration (Reverse Proxy)**
 
-Nginx will act as the web server. It will serve your frontend files and forward API requests (`/api/...`) to your backend.
+Nginx will act as the web server. It will serve your built frontend files and forward API requests (`/api/...`) to your backend.
 
 1.  **Install Nginx**:
     ```bash
@@ -164,8 +187,8 @@ Nginx will act as the web server. It will serve your frontend files and forward 
         listen 80;
         server_name abexch.live www.abexch.live;
 
-        # Path to your frontend files
-        root /var/www/abexch.live/html;
+        # Path to your project's BUILD folder
+        root /var/www/html/A-babaexch/dist;
         index index.html;
 
         # For single-page applications, this ensures that refreshing any page
@@ -174,9 +197,9 @@ Nginx will act as the web server. It will serve your frontend files and forward 
             try_files $uri /index.html;
         }
 
-        # Proxy API requests to the backend Node.js server running on port 5000
+        # Proxy API requests to the backend Node.js server running on port 3001
         location /api/ {
-            proxy_pass http://localhost:5000;
+            proxy_pass http://localhost:3001;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection 'upgrade';
@@ -202,7 +225,7 @@ Nginx will act as the web server. It will serve your frontend files and forward 
 
 ---
 
-### **Step 5: Secure Your Site with HTTPS (Let's Encrypt SSL)**
+### **Step 6: Secure Your Site with HTTPS (Let's Encrypt SSL)**
 
 Finally, we will secure your site with a free SSL certificate.
 
@@ -248,5 +271,5 @@ Your A-Baba Exchange platform is now live and secure. You can access it at **`ht
 
 -   **502 Bad Gateway Error**: This usually means Nginx can't connect to your backend.
     -   Check if the backend is running with `pm2 status`. If it has stopped or is in an errored state, check the logs with `pm2 logs ababa-backend`.
--   **Permission Errors**: If you have issues writing files (like `db.json`), ensure the directory permissions are correct: `sudo chown -R $USER:$USER /var/www/abexch.live`.
+-   **Permission Errors**: If you have issues writing files (like `db.json`), ensure the directory permissions are correct: `sudo chown -R $USER:$USER /var/www/html/A-babaexch`.
 -   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 restart ababa-backend`.
