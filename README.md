@@ -223,7 +223,7 @@ Nginx will act as the web server. It will serve your built frontend files and fo
         }
     }
     ```
-    > **CRITICAL:** The `root` directive **must** point to the `/dist` subfolder, which contains the optimized production build created by `npm run build`. If you point it to the project's main directory (`/var/www/html/A-babaexch`), your application will fail with a MIME type error.
+    > **CRITICAL:** The `root` directive **must** point to the `/dist` subfolder, which contains the optimized production build from `npm run build`. Pointing it to the project's main directory (`/var/www/html/A-babaexch`) **will cause your application to fail** with a blank page and a MIME type error.
 
     Save and close the file.
 
@@ -335,5 +335,11 @@ When you have new code changes to deploy, follow these steps to ensure they are 
 -   **Permission Errors**: If you have issues with the database file, ensure its directory has the correct permissions: `sudo chown -R $USER:$USER /var/www/html/A-babaexch/backend`.
 -   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 reload ababa-backend`.
 -   **Error: `Failed to load module script... MIME type of "application/octet-stream"`**:
-    -   **Cause**: This error occurs when Nginx is serving the wrong `index.html` file (the one from your project's root folder instead of the one inside `dist`). The browser is trying to load a `.tsx` file, which it cannot execute, and Nginx defaults to a generic file type.
-    -   **Solution**: Double-check your Nginx configuration file (`/etc/nginx/sites-available/abexch.live`). Ensure the `root` directive is pointing to the correct build output directory: `root /var/www/html/A-babaexch/dist;`. After correcting the path, restart Nginx with `sudo systemctl restart nginx`.
+    -   **Cause**: This is a critical configuration error. It means your Nginx web server is serving the **development** folder (`/var/www/html/A-babaexch`) instead of the **production build** folder (`/var/www/html/A-babaexch/dist`).
+    -   **Solution**: You must fix your Nginx configuration.
+        1. Open the configuration file: `sudo nano /etc/nginx/sites-available/abexch.live`
+        2. Find the line that starts with `root`.
+        3. Ensure the line reads **exactly**: `root /var/www/html/A-babaexch/dist;`
+        4. Save the file (`Ctrl+X`, `Y`, `Enter`).
+        5. Restart Nginx to apply the change: `sudo systemctl restart nginx`
+        6. Clear your browser cache completely and reload the page.

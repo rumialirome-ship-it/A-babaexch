@@ -24,11 +24,11 @@
   <body class="bg-slate-900">
     <div class="animated-bg"></div>
     <div id="root"></div>
-    <!--
-      DEVELOPMENT ENTRY POINT
-      This file is used by the Vite development server.
-      In production, you MUST serve the index.html file generated inside the 'dist' folder after running 'npm run build'.
-      Serving this file directly in production will cause your app to fail.
+    <!-- 
+      ! ! ! IMPORTANT ! ! !
+      This is the DEVELOPMENT entry point. For production, you MUST serve the index.html 
+      from the 'dist' folder after running 'npm run build'. Your web server (Nginx) root 
+      path should point to the 'dist' directory, NOT the project root.
     -->
     <script type="module" src="/index.tsx"></script>
   </body>
