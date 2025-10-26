@@ -274,6 +274,50 @@ Finally, we will secure your site with a free SSL certificate.
 
 Your A-Baba Exchange platform is now live and secure. You can access it at **`https://abexch.live`**.
 
+---
+
+### **Updating the Application**
+
+When you have new code changes to deploy, follow these steps to ensure they are applied correctly.
+
+1.  **Upload New Files**:
+    Use `scp` or another method to transfer your updated files to the server, overwriting the old ones. For example, to update the backend:
+    ```bash
+    # On your local machine
+    scp -r /path/to/your/local/project/backend/* your_username@your_server_ip:/var/www/html/A-babaexch/backend/
+    ```
+
+2.  **Rebuild Frontend (if necessary)**:
+    If you made changes to the frontend code (any file outside the `backend` directory), you must create a new build.
+    ```bash
+    # On the server
+    cd /var/www/html/A-babaexch
+    npm run build
+    ```
+
+3.  **Restart the Backend Process**:
+    Simply running `pm2 restart` can sometimes fail to pick up all changes. A more reliable method is to use `reload`.
+    ```bash
+    # On the server
+    pm2 reload ababa-backend
+    ```
+    Alternatively, for a complete refresh, you can delete and restart the process:
+    ```bash
+    # On the server
+    pm2 delete ababa-backend
+    cd /var/www/html/A-babaexch/backend
+    pm2 start server.js --name ababa-backend
+    pm2 save # Don't forget to save the process list again!
+    ```
+
+4.  **Check the Logs**:
+    After restarting, immediately check the logs to confirm the new version is running and there are no errors.
+    ```bash
+    pm2 logs ababa-backend
+    ```
+
+---
+
 ### **Managing Your Application**
 
 -   **View backend logs**: `pm2 logs ababa-backend`
@@ -287,4 +331,4 @@ Your A-Baba Exchange platform is now live and secure. You can access it at **`ht
 -   **502 Bad Gateway Error**: This usually means Nginx can't connect to your backend.
     -   Check if the backend is running with `pm2 status`. If it has stopped or is in an errored state, check the logs with `pm2 logs ababa-backend`.
 -   **Permission Errors**: If you have issues with the database file, ensure its directory has the correct permissions: `sudo chown -R $USER:$USER /var/www/html/A-babaexch/backend`.
--   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 restart ababa-backend`.
+-   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 reload ababa-backend`.

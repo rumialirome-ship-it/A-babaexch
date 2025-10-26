@@ -1,4 +1,8 @@
-console.log('--- EXECUTING LATEST SERVER.JS - PORT IS HARDCODED TO 3001 ---');
+console.log('############################################################');
+console.log('--- EXECUTING LATEST SERVER.JS VERSION 3 ---');
+console.log('--- INTENDED PORT IS HARDCODED TO: 3001 ---');
+console.log(`--- Checking environment variable PORT: ${process.env.PORT || 'Not Set'} ---`);
+console.log('############################################################');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
