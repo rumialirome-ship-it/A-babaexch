@@ -144,6 +144,14 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
     const lastBalanceStmt = db.prepare('SELECT balance FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 1');
     const lastEntry = lastBalanceStmt.get(accountId);
     const lastBalance = lastEntry ? lastEntry.balance : 0;
+
+    // Robust check: Ensure non-admin accounts cannot have a negative balance.
+    if (debit > 0 && accountType !== 'ADMIN' && lastBalance < debit) {
+        throw { 
+            status: 400, 
+            message: `Insufficient funds. Wallet has ${lastBalance.toFixed(2)}, but transaction requires ${debit.toFixed(2)}.` 
+        };
+    }
     
     const newBalance = lastBalance - debit + credit;
     
