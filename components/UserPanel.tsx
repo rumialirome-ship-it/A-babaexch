@@ -162,7 +162,7 @@ interface BettingModalProps {
     game: Game | null;
     user: User;
     onClose: () => void;
-    onPlaceBet: (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: Map<number, string[]>}) => void;
+    onPlaceBet: (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }) => void;
 }
 
 const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlaceBet }) => {
@@ -233,6 +233,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             numbers: string[];
             stake: number;
             cost: number;
+            subGameType: SubGameType;
             error?: string;
         }
         const result = {
@@ -240,19 +241,19 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             totalCost: 0,
             totalNumbers: 0,
             error: null as string | null,
-            betGroups: new Map<number, string[]>(),
+            betGroups: [] as { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[],
         };
         const input = bulkInput.trim();
         if (!input) return result;
 
         const allLines = input.split('\n');
-
+        
         for (const lineText of allLines) {
             if (!lineText.trim()) continue;
 
-            const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0 };
-
-            const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*$/i;
+            const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit };
+            
+            const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*(combo|k)?\s*$/i;
             const stakeMatch = lineText.match(stakeRegex);
 
             if (!stakeMatch) {
@@ -262,6 +263,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             }
 
             const stake = parseFloat(stakeMatch[1]);
+            const isCombo = !!stakeMatch[2];
             if (isNaN(stake) || stake <= 0) {
                 parsedLine.error = 'Invalid stake amount.';
                 result.lines.push(parsedLine);
@@ -270,53 +272,74 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             parsedLine.stake = stake;
 
             let betPart = lineText.substring(0, stakeMatch.index).trim();
-            let lineNumbers = new Set<string>();
-            let lineError: string | null = null;
-            
-            const comboRegex = /\b(k|combo)\s+([0-9\s.,-/]+)/ig;
-            betPart = betPart.replace(comboRegex, (match: string, _keyword: string, digitsStr: string) => {
-                const digits = digitsStr.replace(/\D/g, '');
-                const uniqueDigits = [...new Set(digits.split(''))];
-                if (uniqueDigits.length < 3 || uniqueDigits.length > 7) {
-                    lineError = `Combo requires 3-7 unique digits (found ${uniqueDigits.length}).`;
-                    return '';
-                }
-                const sortedDigits = uniqueDigits.sort();
-                for (let i = 0; i < sortedDigits.length; i++) {
-                    for (let j = i + 1; j < sortedDigits.length; j++) {
-                        lineNumbers.add(sortedDigits[i] + sortedDigits[j]);
-                    }
-                }
-                return ''; 
-            });
-            
-            betPart = betPart.replace(/\s+combo\s*$/i, '').trim();
-
-            if (lineError) {
-                parsedLine.error = lineError;
-                result.lines.push(parsedLine);
-                continue;
-            }
+            betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
 
             const tokens = betPart.replace(/[^a-zA-Z0-9xX\s]/g, ' ').split(/\s+/).filter(Boolean);
+            if (tokens.length === 0) {
+                 parsedLine.error = "No numbers found.";
+                 result.lines.push(parsedLine);
+                 continue;
+            }
+            
+            let lineNumbers = new Set<string>();
+            let lineError: string | null = null;
+            let lineType: SubGameType | 'mixed' | 'unknown' = 'unknown';
+            
+            const determineType = (token: string): SubGameType | null => {
+                if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
+                if (/^\d[xX]$/.test(token)) return SubGameType.OneDigitOpen;
+                if (/^[xX]\d$/.test(token)) return SubGameType.OneDigitClose;
+                return null;
+            };
+
             for (const token of tokens) {
-                 if (/^\d{1,2}$/.test(token)) {
-                    lineNumbers.add(token.padStart(2, '0'));
-                } else if (/^\d[xX]$/.test(token)) {
-                    const digit = token[0];
-                    for (let i = 0; i < 10; i++) lineNumbers.add(digit + String(i));
-                } else if (/^[xX]\d$/.test(token)) {
-                    const digit = token[1];
-                    for (let i = 0; i < 10; i++) lineNumbers.add(String(i) + digit);
-                } else {
-                    lineError = `Invalid token: '${token}'.`;
+                const currentTokenType = determineType(token);
+                if (!currentTokenType) {
+                    lineError = `Invalid token: '${token}'`;
+                    break;
+                }
+                if (lineType === 'unknown') {
+                    lineType = currentTokenType;
+                } else if (lineType !== currentTokenType) {
+                    lineType = 'mixed';
                     break;
                 }
             }
-            
+
             if (lineError) {
                 parsedLine.error = lineError;
-            } else if (lineNumbers.size === 0 && lineText.trim().split(/\s+/).length > 2) {
+            } else if (lineType === 'mixed') {
+                parsedLine.error = 'Mixed bet types on one line are not allowed.';
+            } else if (lineType === 'unknown') {
+                parsedLine.error = 'Could not determine bet type.';
+            } else {
+                 parsedLine.subGameType = lineType;
+                 if (isCombo) {
+                     const digits = tokens.join('');
+                     const uniqueDigits = [...new Set(digits.split(''))];
+                     if (uniqueDigits.length < 3 || uniqueDigits.length > 7) {
+                         parsedLine.error = `Combo requires 3-7 unique digits.`;
+                     } else {
+                         const sortedDigits = uniqueDigits.sort();
+                         for (let i = 0; i < sortedDigits.length; i++) {
+                            for (let j = i + 1; j < sortedDigits.length; j++) {
+                                lineNumbers.add(sortedDigits[i] + sortedDigits[j]);
+                            }
+                         }
+                         parsedLine.subGameType = SubGameType.TwoDigit;
+                     }
+                 } else {
+                     tokens.forEach(token => {
+                         if (lineType === SubGameType.TwoDigit) lineNumbers.add(token.padStart(2, '0'));
+                         if (lineType === SubGameType.OneDigitOpen) lineNumbers.add(token[0]);
+                         if (lineType === SubGameType.OneDigitClose) lineNumbers.add(token[1]);
+                     });
+                 }
+            }
+            
+            if (parsedLine.error) {
+                // do nothing
+            } else if (lineNumbers.size === 0) {
                  parsedLine.error = "No valid numbers found.";
             } else {
                 parsedLine.numbers = Array.from(lineNumbers);
@@ -324,15 +347,20 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                 result.totalCost += parsedLine.cost;
                 result.totalNumbers += parsedLine.numbers.length;
 
-                const existingNumbers = result.betGroups.get(parsedLine.stake) || [];
-                result.betGroups.set(parsedLine.stake, [...existingNumbers, ...parsedLine.numbers]);
+                const existingGroup = result.betGroups.find(g => g.subGameType === parsedLine.subGameType && g.amountPerNumber === parsedLine.stake);
+                if (existingGroup) {
+                    existingGroup.numbers.push(...parsedLine.numbers);
+                } else {
+                    result.betGroups.push({ subGameType: parsedLine.subGameType, numbers: parsedLine.numbers, amountPerNumber: parsedLine.stake });
+                }
             }
             result.lines.push(parsedLine);
         }
         
-        for (const [stake, numbers] of result.betGroups.entries()) {
-            result.betGroups.set(stake, [...new Set(numbers)]);
-        }
+        // Deduplicate numbers within each final group
+        result.betGroups.forEach(group => {
+            group.numbers = [...new Set(group.numbers)];
+        });
 
         if (result.lines.some(l => l.error)) result.error = 'Please review invalid lines.';
         
@@ -417,33 +445,45 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     const handleBet = () => {
         setError(null);
 
-        const checkBetLimit = (totalCost: number) => {
+        const checkBetLimit = (totalCost: number, type: SubGameType) => {
             if (user.betLimits) {
                 let limit = 0;
-                if (subGameType === SubGameType.OneDigitOpen) {
+                if (type === SubGameType.OneDigitOpen) {
                     limit = user.betLimits.oneDigitOpen;
-                } else if (subGameType === SubGameType.OneDigitClose) {
+                } else if (type === SubGameType.OneDigitClose) {
                     limit = user.betLimits.oneDigitClose;
                 } else { // TwoDigit, Bulk, Combo
                     limit = user.betLimits.twoDigit;
                 }
 
                 if (limit > 0 && totalCost > limit) {
-                    setError(`Bet amount (PKR ${totalCost.toFixed(2)}) exceeds your limit of PKR ${limit.toFixed(2)} for this game type.`);
+                    setError(`Bet amount (PKR ${totalCost.toFixed(2)}) for ${type} exceeds your limit of PKR ${limit.toFixed(2)}.`);
                     return false;
                 }
             }
             return true;
         };
+        
+        const checkTotalLimit = (betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[]) => {
+            const costsPerType = new Map<SubGameType, number>();
+            betGroups.forEach(group => {
+                const cost = group.numbers.length * group.amountPerNumber;
+                costsPerType.set(group.subGameType, (costsPerType.get(group.subGameType) || 0) + cost);
+            });
+            for(const [type, cost] of costsPerType.entries()) {
+                if (!checkBetLimit(cost, type)) return false;
+            }
+            return true;
+        }
 
         if (subGameType === SubGameType.Combo) {
             if (parsedComboBet.error) { setError(parsedComboBet.error); return; }
             const { numbers, stake, totalCost } = finalComboBetDetails;
             if (numbers.length === 0) { setError("Please select at least one combination to bet on."); return; }
             if (stake <= 0) { setError("Invalid stake amount."); return; }
-            if (!checkBetLimit(totalCost)) return;
+            if (!checkBetLimit(totalCost, SubGameType.TwoDigit)) return;
             if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-            onPlaceBet({ subGameType, numbers, amountPerNumber: stake });
+            onPlaceBet({ subGameType: SubGameType.TwoDigit, numbers, amountPerNumber: stake });
             setComboInput('');
             return;
         }
@@ -451,10 +491,10 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         if (subGameType === SubGameType.Bulk) {
             const { totalCost, betGroups, error: parseError } = parsedBulkBet;
             if (parseError) { setError(parseError); return; }
-            if (betGroups.size === 0) { setError("No valid bets entered."); return; }
-            if (!checkBetLimit(totalCost)) return;
+            if (betGroups.length === 0) { setError("No valid bets entered."); return; }
+            if (!checkTotalLimit(betGroups)) return;
             if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-            onPlaceBet({ subGameType, betGroups });
+            onPlaceBet({ subGameType: SubGameType.Bulk, betGroups });
             setBulkInput('');
             return;
         }
@@ -463,7 +503,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         if (stake <= 0) { setError("Please enter a valid amount."); return; }
         if (parseError) { setError(parseError); return; }
         if (numbers.length === 0) { setError("Please enter at least one number."); return; }
-        if (!checkBetLimit(totalCost)) return;
+        if (!checkBetLimit(totalCost, subGameType)) return;
         if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
         onPlaceBet({ subGameType, numbers, amountPerNumber: stake });
         setManualNumbersInput(''); setManualAmountInput('');
@@ -476,8 +516,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         }
     };
     
-    const getPrizeRate = () => {
-        switch(subGameType) {
+    const getPrizeRate = (type: SubGameType) => {
+        switch(type) {
             case SubGameType.OneDigitOpen: return user.prizeRates.oneDigitOpen;
             case SubGameType.OneDigitClose: return user.prizeRates.oneDigitClose;
             default: return user.prizeRates.twoDigit;
@@ -506,8 +546,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <>
                            <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"12 23 45 Rs20\n47 49 31 R30\n78 rs100\n1x x2 4x x7 r50\nk 123 Rs30"} className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Enter multiple bet lines. Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5' (combo).</p>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"12 23 45 Rs20\n47 49 31 R30\n1x 2x r50\nk 123 r10 combo"} className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5 combo'. One bet type per line.</p>
                             </div>
                             
                              {parsedBulkBet.lines.length > 0 && (
@@ -520,7 +560,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                                                     <span className="text-red-400 font-semibold text-right">{line.error}</span>
                                                 ) : (
                                                     <div className="flex items-center gap-4 text-xs">
-                                                        <span className="text-slate-300">Numbers: <span className="font-bold text-white">{line.numbers.length}</span></span>
+                                                        <span className="text-slate-300">{line.subGameType}: <span className="font-bold text-white">{line.numbers.length}</span></span>
                                                         <span className="text-slate-300">Cost: <span className="font-bold text-white">{line.cost.toFixed(2)}</span></span>
                                                     </div>
                                                 )}
@@ -531,7 +571,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                             )}
                             
                             <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-2 gap-2 text-center border border-slate-700">
-                                <div><p className="text-slate-400 text-xs uppercase">Total Numbers</p><p className="font-bold text-white text-lg">{parsedBulkBet.totalNumbers}</p></div>
+                                <div><p className="text-slate-400 text-xs uppercase">Total Bets</p><p className="font-bold text-white text-lg">{parsedBulkBet.totalNumbers}</p></div>
                                 <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedBulkBet.totalCost.toFixed(2)}</p></div>
                             </div>
                         </>
@@ -587,7 +627,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                     )}
 
                     <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 flex justify-around border border-slate-700">
-                        <p className="text-slate-300">Prize Rate: <span className="font-bold text-emerald-400">{getPrizeRate()}x</span></p>
+                        <p className="text-slate-300">Prize Rate: <span className="font-bold text-emerald-400">{getPrizeRate(subGameType)}x</span></p>
                         <p className="text-slate-300">Commission: <span className="font-bold text-green-400">{user.commissionRate}%</span></p>
                     </div>
 
@@ -609,13 +649,15 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
 interface BetConfirmationDetails {
     gameId: string;
     gameName: string;
-    subGameType: SubGameType;
+    subGameType: SubGameType; // 'Bulk Game' for bulk bets
     totalAmount: number;
+    totalNumbers: number;
+    // For single type bets (manual, combo)
     numbers?: string[];
     amountPerNumber?: number;
     potentialWinnings?: number;
-    betGroups?: Map<number, string[]>;
-    totalNumbers?: number;
+    // For bulk bets
+    betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
     totalPotentialWinnings?: number;
 }
 
@@ -629,16 +671,20 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
                     <p className="text-slate-400 mb-6">Review details before confirming.</p>
 
                     <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm">
-                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName} ({details.subGameType})</span></div>
+                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName}</span></div>
                         
-                        {details.betGroups ? (
-                            <>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Numbers:</span><span className="font-mono text-cyan-300">{details.totalNumbers}</span></div>
-                                <div className="border-t border-slate-800 my-2"></div>
-                                {[...details.betGroups.entries()].map(([amount, numbers]) => (
-                                    <div key={amount} className="flex justify-between items-center text-xs">
-                                        <span className="text-slate-400">{numbers.length} numbers @</span>
-                                        <span className="font-mono text-white">{amount.toFixed(2)} PKR each</span>
+                        {details.subGameType === SubGameType.Bulk ? (
+                             <>
+                                <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-2">
+                                  <span className="font-medium text-slate-400">Total Bets:</span>
+                                  <span className="font-mono text-cyan-300">{details.totalNumbers}</span>
+                                </div>
+                                {details.betGroups?.map((group, index) => (
+                                    <div key={index} className="text-xs">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-slate-400">{group.subGameType}:</span>
+                                            <span className="font-mono text-white">{group.numbers.length} numbers @ {group.amountPerNumber.toFixed(2)} PKR</span>
+                                        </div>
                                     </div>
                                 ))}
                                 <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
@@ -646,6 +692,7 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
                             </>
                         ) : (
                             <>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Type:</span><span className="font-bold text-white">{details.subGameType}</span></div>
                                 <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Numbers:</span><span className="font-mono text-cyan-300 text-right max-w-[60%] truncate" title={details.numbers?.join(', ')}>{details.numbers?.join(', ')}</span></div>
                                 <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Amount/Number:</span><span className="font-mono text-white">{details.amountPerNumber?.toFixed(2)} PKR</span></div>
                                 <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
@@ -679,11 +726,11 @@ const BetConfirmationModal: React.FC<{ details: BetConfirmationDetails; onClose:
                     <h3 className="text-3xl font-bold text-white mb-2 uppercase tracking-wider">Bet Placed!</h3>
                     <p className="text-slate-300 mb-8">Your bet has been recorded. Good luck!</p>
                      <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm">
-                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName} ({details.subGameType})</span></div>
+                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName}</span></div>
                         
-                        {details.betGroups ? (
+                        {details.subGameType === SubGameType.Bulk ? (
                             <>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Numbers:</span><span className="font-mono text-cyan-300">{details.totalNumbers}</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Bets:</span><span className="font-mono text-cyan-300">{details.totalNumbers}</span></div>
                                 <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
                                 <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
                             </>
@@ -777,31 +824,36 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
   
   const userBets = bets.filter(b => b.userId === user.id);
 
-  const handleReviewBet = (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: Map<number, string[]>}) => {
+  const handleReviewBet = (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }) => {
     if (selectedGame) {
-      const prizeRate = getPrizeRateForBet(details.subGameType, user.prizeRates);
       let confirmationDetails: BetConfirmationDetails;
 
-      if (details.betGroups) { // Bulk bet
+      if (details.subGameType === SubGameType.Bulk && details.betGroups) {
           let totalAmount = 0;
           let totalNumbers = 0;
           let totalPotentialWinnings = 0;
-          details.betGroups.forEach((numbers, amount) => {
-              totalAmount += numbers.length * amount;
-              totalNumbers += numbers.length;
-              totalPotentialWinnings += numbers.length * amount * prizeRate;
+          
+          details.betGroups.forEach(group => {
+              const groupCost = group.numbers.length * group.amountPerNumber;
+              totalAmount += groupCost;
+              totalNumbers += group.numbers.length;
+              const prizeRate = getPrizeRateForBet(group.subGameType, user.prizeRates);
+              totalPotentialWinnings += group.numbers.length * group.amountPerNumber * prizeRate;
           });
+
           confirmationDetails = {
               gameId: selectedGame.id, gameName: selectedGame.name, subGameType: details.subGameType,
               betGroups: details.betGroups, totalAmount, totalNumbers, totalPotentialWinnings
           };
       } else { // Single bet (Manual or Combo)
-          const { numbers, amountPerNumber } = details;
+          const { numbers, amountPerNumber, subGameType } = details;
           if(!numbers || amountPerNumber === undefined) return;
           const totalAmount = numbers.length * amountPerNumber;
+          const prizeRate = getPrizeRateForBet(subGameType, user.prizeRates);
           confirmationDetails = {
-              gameId: selectedGame.id, gameName: selectedGame.name, subGameType: details.subGameType,
-              numbers, amountPerNumber, totalAmount, potentialWinnings: amountPerNumber * prizeRate * numbers.length
+              gameId: selectedGame.id, gameName: selectedGame.name, subGameType,
+              numbers, amountPerNumber, totalAmount, totalNumbers: numbers.length, 
+              potentialWinnings: numbers.length * amountPerNumber * prizeRate
           };
       }
       setBetToConfirm(confirmationDetails);
@@ -813,20 +865,34 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
     if (betToConfirm) {
         let betsArray: { numbers: string[]; amountPerNumber: number }[] = [];
 
-        if (betToConfirm.betGroups) { // Bulk bet
-            betsArray = Array.from(betToConfirm.betGroups.entries()).map(([amount, numbers]) => ({
-                amountPerNumber: amount,
-                numbers: numbers,
-            }));
+        if (betToConfirm.subGameType === SubGameType.Bulk && betToConfirm.betGroups) {
+            // For bulk bets, we need to submit each sub-game type as a separate transaction.
+            // This is a simplification; for now, we'll assume the API can handle grouped bets.
+            // The API needs to be updated to handle an array of bet groups.
+            // Let's structure the data for an updated API.
+            const betsBySubGameType = new Map<SubGameType, { numbers: string[]; amountPerNumber: number }[]>();
+            
+            betToConfirm.betGroups.forEach(group => {
+                const existing = betsBySubGameType.get(group.subGameType) || [];
+                existing.push({ numbers: group.numbers, amountPerNumber: group.amountPerNumber });
+                betsBySubGameType.set(group.subGameType, existing);
+            });
+
+            betsBySubGameType.forEach((bets, subGameType) => {
+                 placeBet({
+                    userId: user.id,
+                    gameId: betToConfirm.gameId,
+                    subGameType: subGameType,
+                    bets: bets,
+                });
+            });
+
         } else if (betToConfirm.numbers && betToConfirm.amountPerNumber !== undefined) { // Manual/Combo
             betsArray = [{
                 numbers: betToConfirm.numbers,
                 amountPerNumber: betToConfirm.amountPerNumber,
             }];
-        }
-
-        if (betsArray.length > 0) {
-            placeBet({
+             placeBet({
                 userId: user.id,
                 gameId: betToConfirm.gameId,
                 subGameType: betToConfirm.subGameType,
