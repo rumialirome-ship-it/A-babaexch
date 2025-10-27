@@ -17,7 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [role, setRole] = useState<Role | null>(null);
     const [account, setAccount] = useState<User | Dealer | Admin | null>(null);
-    const [token, setToken] = useState<string | null>(localStorage.getItem('authToken'));
+    const [token, setToken] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
 
     const logout = useCallback(() => {
@@ -29,19 +29,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
         const headers = new Headers(options.headers || {});
-        if (token) {
-            headers.append('Authorization', `Bearer ${token}`);
+        const currentToken = token || localStorage.getItem('authToken');
+        if (currentToken) {
+            headers.append('Authorization', `Bearer ${currentToken}`);
         }
         if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
             headers.append('Content-Type', 'application/json');
         }
         
-        // Create a new options object to avoid mutating the original
         const fetchOptions: RequestInit = { ...options, headers };
 
-        // Add no-cache for GET requests to prevent stale data
         if (!fetchOptions.method || fetchOptions.method.toUpperCase() === 'GET') {
-            fetchOptions.cache = 'no-cache';
+            const separator = url.includes('?') ? '&' : '?';
+            url = `${url}${separator}cacheBust=${new Date().getTime()}`;
         }
 
         const response = await fetch(url, fetchOptions);
@@ -55,23 +55,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [token, logout]);
     
     useEffect(() => {
-        const verifyToken = async () => {
-            if (token) {
+        let isMounted = true;
+        const verifyStoredToken = async () => {
+            const storedToken = localStorage.getItem('authToken');
+            if (storedToken) {
                 try {
-                    const response = await fetchWithAuth('/api/auth/verify');
-                    if (!response.ok) throw new Error('Token verification failed');
+                    const headers = new Headers();
+                    headers.append('Authorization', `Bearer ${storedToken}`);
+                    const response = await fetch('/api/auth/verify', { headers });
+
+                    if (!response.ok) {
+                        throw new Error('Stored token is invalid.');
+                    }
+                    
                     const data = await response.json();
-                    setAccount(data.account);
-                    setRole(data.role);
+                    if (isMounted) {
+                        setToken(storedToken);
+                        setAccount(data.account);
+                        setRole(data.role);
+                    }
                 } catch (error) {
-                    console.error(error);
-                    logout();
+                    console.error("Session verification failed:", error);
+                    if (isMounted) {
+                       logout();
+                    }
                 }
             }
-            setLoading(false);
+             if (isMounted) {
+                setLoading(false);
+            }
         };
-        verifyToken();
-    }, [token, fetchWithAuth, logout]);
+
+        verifyStoredToken();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [logout]);
+
 
     const login = async (loginId: string, loginPass: string) => {
         const response = await fetch('/api/auth/login', {

@@ -275,7 +275,8 @@ const createUser = (userData, dealerId, initialDeposit) => {
     if (initialDeposit > 0 && dealer.wallet < initialDeposit) {
         throw { status: 400, message: `Insufficient funds for initial deposit. Available: ${dealer.wallet}` };
     }
-    const newUser = { ...userData, wallet: 0, isRestricted: 0 };
+    // SECURE CHANGE: Force the dealerId from the authenticated session, ignoring any value in userData
+    const newUser = { ...userData, dealerId: dealerId, wallet: 0, isRestricted: 0 };
     db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimit, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(newUser.id, newUser.name, newUser.password, newUser.dealerId, newUser.area, newUser.contact, 0, newUser.commissionRate, 0, JSON.stringify(newUser.prizeRates), newUser.betLimit, newUser.avatarUrl);
 
