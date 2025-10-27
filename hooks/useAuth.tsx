@@ -55,42 +55,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [token, logout]);
     
     useEffect(() => {
-        let isMounted = true;
         const verifyStoredToken = async () => {
             const storedToken = localStorage.getItem('authToken');
-            if (storedToken) {
-                try {
-                    const headers = new Headers();
-                    headers.append('Authorization', `Bearer ${storedToken}`);
-                    const response = await fetch('/api/auth/verify', { headers });
 
-                    if (!response.ok) {
-                        throw new Error('Stored token is invalid.');
-                    }
-                    
-                    const data = await response.json();
-                    if (isMounted) {
-                        setToken(storedToken);
-                        setAccount(data.account);
-                        setRole(data.role);
-                    }
-                } catch (error) {
-                    console.error("Session verification failed:", error);
-                    if (isMounted) {
-                       logout();
-                    }
-                }
+            if (!storedToken) {
+                setLoading(false);
+                return;
             }
-             if (isMounted) {
+
+            try {
+                const headers = new Headers();
+                headers.append('Authorization', `Bearer ${storedToken}`);
+                const response = await fetch('/api/auth/verify', { headers });
+
+                if (!response.ok) {
+                    let errorMessage = 'Stored token is invalid or expired.';
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.message || errorMessage;
+                    } catch (e) { /* Ignore JSON parsing error, use default message */ }
+                    throw new Error(errorMessage);
+                }
+                
+                const data = await response.json();
+                
+                setToken(storedToken);
+                setAccount(data.account);
+                setRole(data.role);
+
+            } catch (error) {
+                console.error("Session verification failed:", error);
+                logout();
+            } finally {
                 setLoading(false);
             }
         };
 
         verifyStoredToken();
-
-        return () => {
-            isMounted = false;
-        };
     }, [logout]);
 
 
