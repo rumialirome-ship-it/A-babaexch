@@ -171,8 +171,35 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
                     throw { status: 400, message: `Total bet amount of PKR ${totalTransactionAmount.toFixed(2)} exceeds your limit of PKR ${limit.toFixed(2)} for this game type.` };
                 }
             }
+            
+            // 3. NEW: Perform checks against global number limits
+            const allNumbersInTx = new Map(); // Key: 'gameType-number', Value: total stake in this TX
+            const gameType = subGameType === '1 Digit Open' ? '1-open' : subGameType === '1 Digit Close' ? '1-close' : '2-digit';
+            
+            bets.forEach(betGroup => {
+                betGroup.numbers.forEach(num => {
+                    const key = `${gameType}-${num}`;
+                    const currentStake = allNumbersInTx.get(key) || 0;
+                    allNumbersInTx.set(key, currentStake + betGroup.amountPerNumber);
+                });
+            });
 
-            // 3. Process a single set of ledger entries for the entire transaction
+            for (const [key, incomingStake] of allNumbersInTx.entries()) {
+                const [type, numberValue] = key.split('-');
+                const limit = database.getNumberLimit(type, numberValue);
+                if (!limit || limit.limitAmount <= 0) continue; 
+
+                const currentStake = database.getCurrentStakeForNumber(type, numberValue);
+                
+                if ((currentStake + incomingStake) > limit.limitAmount) {
+                    throw {
+                        status: 400,
+                        message: `Bet on number '${numberValue}' rejected. The betting limit of PKR ${limit.limitAmount.toFixed(2)} has been reached or would be exceeded. Current stake is PKR ${currentStake.toFixed(2)}.`
+                    };
+                }
+            }
+
+            // 4. Process a single set of ledger entries for the entire transaction
             database.addLedgerEntry(user.id, 'USER', `Bet placed - ${game.name} (${subGameType})`, totalTransactionAmount, 0);
             database.addLedgerEntry(admin.id, 'ADMIN', `Bet stake from ${user.name} on ${game.name}`, 0, totalTransactionAmount);
 
@@ -188,7 +215,7 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
                 database.addLedgerEntry(dealer.id, 'DEALER', `Commission from user bet – ${game.name}`, 0, totalDealerCommission);
             }
 
-            // 4. Create individual bet records
+            // 5. Create individual bet records
             const createdBets = [];
             bets.forEach(betGroup => {
                 const { numbers, amountPerNumber } = betGroup;
@@ -435,6 +462,35 @@ app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
         res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
     }
 });
+
+// Admin Number Limit Routes
+app.get('/api/admin/number-limits', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    res.json(database.getAllNumberLimits());
+});
+
+app.post('/api/admin/number-limits', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    const { gameType, numberValue, limitAmount } = req.body;
+    try {
+        const savedLimit = database.saveNumberLimit({ gameType, numberValue, limitAmount });
+        res.status(201).json(savedLimit);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+});
+
+app.delete('/api/admin/number-limits/:id', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    const { id } = req.params;
+    try {
+        database.deleteNumberLimit(id);
+        res.status(204).send();
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+});
+
 
 // --- MAIN ---
 const startServer = () => {

@@ -226,75 +226,117 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     }, [availableSubGameTabs, subGameType]);
 
     if (!game) return null;
-
+    
     const parsedBulkBet = useMemo(() => {
-        interface ParsedLine { originalText: string; type: 'NUMBERS' | 'OPEN' | 'CLOSE' | 'COMBO' | 'INVALID'; numbers: string[]; stake: number; cost: number; error?: string; }
-        const result = { lines: [] as ParsedLine[], totalCost: 0, totalNumbers: 0, error: null as string | null, betGroups: new Map<number, string[]>() };
+        interface ParsedLine {
+            originalText: string;
+            numbers: string[];
+            stake: number;
+            cost: number;
+            error?: string;
+        }
+        const result = {
+            lines: [] as ParsedLine[],
+            totalCost: 0,
+            totalNumbers: 0,
+            error: null as string | null,
+            betGroups: new Map<number, string[]>(),
+        };
         const input = bulkInput.trim();
         if (!input) return result;
-    
-        for (const lineText of input.split('\n')) {
+
+        const allLines = input.split('\n');
+
+        for (const lineText of allLines) {
             if (!lineText.trim()) continue;
-            const parsedLine: ParsedLine = { originalText: lineText, type: 'INVALID', numbers: [], stake: 0, cost: 0 };
-    
+
+            const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0 };
+
             const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*$/i;
-            const match = lineText.match(stakeRegex);
-    
-            if (!match) { parsedLine.error = "Stake not found (e.g., '... r10')."; result.lines.push(parsedLine); continue; }
-            const stake = parseFloat(match[1]);
-            if (isNaN(stake) || stake <= 0) { parsedLine.error = "Invalid stake amount."; result.lines.push(parsedLine); continue; }
+            const stakeMatch = lineText.match(stakeRegex);
+
+            if (!stakeMatch) {
+                parsedLine.error = "Stake not found (e.g., '... r10')";
+                result.lines.push(parsedLine);
+                continue;
+            }
+
+            const stake = parseFloat(stakeMatch[1]);
+            if (isNaN(stake) || stake <= 0) {
+                parsedLine.error = 'Invalid stake amount.';
+                result.lines.push(parsedLine);
+                continue;
+            }
             parsedLine.stake = stake;
-    
-            const commandPart = lineText.substring(0, match.index).trim().toLowerCase();
-    
-            if (/\b(k|combo)\b/i.test(commandPart)) {
-                const digitsPart = commandPart.replace(/\b(k|combo)\b/ig, '').replace(/\D/g, '');
-                const uniqueDigits = [...new Set(digitsPart.split(''))].sort();
-                if (uniqueDigits.length < 2) { 
-                    parsedLine.error = "Combo needs at least 2 unique digits."; 
-                } else {
-                    parsedLine.type = 'COMBO';
-                    const combinations = [];
-                    for (let i = 0; i < uniqueDigits.length; i++) {
-                        for (let j = i + 1; j < uniqueDigits.length; j++) {
-                            combinations.push(uniqueDigits[i] + uniqueDigits[j]);
-                        }
-                    }
-                    parsedLine.numbers = combinations;
+
+            let betPart = lineText.substring(0, stakeMatch.index).trim();
+            let lineNumbers = new Set<string>();
+            let lineError: string | null = null;
+            
+            const comboRegex = /\b(k|combo)\s+([0-9\s.,-/]+)/ig;
+            // FIX: Explicitly typed arguments to fix type inference issue.
+            betPart = betPart.replace(comboRegex, (match: string, _: string, digitsStr: string) => {
+                const digits = digitsStr.replace(/\D/g, '');
+                const uniqueDigits = [...new Set(digits.split(''))];
+                if (uniqueDigits.length < 3 || uniqueDigits.length > 7) {
+                    lineError = `Combo requires 3-7 unique digits (found ${uniqueDigits.length}).`;
+                    return '';
                 }
-            } else if (/^\d\s*x$/i.test(commandPart) || /^\dx$/i.test(commandPart)) {
-                 const digit = commandPart.replace(/\D/g, '');
-                 parsedLine.type = 'OPEN';
-                 parsedLine.numbers = Array.from({ length: 10 }, (_, i) => digit + i);
-            } else if (/^x\s*\d$/i.test(commandPart) || /^x\d$/i.test(commandPart)) {
-                const digit = commandPart.replace(/\D/g, '');
-                parsedLine.type = 'CLOSE';
-                parsedLine.numbers = Array.from({ length: 10 }, (_, i) => String(i) + digit);
-            } else {
-                const potentialNumbers = commandPart.split(/\D+/).filter(Boolean);
-                if (potentialNumbers.length > 0) {
-                    const invalid = potentialNumbers.filter(n => !/^\d{2}$/.test(n));
-                    if (invalid.length > 0) {
-                        parsedLine.error = `Invalid: ${invalid.join(', ')}. All must be 2 digits.`;
-                    } else {
-                        parsedLine.type = 'NUMBERS';
-                        parsedLine.numbers = potentialNumbers;
+                const sortedDigits = uniqueDigits.sort();
+                for (let i = 0; i < sortedDigits.length; i++) {
+                    for (let j = i + 1; j < sortedDigits.length; j++) {
+                        lineNumbers.add(sortedDigits[i] + sortedDigits[j]);
                     }
-                } else if (commandPart) {
-                     parsedLine.error = "No valid numbers found.";
+                }
+                return ''; 
+            });
+            
+            betPart = betPart.replace(/\s+combo\s*$/i, '').trim();
+
+            if (lineError) {
+                parsedLine.error = lineError;
+                result.lines.push(parsedLine);
+                continue;
+            }
+
+            const tokens = betPart.replace(/[^a-zA-Z0-9xX\s]/g, ' ').split(/\s+/).filter(Boolean);
+            for (const token of tokens) {
+                 if (/^\d{1,2}$/.test(token)) {
+                    lineNumbers.add(token.padStart(2, '0'));
+                } else if (/^\d[xX]$/.test(token)) {
+                    const digit = token[0];
+                    for (let i = 0; i < 10; i++) lineNumbers.add(digit + String(i));
+                } else if (/^[xX]\d$/.test(token)) {
+                    const digit = token[1];
+                    for (let i = 0; i < 10; i++) lineNumbers.add(String(i) + digit);
+                } else {
+                    lineError = `Invalid token: '${token}'.`;
+                    break;
                 }
             }
-    
-            if (parsedLine.type !== 'INVALID' && !parsedLine.error) {
+            
+            if (lineError) {
+                parsedLine.error = lineError;
+            } else if (lineNumbers.size === 0 && lineText.trim().split(/\s+/).length > 2) {
+                 parsedLine.error = "No valid numbers found.";
+            } else {
+                parsedLine.numbers = Array.from(lineNumbers);
                 parsedLine.cost = parsedLine.numbers.length * parsedLine.stake;
                 result.totalCost += parsedLine.cost;
                 result.totalNumbers += parsedLine.numbers.length;
-                const existing = result.betGroups.get(parsedLine.stake) || [];
-                result.betGroups.set(parsedLine.stake, [...new Set([...existing, ...parsedLine.numbers])]);
+
+                const existingNumbers = result.betGroups.get(parsedLine.stake) || [];
+                result.betGroups.set(parsedLine.stake, [...existingNumbers, ...parsedLine.numbers]);
             }
             result.lines.push(parsedLine);
         }
-        if (result.lines.some(l => l.error || (l.type === 'INVALID' && l.originalText))) result.error = "Please review invalid lines.";
+        
+        for (const [stake, numbers] of result.betGroups.entries()) {
+            result.betGroups.set(stake, [...new Set(numbers)]);
+        }
+
+        if (result.lines.some(l => l.error)) result.error = 'Please review invalid lines.';
+        
         return result;
     }, [bulkInput]);
 
@@ -315,9 +357,9 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         if (isNaN(stake) || stake <= 0) { result.error = "Invalid stake amount."; } else { result.stake = stake; }
         if (!digitsPart) { result.error = "No digits entered."; return result; }
         
-        const uniqueDigits = [...new Set(digitsPart.split(''))];
-        if (uniqueDigits.length > 0 && (uniqueDigits.length < 3 || uniqueDigits.length > 6)) {
-            result.error = "Please enter between 3 and 6 unique digits to form combinations."; return result;
+        const uniqueDigits = [...new Set(digitsPart.split(''))].sort();
+        if (uniqueDigits.length > 0 && (uniqueDigits.length < 3 || uniqueDigits.length > 7)) {
+            result.error = "Please enter between 3 and 7 unique digits to form combinations."; return result;
         }
         if (uniqueDigits.length < 2) {
             if (digitsPart) result.error = "Please enter at least two unique digits."; return result;
@@ -325,8 +367,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
 
         const combinations: string[] = [];
         for (let i = 0; i < uniqueDigits.length; i++) {
-            for (let j = 0; j < uniqueDigits.length; j++) {
-                if (i !== j) { combinations.push(uniqueDigits[i] + uniqueDigits[j]); }
+            for (let j = i + 1; j < uniqueDigits.length; j++) {
+                combinations.push(uniqueDigits[i] + uniqueDigits[j]);
             }
         }
         result.generatedNumbers = combinations;
@@ -465,18 +507,18 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <>
                            <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"e.g.,\n12,23-45/67 rs10\n47 49 31 R30\n1x Rs100 (10-19)\nx2 R200 (02,12..92)\nk 123 Rs30 (12,13,23)"} className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Enter bets per line. Use any separator for numbers. Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5' (combo).</p>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"e.g.,\n12,23-45/67 rs10\n47 49 31 R30\n1x Rs100 (expands to 10-19)\nx2 R200 (expands to 02,12..92)\nk 123 Rs30 (generates 12,13,23)"} className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Enter bets per line. Use any separator. Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5' (combo).</p>
                             </div>
                             
                              {parsedBulkBet.lines.length > 0 && (
                                 <div className="mb-4 bg-slate-800 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto space-y-2">
                                     {parsedBulkBet.lines.map((line, index) => (
-                                        <div key={index} className={`p-2 rounded-md text-sm ${line.error || (line.type === 'INVALID' && line.originalText) ? 'bg-red-500/10 border-l-4 border-red-500' : 'bg-green-500/10 border-l-4 border-green-500'}`}>
+                                        <div key={index} className={`p-2 rounded-md text-sm ${line.error ? 'bg-red-500/10 border-l-4 border-red-500' : 'bg-green-500/10 border-l-4 border-green-500'}`}>
                                             <div className="flex justify-between items-center font-mono">
                                                 <span className="truncate mr-4 text-slate-400" title={line.originalText}>"{line.originalText}"</span>
-                                                {line.error || (line.type === 'INVALID' && line.originalText) ? (
-                                                    <span className="text-red-400 font-semibold text-right">{line.error || 'Invalid line'}</span>
+                                                {line.error ? (
+                                                    <span className="text-red-400 font-semibold text-right">{line.error}</span>
                                                 ) : (
                                                     <div className="flex items-center gap-4 text-xs">
                                                         <span className="text-slate-300">Numbers: <span className="font-bold text-white">{line.numbers.length}</span></span>
@@ -498,8 +540,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <>
                              <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Digits for Combo</label>
-                                <input type="text" value={comboInput} onChange={e => setComboInput(e.target.value)} placeholder="e.g., 1478 r10 (3-6 unique digits)" className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Enter 3-6 unique digits, followed by 'r' and the stake per combination.</p>
+                                <input type="text" value={comboInput} onChange={e => setComboInput(e.target.value)} placeholder="e.g., 1478 r10 (3-7 unique digits)" className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Enter 3-7 unique digits, followed by 'r' and the stake per combination.</p>
                             </div>
                             
                             {parsedComboBet.generatedNumbers.length > 0 && (
@@ -550,7 +592,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <p className="text-slate-300">Commission: <span className="font-bold text-green-400">{user.commissionRate}%</span></p>
                     </div>
 
-                    {(error || (subGameType === SubGameType.Bulk && parsedBulkBet.error) || (subGameType === SubGameType.Combo && parsedComboBet.error) || parsedManualBet.error) && (
+                    {(error || parsedBulkBet.error || parsedComboBet.error || parsedManualBet.error) && (
                         <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mb-4" role="alert">
                             {error || parsedBulkBet.error || parsedComboBet.error || parsedManualBet.error}
                         </div>

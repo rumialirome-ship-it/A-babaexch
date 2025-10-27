@@ -88,3 +88,10 @@ export interface Bet {
   totalAmount: number;
   timestamp: Date;
 }
+
+export interface NumberLimit {
+  id: number;
+  gameType: '1-open' | '1-close' | '2-digit';
+  numberValue: string;
+  limitAmount: number;
+}

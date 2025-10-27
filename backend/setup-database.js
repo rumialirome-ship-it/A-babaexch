@@ -90,6 +90,13 @@ function main() {
                 credit REAL NOT NULL,
                 balance REAL NOT NULL
             );
+            CREATE TABLE number_limits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gameType TEXT NOT NULL,
+                numberValue TEXT NOT NULL,
+                limitAmount REAL NOT NULL,
+                UNIQUE(gameType, numberValue)
+            );
             CREATE INDEX idx_ledgers_accountId ON ledgers(accountId);
             CREATE INDEX idx_bets_userId ON bets(userId);
             CREATE INDEX idx_users_dealerId ON users(dealerId);

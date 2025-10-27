@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet } from '../types';
+import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit } from '../types';
 import { Icons } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 
@@ -317,6 +317,158 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: {name: 
     );
 };
 
+const NumberLimitsView: React.FC = () => {
+    const [limits, setLimits] = useState<NumberLimit[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [formState, setFormState] = useState<Omit<NumberLimit, 'id'>>({
+        gameType: '2-digit',
+        numberValue: '',
+        limitAmount: 0,
+    });
+    const { fetchWithAuth } = useAuth();
+
+    const fetchLimits = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetchWithAuth('/api/admin/number-limits');
+            const data = await response.json();
+            setLimits(data);
+        } catch (error) {
+            console.error("Failed to fetch number limits:", error);
+            alert("Failed to fetch number limits.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchLimits();
+    }, []);
+    
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        
+        let processedValue = value;
+        if (name === 'numberValue') {
+            processedValue = value.replace(/\D/g, ''); // Digits only
+            const maxLength = formState.gameType === '2-digit' ? 2 : 1;
+            if (processedValue.length > maxLength) {
+                processedValue = processedValue.slice(0, maxLength);
+            }
+        }
+
+        setFormState(prev => ({
+            ...prev,
+            [name]: name === 'limitAmount' ? (value ? parseFloat(value) : 0) : processedValue
+        }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const { gameType, numberValue, limitAmount } = formState;
+        if (!numberValue.trim() || limitAmount <= 0) {
+            alert("Please enter a valid number and a limit amount greater than zero.");
+            return;
+        }
+
+        const maxLength = formState.gameType === '2-digit' ? 2 : 1;
+        if (numberValue.length !== maxLength) {
+             alert(`Number must be ${maxLength} digit(s) long for this game type.`);
+            return;
+        }
+
+        try {
+            await fetchWithAuth('/api/admin/number-limits', {
+                method: 'POST',
+                body: JSON.stringify(formState)
+            });
+            setFormState({ gameType: '2-digit', numberValue: '', limitAmount: 0 });
+            await fetchLimits();
+        } catch (error) {
+            console.error("Failed to save limit:", error);
+            alert("Failed to save limit.");
+        }
+    };
+    
+    const handleDelete = async (limitId: number) => {
+        if (window.confirm("Are you sure you want to delete this limit?")) {
+            try {
+                await fetchWithAuth(`/api/admin/number-limits/${limitId}`, { method: 'DELETE' });
+                await fetchLimits();
+            } catch (error) {
+                console.error("Failed to delete limit:", error);
+                alert("Failed to delete limit.");
+            }
+        }
+    };
+
+    const inputClass = "bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full";
+    const gameTypeLabels: Record<NumberLimit['gameType'], string> = {
+        '1-open': '1 Digit Open',
+        '1-close': '1 Digit Close',
+        '2-digit': '2 Digit',
+    };
+
+    return (
+        <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Manage Number Betting Limits</h3>
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Game Type</label>
+                        <select name="gameType" value={formState.gameType} onChange={handleInputChange} className={inputClass}>
+                            <option value="2-digit">2 Digit</option>
+                            <option value="1-open">1 Digit Open</option>
+                            <option value="1-close">1 Digit Close</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Number</label>
+                        <input type="text" name="numberValue" value={formState.numberValue} onChange={handleInputChange} className={inputClass} placeholder={formState.gameType === '2-digit' ? 'e.g., 42' : 'e.g., 7'} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Max Stake (PKR)</label>
+                        <input type="number" name="limitAmount" value={formState.limitAmount || ''} onChange={handleInputChange} className={inputClass} placeholder="e.g., 5000" />
+                    </div>
+                    <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Set Limit</button>
+                </form>
+            </div>
+             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                 <div className="overflow-x-auto">
+                     <table className="w-full text-left">
+                         <thead className="bg-slate-800/50">
+                             <tr>
+                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game Type</th>
+                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Number</th>
+                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Limit Amount (PKR)</th>
+                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                             </tr>
+                         </thead>
+                         <tbody className="divide-y divide-slate-800">
+                            {isLoading ? (
+                                <tr><td colSpan={4} className="p-8 text-center text-slate-400">Loading limits...</td></tr>
+                            ) : limits.length === 0 ? (
+                                <tr><td colSpan={4} className="p-8 text-center text-slate-500">No limits set.</td></tr>
+                            ) : (
+                                limits.map(limit => (
+                                     <tr key={limit.id} className="hover:bg-cyan-500/10 transition-colors">
+                                         <td className="p-4 text-white">{gameTypeLabels[limit.gameType]}</td>
+                                         <td className="p-4 font-mono text-cyan-300 text-lg">{limit.numberValue}</td>
+                                         <td className="p-4 font-mono text-white">{limit.limitAmount.toLocaleString()}</td>
+                                         <td className="p-4">
+                                             <button onClick={() => handleDelete(limit.id)} className="bg-red-500/20 hover:bg-red-500/40 text-red-300 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Delete</button>
+                                         </td>
+                                     </tr>
+                                ))
+                            )}
+                         </tbody>
+                     </table>
+                 </div>
+            </div>
+        </div>
+    );
+};
+
 
 interface AdminPanelProps {
   admin: { name: string, prizeRates: PrizeRates, wallet: number }; 
@@ -392,20 +544,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       }
   };
 
-  const handleDeclareWinner = (gameId: string) => {
+  const handleDeclareWinner = (gameId: string, gameName: string) => {
     const num = winningNumbers[gameId];
-    if (num && num.length === 2 && !isNaN(parseInt(num))) {
+    const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
+    const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
+
+    if (isValid) {
         declareWinner(gameId, num);
         setWinningNumbers(prev => ({...prev, [gameId]: ''}));
-    } else { alert("Please enter a valid 2-digit number."); }
+    } else {
+        alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
+    }
   };
 
-  const handleUpdateWinner = (gameId: string) => {
-    if (editingGame && editingGame.number.length === 2 && !isNaN(parseInt(editingGame.number))) {
-        updateWinner(gameId, editingGame.number);
-        setEditingGame(null);
-    } else {
-        alert("Please enter a valid 2-digit number.");
+  const handleUpdateWinner = (gameId: string, gameName: string) => {
+    const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
+    if (editingGame) {
+        const num = editingGame.number;
+        const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
+
+        if (isValid) {
+            updateWinner(gameId, num);
+            setEditingGame(null);
+        } else {
+            alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
+        }
     }
   };
 
@@ -429,6 +592,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
     { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
     { id: 'games', label: 'Games', icon: Icons.gamepad },
+    { id: 'limits', label: 'Limits', icon: Icons.sparkles },
     { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search }, 
     { id: 'users', label: 'Users', icon: Icons.clipboardList },
     { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
@@ -446,6 +610,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </div>
       
       {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
+      {activeTab === 'limits' && <NumberLimitsView />}
 
       {activeTab === 'dealers' && (
         <div>
@@ -509,7 +674,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         <div>
             <h3 className="text-xl font-semibold mb-4 text-white">Declare Winning Numbers</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {games.map(game => (
+                {games.map(game => {
+                    const isAK = game.name === 'AK';
+                    const isAKC = game.name === 'AKC';
+                    const isSingleDigitGame = isAK || isAKC;
+                    const isAKPending = isAK && game.winningNumber && game.winningNumber.endsWith('_');
+
+                    return (
                     <div key={game.id} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
                         <h4 className="font-bold text-lg text-white">{game.name}</h4>
                         {game.winningNumber ? (
@@ -528,39 +699,58 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                 <div className="my-2">
                                     <p className="text-sm text-slate-400">Editing Number...</p>
                                     <div className="flex items-center space-x-2 mt-1">
-                                        <input type="text" maxLength={2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-900 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder="00" />
-                                        <button onClick={() => handleUpdateWinner(game.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Save</button>
+                                        <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-900 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
+                                        <button onClick={() => handleUpdateWinner(game.id, game.name)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Save</button>
                                         <button onClick={() => setEditingGame(null)} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Cancel</button>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between my-2 gap-2">
-                                    <div>
-                                        <p className="text-sm text-slate-400">Pending Approval</p>
-                                        <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
-                                    </div>
+                                    {isAKPending ? (
+                                        <>
+                                            <div>
+                                                <p className="text-sm text-slate-400">Open Declared</p>
+                                                <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-slate-400">Waiting for AKC</p>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div>
+                                            <p className="text-sm text-slate-400">Pending Approval</p>
+                                            <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
+                                        </div>
+                                    )}
                                     <div className='flex gap-2 self-end sm:self-center'>
-                                        <button onClick={() => setEditingGame({ id: game.id, number: game.winningNumber! })} className="bg-slate-700 hover:bg-slate-600 text-amber-400 font-semibold py-2 px-3 rounded-md text-sm transition-colors">
+                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="bg-slate-700 hover:bg-slate-600 text-amber-400 font-semibold py-2 px-3 rounded-md text-sm transition-colors">
                                             Edit
                                         </button>
-                                        <button 
-                                            onClick={() => { if (window.confirm(`Are you sure you want to approve payouts for ${game.name}? This action cannot be undone.`)) { approvePayouts(game.id); } }} 
-                                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors animate-pulse whitespace-nowrap"
-                                        >
-                                            Approve Payouts
-                                        </button>
+                                        {!isAKPending && (
+                                            <button 
+                                                onClick={() => { if (window.confirm(`Are you sure you want to approve payouts for ${game.name}? This action cannot be undone.`)) { approvePayouts(game.id); } }} 
+                                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors animate-pulse whitespace-nowrap"
+                                            >
+                                                Approve Payouts
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             )
                         ) : (
                             <div className="flex items-center space-x-2 my-2">
-                                <input type="text" maxLength={2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-800 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder="00" />
-                                <button onClick={() => handleDeclareWinner(game.id)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Declare</button>
+                                <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-800 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
+                                <button onClick={() => handleDeclareWinner(game.id, game.name)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Declare</button>
                             </div>
                         )}
                         <p className="text-sm text-slate-400">Draw Time: {game.drawTime}</p>
+                        {(isAK || isAKC) && (
+                            <p className="text-xs text-slate-500 mt-2">
+                                Note: The AKC result provides the 'close' digit for the AK game.
+                            </p>
+                        )}
                     </div>
-                ))}
+                )})}
             </div>
         </div>
       )}
