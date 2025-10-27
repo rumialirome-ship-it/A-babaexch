@@ -203,34 +203,49 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
     );
 };
 
-const TopUpForm: React.FC<{ dealers: Dealer[]; onTopUp: (dealerId: string, amount: number) => void; onCancel: () => void; }> = ({ dealers, onTopUp, onCancel }) => {
+const DealerTransactionForm: React.FC<{ 
+    dealers: Dealer[]; 
+    onTransaction: (dealerId: string, amount: number) => void; 
+    onCancel: () => void;
+    type: 'Top-Up' | 'Withdrawal';
+}> = ({ dealers, onTransaction, onCancel, type }) => {
     const [selectedDealerId, setSelectedDealerId] = useState<string>('');
     const [amount, setAmount] = useState<number | ''>('');
-    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
+    const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
+    
+    const inputClass = `w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-${themeColor}-500 focus:outline-none text-white`;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedDealerId || !amount || amount <= 0) { alert('Please select a dealer and enter a valid positive amount.'); return; }
+        if (!selectedDealerId || !amount || amount <= 0) {
+            alert(`Please select a dealer and enter a valid positive amount.`);
+            return;
+        }
         const dealerName = dealers.find(d => d.id === selectedDealerId)?.name || 'the selected dealer';
-        if (window.confirm(`Are you sure you want to top up ${dealerName}'s wallet with PKR ${amount}?`)) { onTopUp(selectedDealerId, Number(amount)); }
+        const confirmationAction = type === 'Top-Up' ? 'to' : 'from';
+        if (window.confirm(`Are you sure you want to ${type.toLowerCase()} PKR ${amount} ${confirmationAction} ${dealerName}'s wallet?`)) {
+            onTransaction(selectedDealerId, Number(amount));
+        }
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
             <div>
                 <label htmlFor="dealer-select" className="block text-sm font-medium text-slate-400 mb-1">Select Dealer</label>
-                <select id="dealer-select" value={selectedDealerId} onChange={(e) => setSelectedDealerId(e.target.value)} className={inputClass} required >
+                <select id="dealer-select" value={selectedDealerId} onChange={(e) => setSelectedDealerId(e.target.value)} className={inputClass} required>
                     <option value="" disabled>-- Choose a dealer --</option>
                     {dealers.map(dealer => <option key={dealer.id} value={dealer.id}>{dealer.name} ({dealer.id})</option>)}
                 </select>
             </div>
             <div>
-                <label htmlFor="topup-amount" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
-                <input id="topup-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 5000" className={inputClass} min="1" required />
+                <label htmlFor="amount-input" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
+                <input id="amount-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 5000" className={inputClass} min="1" required />
             </div>
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Top-Up Wallet</button>
+                <button type="submit" className={`font-bold py-2 px-4 rounded-md transition-colors text-white ${type === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
+                    {type}
+                </button>
             </div>
         </form>
     );
@@ -315,10 +330,11 @@ interface AdminPanelProps {
   updateWinner: (gameId: string, newWinningNumber: string) => void;
   approvePayouts: (gameId: string) => void;
   topUpDealerWallet: (dealerId: string, amount: number) => void;
+  withdrawFromDealerWallet: (dealerId: string, amount: number) => void;
   toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, toggleAccountRestriction }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -327,6 +343,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [viewingLedgerFor, setViewingLedgerFor] = useState<Dealer | null>(null);
   const [betSearchQuery, setBetSearchQuery] = useState('');
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
   const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
@@ -645,9 +662,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         <div>
           <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
             <h3 className="text-xl font-semibold text-white">Dealer Transaction Ledgers</h3>
-            <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
-              {Icons.plus} Wallet Top-Up
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                {Icons.plus} Wallet Top-Up
+              </button>
+              <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                {Icons.minus} Withdraw Funds
+              </button>
+            </div>
           </div>
           <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
             <div className="overflow-x-auto">
@@ -684,7 +706,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </Modal>
 
       <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up Dealer Wallet" themeColor="emerald">
-          <TopUpForm dealers={dealers} onTopUp={(dealerId, amount) => { topUpDealerWallet(dealerId, amount); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
+          <DealerTransactionForm type="Top-Up" dealers={dealers} onTransaction={(dealerId, amount) => { topUpDealerWallet(dealerId, amount); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
+      </Modal>
+
+      <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Withdraw from Dealer Wallet" themeColor="amber">
+          <DealerTransactionForm type="Withdrawal" dealers={dealers} onTransaction={(dealerId, amount) => { withdrawFromDealerWallet(dealerId, amount); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
       </Modal>
 
       {viewingLedgerFor && (

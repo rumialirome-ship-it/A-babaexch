@@ -175,7 +175,7 @@ const AppContent: React.FC = () => {
         }
     }, [fetchWithAuth, fetchData]);
 
-    const topUpUserWallet = useCallback(async (dealerId: string, userId: string, amount: number) => {
+    const topUpUserWallet = useCallback(async (userId: string, amount: number) => {
         try {
             const response = await fetchWithAuth('/api/dealer/topup/user', { method: 'POST', body: JSON.stringify({ userId, amount }) });
             if (!response.ok) {
@@ -187,6 +187,20 @@ const AppContent: React.FC = () => {
             alert(`Error topping up user: ${error.message}`);
         }
     }, [fetchWithAuth, fetchData]);
+    
+    const withdrawFromUserWallet = useCallback(async (userId: string, amount: number) => {
+        try {
+            const response = await fetchWithAuth('/api/dealer/withdraw/user', { method: 'POST', body: JSON.stringify({ userId, amount }) });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message);
+            }
+            await fetchData();
+        } catch (error: any) {
+            alert(`Error withdrawing from user: ${error.message}`);
+        }
+    }, [fetchWithAuth, fetchData]);
+
 
     const declareWinner = useCallback(async (gameId: string, winningNumber: string) => {
         try {
@@ -241,6 +255,20 @@ const AppContent: React.FC = () => {
         }
     }, [fetchWithAuth, fetchData]);
 
+    const withdrawFromDealerWallet = useCallback(async (dealerId: string, amount: number) => {
+        try {
+            const response = await fetchWithAuth('/api/admin/withdraw/dealer', { method: 'POST', body: JSON.stringify({ dealerId, amount }) });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message);
+            }
+            await fetchData();
+        } catch (error: any) {
+            alert(`Error withdrawing from dealer: ${error.message}`);
+        }
+    }, [fetchWithAuth, fetchData]);
+
+
     const toggleAccountRestriction = useCallback(async (accountId: string, accountType: 'user' | 'dealer') => {
         let url;
         if (role === Role.Admin) {
@@ -276,8 +304,8 @@ const AppContent: React.FC = () => {
             <Header />
             <main className="flex-grow">
                 {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
-                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} toggleAccountRestriction={toggleAccountRestriction} />}
-                {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} toggleAccountRestriction={toggleAccountRestriction} />}
+                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} />}
+                {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} />}
             </main>
         </div>
     );

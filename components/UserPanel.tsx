@@ -232,28 +232,35 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         const result = { lines: [] as ParsedLine[], totalCost: 0, totalNumbers: 0, error: null as string | null, betGroups: new Map<number, string[]>() };
         const input = bulkInput.trim();
         if (!input) return result;
-
+    
         for (const lineText of input.split('\n')) {
             if (!lineText.trim()) continue;
             const parsedLine: ParsedLine = { originalText: lineText, type: 'INVALID', numbers: [], stake: 0, cost: 0 };
-
+    
             const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*$/i;
             const match = lineText.match(stakeRegex);
-
+    
             if (!match) { parsedLine.error = "Stake not found (e.g., '... r10')."; result.lines.push(parsedLine); continue; }
             const stake = parseFloat(match[1]);
             if (isNaN(stake) || stake <= 0) { parsedLine.error = "Invalid stake amount."; result.lines.push(parsedLine); continue; }
             parsedLine.stake = stake;
-
+    
             const commandPart = lineText.substring(0, match.index).trim().toLowerCase();
-
-            if (/(?:^|\s)(k|combo)(\s|$)/.test(commandPart)) {
-                const digitsPart = commandPart.replace(/k|combo/g, '').replace(/\D/g, '');
-                const uniqueDigits = [...new Set(digitsPart.split(''))];
-                if (uniqueDigits.length < 2) { parsedLine.error = "Combo needs at least 2 unique digits."; } 
-                else {
+    
+            if (/\b(k|combo)\b/i.test(commandPart)) {
+                const digitsPart = commandPart.replace(/\b(k|combo)\b/ig, '').replace(/\D/g, '');
+                const uniqueDigits = [...new Set(digitsPart.split(''))].sort();
+                if (uniqueDigits.length < 2) { 
+                    parsedLine.error = "Combo needs at least 2 unique digits."; 
+                } else {
                     parsedLine.type = 'COMBO';
-                    for (let i = 0; i < uniqueDigits.length; i++) for (let j = 0; j < uniqueDigits.length; j++) if (i !== j) parsedLine.numbers.push(uniqueDigits[i] + uniqueDigits[j]);
+                    const combinations = [];
+                    for (let i = 0; i < uniqueDigits.length; i++) {
+                        for (let j = i + 1; j < uniqueDigits.length; j++) {
+                            combinations.push(uniqueDigits[i] + uniqueDigits[j]);
+                        }
+                    }
+                    parsedLine.numbers = combinations;
                 }
             } else if (/^\d\s*x$/i.test(commandPart) || /^\dx$/i.test(commandPart)) {
                  const digit = commandPart.replace(/\D/g, '');
@@ -264,14 +271,21 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                 parsedLine.type = 'CLOSE';
                 parsedLine.numbers = Array.from({ length: 10 }, (_, i) => String(i) + digit);
             } else {
-                const potentialNumbers = commandPart.split(/[ ,./-]+/).filter(Boolean);
-                const invalid = potentialNumbers.filter(n => !/^\d{2}$/.test(n));
-                if (invalid.length > 0) parsedLine.error = `Invalid: ${invalid.join(', ')}`;
-                const valid = potentialNumbers.filter(n => /^\d{2}$/.test(n));
-                if (valid.length > 0) { parsedLine.type = 'NUMBERS'; parsedLine.numbers = valid; }
+                const potentialNumbers = commandPart.split(/\D+/).filter(Boolean);
+                if (potentialNumbers.length > 0) {
+                    const invalid = potentialNumbers.filter(n => !/^\d{2}$/.test(n));
+                    if (invalid.length > 0) {
+                        parsedLine.error = `Invalid: ${invalid.join(', ')}. All must be 2 digits.`;
+                    } else {
+                        parsedLine.type = 'NUMBERS';
+                        parsedLine.numbers = potentialNumbers;
+                    }
+                } else if (commandPart) {
+                     parsedLine.error = "No valid numbers found.";
+                }
             }
-
-            if (parsedLine.type !== 'INVALID') {
+    
+            if (parsedLine.type !== 'INVALID' && !parsedLine.error) {
                 parsedLine.cost = parsedLine.numbers.length * parsedLine.stake;
                 result.totalCost += parsedLine.cost;
                 result.totalNumbers += parsedLine.numbers.length;
@@ -280,7 +294,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             }
             result.lines.push(parsedLine);
         }
-        if (result.lines.some(l => l.error || l.type === 'INVALID')) result.error = "Please review invalid lines.";
+        if (result.lines.some(l => l.error || (l.type === 'INVALID' && l.originalText))) result.error = "Please review invalid lines.";
         return result;
     }, [bulkInput]);
 
@@ -433,12 +447,12 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30">
-                <div className="flex justify-between items-center p-5 border-b border-slate-700">
+            <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
                     <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
                 </div>
-                <div className="p-6">
+                <div className="p-6 overflow-y-auto">
                     <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-4 self-start flex-wrap border border-slate-700">
                         {availableSubGameTabs.map(tab => (
                             <button key={tab} onClick={() => setSubGameType(tab)} className={`flex-auto py-2 px-3 text-sm font-semibold rounded-md transition-all duration-300 ${subGameType === tab ? 'bg-slate-700 text-sky-400 shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
@@ -451,17 +465,17 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <>
                            <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"e.g.,\n12 23 45 rs10\n1x r20\nk 123 r5"} className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Enter bets per line. Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5' (combo).</p>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"e.g.,\n12,23-45/67 rs10\n47 49 31 R30\n1x Rs100 (10-19)\nx2 R200 (02,12..92)\nk 123 Rs30 (12,13,23)"} className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Enter bets per line. Use any separator for numbers. Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5' (combo).</p>
                             </div>
                             
                              {parsedBulkBet.lines.length > 0 && (
                                 <div className="mb-4 bg-slate-800 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto space-y-2">
                                     {parsedBulkBet.lines.map((line, index) => (
-                                        <div key={index} className={`p-2 rounded-md text-sm ${line.error || line.type === 'INVALID' ? 'bg-red-500/10 border-l-4 border-red-500' : 'bg-green-500/10 border-l-4 border-green-500'}`}>
+                                        <div key={index} className={`p-2 rounded-md text-sm ${line.error || (line.type === 'INVALID' && line.originalText) ? 'bg-red-500/10 border-l-4 border-red-500' : 'bg-green-500/10 border-l-4 border-green-500'}`}>
                                             <div className="flex justify-between items-center font-mono">
                                                 <span className="truncate mr-4 text-slate-400" title={line.originalText}>"{line.originalText}"</span>
-                                                {line.error || line.type === 'INVALID' ? (
+                                                {line.error || (line.type === 'INVALID' && line.originalText) ? (
                                                     <span className="text-red-400 font-semibold text-right">{line.error || 'Invalid line'}</span>
                                                 ) : (
                                                     <div className="flex items-center gap-4 text-xs">

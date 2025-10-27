@@ -273,6 +273,29 @@ app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
     }
 });
 
+app.post('/api/dealer/withdraw/user', authMiddleware, (req, res) => {
+    if (req.user.role !== 'DEALER') return res.sendStatus(403);
+    const { userId, amount } = req.body;
+
+    try {
+        database.runInTransaction(() => {
+            const dealer = database.findAccountById(req.user.id, 'dealers');
+            const user = database.findUserByDealer(userId, req.user.id);
+            
+            if (!user) throw { status: 404, message: "User not found or does not belong to you." };
+            if (user.wallet < amount) throw { status: 400, message: "User has insufficient funds for this withdrawal." };
+        
+            database.addLedgerEntry(user.id, 'USER', `Withdrawal by Dealer: ${dealer.name}`, amount, 0);
+            database.addLedgerEntry(dealer.id, 'DEALER', `Funds withdrawn from User: ${user.name}`, 0, amount);
+            
+            res.json({ message: "Withdrawal successful." });
+        });
+    } catch (error) {
+         res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
+});
+
+
 app.put('/api/dealer/users/:id/toggle-restriction', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try {
@@ -349,6 +372,26 @@ app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
         database.addLedgerEntry(dealerId, 'DEALER', 'Admin Top-Up', 0, amount);
         res.json({ message: 'Top-up successful' });
     });
+});
+
+app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    const { dealerId, amount } = req.body;
+
+    try {
+        database.runInTransaction(() => {
+            const dealer = database.findAccountById(dealerId, 'dealers');
+            if (!dealer) throw { status: 404, message: "Dealer not found." };
+            if (dealer.wallet < amount) throw { status: 400, message: "Dealer has insufficient funds for this withdrawal." };
+
+            database.addLedgerEntry(dealer.id, 'DEALER', 'Withdrawal by Admin', amount, 0);
+            database.addLedgerEntry('Guru', 'ADMIN', `Funds withdrawn from ${dealer.name}`, 0, amount);
+            
+            res.json({ message: "Withdrawal successful." });
+        });
+    } catch (error) {
+         res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
 });
 
 app.put('/api/admin/accounts/:type/:id/toggle-restriction', authMiddleware, (req, res) => {
