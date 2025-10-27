@@ -381,7 +381,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     } else { alert("Please enter a valid 2-digit number."); }
   };
 
-  const filteredDealers = dealers.filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()) || d.area.toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredDealers = dealers.filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()) || (d.area || '').toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const flatBets = useMemo(() => bets.flatMap(bet => {
         const user = users.find(u => u.id === bet.userId);

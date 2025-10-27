@@ -121,6 +121,9 @@ const getAllFromTable = (table, withLedger = false) => {
             if (acc.prizeRates && typeof acc.prizeRates === 'string') {
                 acc.prizeRates = JSON.parse(acc.prizeRates);
             }
+            if (table === 'bets' && acc.numbers && typeof acc.numbers === 'string') {
+                acc.numbers = JSON.parse(acc.numbers);
+            }
             if ('isRestricted' in acc) {
                 acc.isRestricted = !!acc.isRestricted;
             }
@@ -327,6 +330,85 @@ const toggleAccountRestrictionByAdmin = (accountId, accountType) => {
 };
 
 
+// New functions to abstract direct DB access from server.js
+const findUsersByDealerId = (dealerId) => {
+    const users = db.prepare('SELECT * FROM users WHERE dealerId = ?').all(dealerId);
+    return users.map(u => {
+        try {
+            u.prizeRates = JSON.parse(u.prizeRates);
+            u.isRestricted = !!u.isRestricted;
+            u.ledger = getLedgerForAccount(u.id);
+        } catch (e) {
+            console.error(`Failed to parse data for user with id ${u.id}`, e);
+        }
+        return u;
+    });
+};
+
+const createBet = (bet) => {
+    return db.prepare('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+        bet.id, bet.userId, bet.dealerId, bet.gameId, bet.subGameType, bet.numbers, bet.amountPerNumber, bet.totalAmount, bet.timestamp
+    );
+};
+
+const declareWinnerForGame = (gameId, winningNumber) => {
+    const result = db.prepare('UPDATE games SET winningNumber = ?, payoutsApproved = 0 WHERE id = ?').run(winningNumber, gameId);
+    if (result.changes === 0) return null;
+    return db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
+};
+
+const approvePayoutsForGame = (gameId) => {
+    let updatedGame = null;
+    db.transaction(() => {
+        const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
+        if (!game || !game.winningNumber || game.payoutsApproved) {
+            throw { status: 400, message: 'Game not ready for payout.' };
+        }
+
+        const gameBets = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(game.id);
+        
+        gameBets.forEach(bet => {
+            const numbers = JSON.parse(bet.numbers);
+            const winningNumbersInBet = numbers.filter(num => {
+                switch (bet.subGameType) {
+                    case "1 Digit Open": return num === game.winningNumber[0];
+                    case "1 Digit Close": return num === game.winningNumber[1];
+                    default: return num === game.winningNumber;
+                }
+            });
+
+            if (winningNumbersInBet.length > 0) {
+                const user = findAccountById(bet.userId, 'users');
+                const dealer = findAccountById(bet.dealerId, 'dealers');
+                if (!user || !dealer) return;
+
+                const getPrizeMultiplier = (rates, subGameType) => {
+                    if (subGameType === "1 Digit Open") return rates.oneDigitOpen;
+                    if (subGameType === "1 Digit Close") return rates.oneDigitClose;
+                    return rates.twoDigit;
+                };
+
+                const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
+                const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
+                
+                if (userPrize > 0) {
+                    addLedgerEntry('Guru', 'ADMIN', `Payout to user ${user.name}`, userPrize, 0);
+                    addLedgerEntry(user.id, 'USER', `Prize Won - ${game.name}`, 0, userPrize);
+                }
+                if (dealerProfit > 0) {
+                    addLedgerEntry('Guru', 'ADMIN', `Profit to dealer ${dealer.name}`, dealerProfit, 0);
+                    addLedgerEntry(dealer.id, 'DEALER', `Profit from User Prize - ${game.name}`, 0, dealerProfit);
+                }
+            }
+        });
+
+        db.prepare('UPDATE games SET payoutsApproved = 1 WHERE id = ?').run(game.id);
+        updatedGame = db.prepare('SELECT * FROM games WHERE id = ?').get(game.id);
+    })();
+    return updatedGame;
+};
+
+
 module.exports = {
     connect,
     verifySchema,
@@ -345,5 +427,8 @@ module.exports = {
     findUserByDealer,
     toggleUserRestrictionByDealer,
     toggleAccountRestrictionByAdmin,
-    db, // Export db for complex transactions that don't have dedicated functions yet
+    findUsersByDealerId,
+    createBet,
+    declareWinnerForGame,
+    approvePayoutsForGame,
 };

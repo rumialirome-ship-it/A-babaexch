@@ -249,7 +249,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
     { id: 'users', label: 'Users', icon: Icons.userGroup }, { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
   ];
 
-  const filteredUsers = myUsers.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.contact.toLowerCase().includes(searchQuery.toLowerCase()) || u.id.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredUsers = myUsers.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || (u.contact || '').toLowerCase().includes(searchQuery.toLowerCase()) || u.id.toLowerCase().includes(searchQuery.toLowerCase()));
   
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
