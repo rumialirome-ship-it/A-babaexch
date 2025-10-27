@@ -39,7 +39,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
 
     const getBetOutcome = (bet: Bet) => {
         const game = games.find(g => g.id === bet.gameId);
-        if (!game || !game.winningNumber) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
+        if (!game || !game.winningNumber || game.winningNumber.includes('_')) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
         
         const winningNumber = game.winningNumber;
         let winningNumbersCount = 0;
@@ -274,8 +274,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             let lineError: string | null = null;
             
             const comboRegex = /\b(k|combo)\s+([0-9\s.,-/]+)/ig;
-            // FIX: Explicitly typed arguments to fix type inference issue.
-            betPart = betPart.replace(comboRegex, (match: string, _: string, digitsStr: string) => {
+            betPart = betPart.replace(comboRegex, (match: string, _keyword: string, digitsStr: string) => {
                 const digits = digitsStr.replace(/\D/g, '');
                 const uniqueDigits = [...new Set(digits.split(''))];
                 if (uniqueDigits.length < 3 || uniqueDigits.length > 7) {
@@ -507,8 +506,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <>
                            <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"e.g.,\n12,23-45/67 rs10\n47 49 31 R30\n1x Rs100 (expands to 10-19)\nx2 R200 (expands to 02,12..92)\nk 123 Rs30 (generates 12,13,23)"} className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Enter bets per line. Use any separator. Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5' (combo).</p>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"12 23 45 Rs20\n47 49 31 R30\n78 rs100\n1x x2 4x x7 r50\nk 123 Rs30"} className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Enter multiple bet lines. Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5' (combo).</p>
                             </div>
                             
                              {parsedBulkBet.lines.length > 0 && (
