@@ -61,6 +61,9 @@ const findAccountById = (id, table) => {
         if (account.prizeRates && typeof account.prizeRates === 'string') {
             account.prizeRates = JSON.parse(account.prizeRates);
         }
+        if (account.betLimits && typeof account.betLimits === 'string') {
+            account.betLimits = JSON.parse(account.betLimits);
+        }
         
         // Convert boolean
         if ('isRestricted' in account) {
@@ -120,6 +123,9 @@ const getAllFromTable = (table, withLedger = false) => {
             }
             if (acc.prizeRates && typeof acc.prizeRates === 'string') {
                 acc.prizeRates = JSON.parse(acc.prizeRates);
+            }
+            if (acc.betLimits && typeof acc.betLimits === 'string') {
+                acc.betLimits = JSON.parse(acc.betLimits);
             }
             if (table === 'bets' && acc.numbers && typeof acc.numbers === 'string') {
                 acc.numbers = JSON.parse(acc.numbers);
@@ -288,8 +294,8 @@ const createUser = (userData, dealerId, initialDeposit) => {
     }
     // SECURE CHANGE: Force the dealerId from the authenticated session, ignoring any value in userData
     const newUser = { ...userData, dealerId: dealerId, wallet: 0, isRestricted: 0 };
-    db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimit, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(newUser.id, newUser.name, newUser.password, newUser.dealerId, newUser.area, newUser.contact, 0, newUser.commissionRate, 0, JSON.stringify(newUser.prizeRates), newUser.betLimit, newUser.avatarUrl);
+    db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(newUser.id, newUser.name, newUser.password, newUser.dealerId, newUser.area, newUser.contact, 0, newUser.commissionRate, 0, JSON.stringify(newUser.prizeRates), newUser.betLimits ? JSON.stringify(newUser.betLimits) : null, newUser.avatarUrl);
 
     if (initialDeposit > 0) {
         addLedgerEntry(dealer.id, 'DEALER', `Initial Deposit for new user: ${newUser.name}`, initialDeposit, 0);
@@ -305,8 +311,8 @@ const updateUser = (userData, userId, dealerId) => {
     if (!user) throw { status: 404, message: "User not found or you don't have permission." };
 
     const updatedUser = { ...user, ...userData };
-    const stmt = db.prepare('UPDATE users SET name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimit = ?, avatarUrl = ? WHERE id = ?');
-    stmt.run(updatedUser.name, updatedUser.password, updatedUser.area, updatedUser.contact, updatedUser.commissionRate, JSON.stringify(updatedUser.prizeRates), updatedUser.betLimit, updatedUser.avatarUrl, userId);
+    const stmt = db.prepare('UPDATE users SET name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimits = ?, avatarUrl = ? WHERE id = ?');
+    stmt.run(updatedUser.name, updatedUser.password, updatedUser.area, updatedUser.contact, updatedUser.commissionRate, JSON.stringify(updatedUser.prizeRates), updatedUser.betLimits ? JSON.stringify(updatedUser.betLimits) : null, updatedUser.avatarUrl, userId);
 
     return findAccountById(userId, 'users');
 };
@@ -344,6 +350,9 @@ const findUsersByDealerId = (dealerId) => {
     return users.map(u => {
         try {
             u.prizeRates = JSON.parse(u.prizeRates);
+            if (u.betLimits && typeof u.betLimits === 'string') {
+                u.betLimits = JSON.parse(u.betLimits);
+            }
             u.isRestricted = !!u.isRestricted;
             u.ledger = getLedgerForAccount(u.id);
         } catch (e) {
@@ -364,6 +373,20 @@ const declareWinnerForGame = (gameId, winningNumber) => {
     if (result.changes === 0) return null;
     return db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
 };
+
+const updateWinningNumber = (gameId, newWinningNumber) => {
+    const game = db.prepare('SELECT payoutsApproved FROM games WHERE id = ?').get(gameId);
+    if (!game) {
+        throw { status: 404, message: 'Game not found.' };
+    }
+    if (game.payoutsApproved) {
+        throw { status: 403, message: 'Cannot edit winning number after payouts have been approved.' };
+    }
+    const result = db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(newWinningNumber, gameId);
+    if (result.changes === 0) return null; // Or throw an error if no changes were made
+    return db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
+};
+
 
 const approvePayoutsForGame = (gameId) => {
     let updatedGame = null;
@@ -438,5 +461,6 @@ module.exports = {
     findUsersByDealerId,
     createBet,
     declareWinnerForGame,
+    updateWinningNumber,
     approvePayoutsForGame,
 };

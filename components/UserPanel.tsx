@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates } from '../types';
+import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
 import { useCountdown } from '../hooks/useCountdown';
 
@@ -162,7 +162,7 @@ interface BettingModalProps {
     game: Game | null;
     user: User;
     onClose: () => void;
-    onPlaceBet: (subGameType: SubGameType, numbers: string[], amount: number) => void;
+    onPlaceBet: (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: Map<number, string[]>}) => void;
 }
 
 const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlaceBet }) => {
@@ -176,8 +176,9 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
 
     const availableSubGameTabs = useMemo(() => {
         if (!game) return [];
-        if (game.name === 'LS2') return [SubGameType.OneDigitOpen];
-        if (game.name === 'LS3') return [SubGameType.OneDigitClose];
+        if (game.name === 'AK') return [SubGameType.TwoDigit, SubGameType.OneDigitOpen];
+        if (game.name === 'AKC') return [SubGameType.OneDigitClose];
+        if (game.name === 'LS3') return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
         return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
     }, [game]);
     
@@ -227,56 +228,59 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     if (!game) return null;
 
     const parsedBulkBet = useMemo(() => {
-        const result = {
-            validNumbers: [] as string[],
-            invalidEntries: [] as string[],
-            stake: 0,
-            totalCost: 0,
-            error: null as string | null,
-            displayParts: [] as { value: string; isValid: boolean }[],
-        };
-
-        const input = bulkInput.trim().toLowerCase();
+        interface ParsedLine { originalText: string; type: 'NUMBERS' | 'OPEN' | 'CLOSE' | 'COMBO' | 'INVALID'; numbers: string[]; stake: number; cost: number; error?: string; }
+        const result = { lines: [] as ParsedLine[], totalCost: 0, totalNumbers: 0, error: null as string | null, betGroups: new Map<number, string[]>() };
+        const input = bulkInput.trim();
         if (!input) return result;
 
-        const rIndex = input.lastIndexOf('r');
-        if (rIndex === -1) {
-            result.error = "Stake not found. Use 'r' to specify amount (e.g., '12 34 r10').";
-            result.displayParts.push({ value: input, isValid: false });
-            return result;
-        }
+        for (const lineText of input.split('\n')) {
+            if (!lineText.trim()) continue;
+            const parsedLine: ParsedLine = { originalText: lineText, type: 'INVALID', numbers: [], stake: 0, cost: 0 };
 
-        const numbersPart = input.substring(0, rIndex).trim();
-        const stakePart = input.substring(rIndex + 1).trim();
-        const stake = parseFloat(stakePart);
+            const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*$/i;
+            const match = lineText.match(stakeRegex);
 
-        if (isNaN(stake) || stake <= 0) {
-            result.error = "Invalid stake amount. Must be a positive number.";
-        } else {
-            result.stake = stake;
-        }
+            if (!match) { parsedLine.error = "Stake not found (e.g., '... r10')."; result.lines.push(parsedLine); continue; }
+            const stake = parseFloat(match[1]);
+            if (isNaN(stake) || stake <= 0) { parsedLine.error = "Invalid stake amount."; result.lines.push(parsedLine); continue; }
+            parsedLine.stake = stake;
 
-        if (!numbersPart) {
-            result.error = "No numbers entered.";
-            return result;
-        }
+            const commandPart = lineText.substring(0, match.index).trim().toLowerCase();
 
-        const entries = numbersPart.split(/[ ,./-]+/).filter(Boolean);
-        for (const entry of entries) {
-            const isTwoDigitNumber = /^\d{2}$/.test(entry);
-            result.displayParts.push({ value: entry, isValid: isTwoDigitNumber });
-            if (isTwoDigitNumber) {
-                result.validNumbers.push(entry);
+            if (/(?:^|\s)(k|combo)(\s|$)/.test(commandPart)) {
+                const digitsPart = commandPart.replace(/k|combo/g, '').replace(/\D/g, '');
+                const uniqueDigits = [...new Set(digitsPart.split(''))];
+                if (uniqueDigits.length < 2) { parsedLine.error = "Combo needs at least 2 unique digits."; } 
+                else {
+                    parsedLine.type = 'COMBO';
+                    for (let i = 0; i < uniqueDigits.length; i++) for (let j = 0; j < uniqueDigits.length; j++) if (i !== j) parsedLine.numbers.push(uniqueDigits[i] + uniqueDigits[j]);
+                }
+            } else if (/^\d\s*x$/i.test(commandPart) || /^\dx$/i.test(commandPart)) {
+                 const digit = commandPart.replace(/\D/g, '');
+                 parsedLine.type = 'OPEN';
+                 parsedLine.numbers = Array.from({ length: 10 }, (_, i) => digit + i);
+            } else if (/^x\s*\d$/i.test(commandPart) || /^x\d$/i.test(commandPart)) {
+                const digit = commandPart.replace(/\D/g, '');
+                parsedLine.type = 'CLOSE';
+                parsedLine.numbers = Array.from({ length: 10 }, (_, i) => String(i) + digit);
             } else {
-                result.invalidEntries.push(entry);
+                const potentialNumbers = commandPart.split(/[ ,./-]+/).filter(Boolean);
+                const invalid = potentialNumbers.filter(n => !/^\d{2}$/.test(n));
+                if (invalid.length > 0) parsedLine.error = `Invalid: ${invalid.join(', ')}`;
+                const valid = potentialNumbers.filter(n => /^\d{2}$/.test(n));
+                if (valid.length > 0) { parsedLine.type = 'NUMBERS'; parsedLine.numbers = valid; }
             }
-        }
 
-        if (result.invalidEntries.length > 0 && !result.error) {
-            result.error = `Invalid entries found: ${result.invalidEntries.join(', ')}. Only 2-digit numbers are allowed.`;
+            if (parsedLine.type !== 'INVALID') {
+                parsedLine.cost = parsedLine.numbers.length * parsedLine.stake;
+                result.totalCost += parsedLine.cost;
+                result.totalNumbers += parsedLine.numbers.length;
+                const existing = result.betGroups.get(parsedLine.stake) || [];
+                result.betGroups.set(parsedLine.stake, [...new Set([...existing, ...parsedLine.numbers])]);
+            }
+            result.lines.push(parsedLine);
         }
-        
-        result.totalCost = result.validNumbers.length * result.stake;
+        if (result.lines.some(l => l.error || l.type === 'INVALID')) result.error = "Please review invalid lines.";
         return result;
     }, [bulkInput]);
 
@@ -358,38 +362,55 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     const handleBet = () => {
         setError(null);
 
+        const checkBetLimit = (totalCost: number) => {
+            if (user.betLimits) {
+                let limit = 0;
+                if (subGameType === SubGameType.OneDigitOpen) {
+                    limit = user.betLimits.oneDigitOpen;
+                } else if (subGameType === SubGameType.OneDigitClose) {
+                    limit = user.betLimits.oneDigitClose;
+                } else { // TwoDigit, Bulk, Combo
+                    limit = user.betLimits.twoDigit;
+                }
+
+                if (limit > 0 && totalCost > limit) {
+                    setError(`Bet amount (PKR ${totalCost.toFixed(2)}) exceeds your limit of PKR ${limit.toFixed(2)} for this game type.`);
+                    return false;
+                }
+            }
+            return true;
+        };
+
         if (subGameType === SubGameType.Combo) {
             if (parsedComboBet.error) { setError(parsedComboBet.error); return; }
             const { numbers, stake, totalCost } = finalComboBetDetails;
             if (numbers.length === 0) { setError("Please select at least one combination to bet on."); return; }
             if (stake <= 0) { setError("Invalid stake amount."); return; }
-            if (user.betLimit && totalCost > user.betLimit) { setError(`Bet amount (PKR ${totalCost.toFixed(2)}) exceeds your transaction limit of PKR ${user.betLimit.toFixed(2)}.`); return; }
+            if (!checkBetLimit(totalCost)) return;
             if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-            onPlaceBet(subGameType, numbers, stake);
+            onPlaceBet({ subGameType, numbers, amountPerNumber: stake });
             setComboInput('');
             return;
         }
 
         if (subGameType === SubGameType.Bulk) {
-            if (parsedBulkBet.error && parsedBulkBet.validNumbers.length === 0) { setError(parsedBulkBet.error); return; }
-            if (parsedBulkBet.invalidEntries.length > 0) { setError(`Please fix invalid entries before placing a bet.`); return; }
-            if (parsedBulkBet.validNumbers.length === 0) { setError("No valid numbers to bet on."); return; }
-            if (parsedBulkBet.stake <= 0) { setError("Invalid stake amount."); return; }
-            const totalCost = parsedBulkBet.totalCost;
-            if (user.betLimit && totalCost > user.betLimit) { setError(`Bet amount (PKR ${totalCost.toFixed(2)}) exceeds your transaction limit of PKR ${user.betLimit.toFixed(2)}.`); return; }
+            const { totalCost, betGroups, error: parseError } = parsedBulkBet;
+            if (parseError) { setError(parseError); return; }
+            if (betGroups.size === 0) { setError("No valid bets entered."); return; }
+            if (!checkBetLimit(totalCost)) return;
             if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-            onPlaceBet(subGameType, parsedBulkBet.validNumbers, parsedBulkBet.stake);
+            onPlaceBet({ subGameType, betGroups });
             setBulkInput('');
             return;
         }
-
+        
         const { numbers, totalCost, error: parseError, stake } = parsedManualBet;
         if (stake <= 0) { setError("Please enter a valid amount."); return; }
         if (parseError) { setError(parseError); return; }
         if (numbers.length === 0) { setError("Please enter at least one number."); return; }
-        if (user.betLimit && totalCost > user.betLimit) { setError(`Bet amount (PKR ${totalCost.toFixed(2)}) exceeds your transaction limit of PKR ${user.betLimit.toFixed(2)}.`); return; }
+        if (!checkBetLimit(totalCost)) return;
         if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-        onPlaceBet(subGameType, numbers, stake);
+        onPlaceBet({ subGameType, numbers, amountPerNumber: stake });
         setManualNumbersInput(''); setManualAmountInput('');
     };
 
@@ -408,7 +429,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         }
     };
 
-    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white";
+    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono";
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
@@ -428,27 +449,34 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                     
                     {subGameType === SubGameType.Bulk ? (
                         <>
-                            <div className="mb-2">
+                           <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={4} placeholder="e.g., 14, 25, 85, 74, 96 r10" className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Enter 2-digit numbers separated by any symbol, followed by 'r' and the stake per number.</p>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"e.g.,\n12 23 45 rs10\n1x r20\nk 123 r5"} className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Enter bets per line. Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5' (combo).</p>
                             </div>
                             
-                            {parsedBulkBet.displayParts.length > 0 && (
-                                <div className="mb-4">
-                                    <div className="bg-slate-800 p-3 rounded-md border border-slate-700 min-h-[4rem] flex flex-wrap gap-2">
-                                        {parsedBulkBet.displayParts.map((part, index) => (
-                                            <span key={index} className={`px-2 py-1 rounded font-mono ${part.isValid ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300 line-through'}`}>
-                                                {part.value}
-                                            </span>
-                                        ))}
-                                    </div>
+                             {parsedBulkBet.lines.length > 0 && (
+                                <div className="mb-4 bg-slate-800 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto space-y-2">
+                                    {parsedBulkBet.lines.map((line, index) => (
+                                        <div key={index} className={`p-2 rounded-md text-sm ${line.error || line.type === 'INVALID' ? 'bg-red-500/10 border-l-4 border-red-500' : 'bg-green-500/10 border-l-4 border-green-500'}`}>
+                                            <div className="flex justify-between items-center font-mono">
+                                                <span className="truncate mr-4 text-slate-400" title={line.originalText}>"{line.originalText}"</span>
+                                                {line.error || line.type === 'INVALID' ? (
+                                                    <span className="text-red-400 font-semibold text-right">{line.error || 'Invalid line'}</span>
+                                                ) : (
+                                                    <div className="flex items-center gap-4 text-xs">
+                                                        <span className="text-slate-300">Numbers: <span className="font-bold text-white">{line.numbers.length}</span></span>
+                                                        <span className="text-slate-300">Cost: <span className="font-bold text-white">{line.cost.toFixed(2)}</span></span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                             
-                            <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-3 gap-2 text-center border border-slate-700">
-                                <div><p className="text-slate-400 text-xs uppercase">Valid Numbers</p><p className="font-bold text-white text-lg">{parsedBulkBet.validNumbers.length}</p></div>
-                                <div><p className="text-slate-400 text-xs uppercase">Stake/Number</p><p className="font-bold text-white text-lg font-mono">{parsedBulkBet.stake.toFixed(2)}</p></div>
+                            <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-2 gap-2 text-center border border-slate-700">
+                                <div><p className="text-slate-400 text-xs uppercase">Total Numbers</p><p className="font-bold text-white text-lg">{parsedBulkBet.totalNumbers}</p></div>
                                 <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedBulkBet.totalCost.toFixed(2)}</p></div>
                             </div>
                         </>
@@ -523,7 +551,19 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     );
 };
 
-interface BetConfirmationDetails { gameId: string; gameName: string; subGameType: SubGameType; numbers: string[]; amountPerNumber: number; totalAmount: number; potentialWinnings: number; }
+interface BetConfirmationDetails {
+    gameId: string;
+    gameName: string;
+    subGameType: SubGameType;
+    totalAmount: number;
+    numbers?: string[];
+    amountPerNumber?: number;
+    potentialWinnings?: number;
+    betGroups?: Map<number, string[]>;
+    totalNumbers?: number;
+    totalPotentialWinnings?: number;
+}
+
 
 const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; onConfirm: () => void; onClose: () => void; }> = ({ details, onConfirm, onClose }) => {
     return (
@@ -535,10 +575,28 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
 
                     <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm">
                         <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName} ({details.subGameType})</span></div>
-                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Numbers:</span><span className="font-mono text-cyan-300 text-right max-w-[60%] truncate" title={details.numbers.join(', ')}>{details.numbers.join(', ')}</span></div>
-                         <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Amount/Number:</span><span className="font-mono text-white">{details.amountPerNumber.toFixed(2)} PKR</span></div>
-                        <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
-                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Potential Win:</span><span className="font-mono text-emerald-400">{details.potentialWinnings.toFixed(2)} PKR</span></div>
+                        
+                        {details.betGroups ? (
+                            <>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Numbers:</span><span className="font-mono text-cyan-300">{details.totalNumbers}</span></div>
+                                <div className="border-t border-slate-800 my-2"></div>
+                                {[...details.betGroups.entries()].map(([amount, numbers]) => (
+                                    <div key={amount} className="flex justify-between items-center text-xs">
+                                        <span className="text-slate-400">{numbers.length} numbers @</span>
+                                        <span className="font-mono text-white">{amount.toFixed(2)} PKR each</span>
+                                    </div>
+                                ))}
+                                <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Numbers:</span><span className="font-mono text-cyan-300 text-right max-w-[60%] truncate" title={details.numbers?.join(', ')}>{details.numbers?.join(', ')}</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Amount/Number:</span><span className="font-mono text-white">{details.amountPerNumber?.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Potential Win:</span><span className="font-mono text-emerald-400">{details.potentialWinnings?.toFixed(2)} PKR</span></div>
+                            </>
+                        )}
                     </div>
 
                     <div className="flex justify-end space-x-4 pt-2">
@@ -565,11 +623,22 @@ const BetConfirmationModal: React.FC<{ details: BetConfirmationDetails; onClose:
                     </div>
                     <h3 className="text-3xl font-bold text-white mb-2 uppercase tracking-wider">Bet Placed!</h3>
                     <p className="text-slate-300 mb-8">Your bet has been recorded. Good luck!</p>
-                    <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm">
+                     <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm">
                         <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName} ({details.subGameType})</span></div>
-                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Your Numbers:</span><span className="font-mono text-cyan-300 text-right max-w-[60%] truncate">{details.numbers.join(', ')}</span></div>
-                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
-                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Potential Win:</span><span className="font-mono text-emerald-400">{details.potentialWinnings.toFixed(2)} PKR</span></div>
+                        
+                        {details.betGroups ? (
+                            <>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Numbers:</span><span className="font-mono text-cyan-300">{details.totalNumbers}</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
+                            </>
+                        ) : (
+                             <>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Your Numbers:</span><span className="font-mono text-cyan-300 text-right max-w-[60%] truncate">{details.numbers?.join(', ')}</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Potential Win:</span><span className="font-mono text-emerald-400">{details.potentialWinnings?.toFixed(2)} PKR</span></div>
+                            </>
+                        )}
                     </div>
                     <button onClick={handleClose} className="bg-gradient-to-r from-sky-600 to-cyan-500 hover:from-sky-500 hover:to-cyan-400 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 w-full transform hover:scale-105 shadow-lg shadow-sky-500/20">DONE</button>
                 </div>
@@ -598,10 +667,45 @@ const PrizeRatesView: React.FC<{ rates: PrizeRates }> = ({ rates }) => (
     </div>
 );
 
+const BetLimitsView: React.FC<{ limits?: BetLimits }> = ({ limits }) => (
+    <div className="mt-12">
+        <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">My Bet Limits</h3>
+        {!limits || (limits.oneDigitOpen === 0 && limits.oneDigitClose === 0 && limits.twoDigit === 0) ? (
+            <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 text-center text-slate-400">
+                You have no betting limits set.
+            </div>
+        ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+                    <p className="text-sm text-slate-400 uppercase tracking-wider">1 Digit Open</p>
+                    <p className="text-4xl font-bold text-white mt-1">{limits.oneDigitOpen > 0 ? `PKR ${limits.oneDigitOpen.toLocaleString()}` : 'No Limit'}</p>
+                </div>
+                <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+                    <p className="text-sm text-slate-400 uppercase tracking-wider">1 Digit Close</p>
+                    <p className="text-4xl font-bold text-white mt-1">{limits.oneDigitClose > 0 ? `PKR ${limits.oneDigitClose.toLocaleString()}` : 'No Limit'}</p>
+                </div>
+                <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+                    <p className="text-sm text-slate-400 uppercase tracking-wider">2 Digit / Bulk / Combo</p>
+                    <p className="text-4xl font-bold text-white mt-1">{limits.twoDigit > 0 ? `PKR ${limits.twoDigit.toLocaleString()}` : 'No Limit'}</p>
+                </div>
+            </div>
+        )}
+    </div>
+);
+
+
 interface UserPanelProps {
-  user: User; games: Game[]; bets: Bet[];
-  placeBet: (userId: string, gameId: string, subGameType: SubGameType, numbers: string[], amountPerNumber: number) => void;
+  user: User;
+  games: Game[];
+  bets: Bet[];
+  placeBet: (details: {
+    userId: string;
+    gameId: string;
+    subGameType: SubGameType;
+    bets: { numbers: string[]; amountPerNumber: number }[];
+  }) => void;
 }
+
 
 const getPrizeRateForBet = (subGameType: SubGameType, prizeRates: PrizeRates) => {
     switch(subGameType) {
@@ -618,18 +722,63 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
   
   const userBets = bets.filter(b => b.userId === user.id);
 
-  const handleReviewBet = (subGameType: SubGameType, numbers: string[], amountPerNumber: number) => {
+  const handleReviewBet = (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: Map<number, string[]>}) => {
     if (selectedGame) {
-      const totalAmount = numbers.length * amountPerNumber;
-      const prizeRate = getPrizeRateForBet(subGameType, user.prizeRates);
-      setBetToConfirm({ gameId: selectedGame.id, gameName: selectedGame.name, subGameType, numbers, amountPerNumber, totalAmount, potentialWinnings: amountPerNumber * prizeRate });
+      const prizeRate = getPrizeRateForBet(details.subGameType, user.prizeRates);
+      let confirmationDetails: BetConfirmationDetails;
+
+      if (details.betGroups) { // Bulk bet
+          let totalAmount = 0;
+          let totalNumbers = 0;
+          let totalPotentialWinnings = 0;
+          details.betGroups.forEach((numbers, amount) => {
+              totalAmount += numbers.length * amount;
+              totalNumbers += numbers.length;
+              totalPotentialWinnings += numbers.length * amount * prizeRate;
+          });
+          confirmationDetails = {
+              gameId: selectedGame.id, gameName: selectedGame.name, subGameType: details.subGameType,
+              betGroups: details.betGroups, totalAmount, totalNumbers, totalPotentialWinnings
+          };
+      } else { // Single bet (Manual or Combo)
+          const { numbers, amountPerNumber } = details;
+          if(!numbers || amountPerNumber === undefined) return;
+          const totalAmount = numbers.length * amountPerNumber;
+          confirmationDetails = {
+              gameId: selectedGame.id, gameName: selectedGame.name, subGameType: details.subGameType,
+              numbers, amountPerNumber, totalAmount, potentialWinnings: amountPerNumber * prizeRate * numbers.length
+          };
+      }
+      setBetToConfirm(confirmationDetails);
       setSelectedGame(null);
     }
   };
   
   const handleConfirmBet = () => {
     if (betToConfirm) {
-        placeBet(user.id, betToConfirm.gameId, betToConfirm.subGameType, betToConfirm.numbers, betToConfirm.amountPerNumber);
+        let betsArray: { numbers: string[]; amountPerNumber: number }[] = [];
+
+        if (betToConfirm.betGroups) { // Bulk bet
+            betsArray = Array.from(betToConfirm.betGroups.entries()).map(([amount, numbers]) => ({
+                amountPerNumber: amount,
+                numbers: numbers,
+            }));
+        } else if (betToConfirm.numbers && betToConfirm.amountPerNumber !== undefined) { // Manual/Combo
+            betsArray = [{
+                numbers: betToConfirm.numbers,
+                amountPerNumber: betToConfirm.amountPerNumber,
+            }];
+        }
+
+        if (betsArray.length > 0) {
+            placeBet({
+                userId: user.id,
+                gameId: betToConfirm.gameId,
+                subGameType: betToConfirm.subGameType,
+                bets: betsArray,
+            });
+        }
+        
         setBetConfirmation(betToConfirm);
         setBetToConfirm(null);
     }
@@ -656,10 +805,6 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
                 <p className="text-xs text-slate-400 uppercase">Balance</p>
                 <p className="font-mono font-bold text-lg text-emerald-400">PKR {user.wallet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
             </div>
-            <div className="bg-slate-900/50 p-3 rounded-md text-center flex-1 border border-slate-700 flex flex-col justify-center">
-                <p className="text-xs text-slate-400 uppercase">Bet Limit</p>
-                <p className="font-mono font-bold text-lg text-cyan-400">{user.betLimit ? `PKR ${user.betLimit.toLocaleString()}` : 'No Limit'}</p>
-            </div>
         </div>
       </div>
        {user.isRestricted && (
@@ -677,6 +822,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
       </div>
       
       <PrizeRatesView rates={user.prizeRates} />
+      <BetLimitsView limits={user.betLimits} />
       <BetHistoryView bets={userBets} games={games} user={user} />
       <LedgerView entries={user.ledger} />
       

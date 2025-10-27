@@ -131,42 +131,84 @@ app.get('/api/user/data', authMiddleware, (req, res) => {
 
 app.post('/api/user/bets', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
-    const { gameId, subGameType, numbers, amountPerNumber } = req.body;
-    
+    const { gameId, subGameType, bets } = req.body;
+
     try {
         database.runInTransaction(() => {
             const user = database.findAccountById(req.user.id, 'users');
             if (!user) throw { status: 404, message: 'User not found' };
-            
+
             const dealer = database.findAccountById(user.dealerId, 'dealers');
             const game = database.getAllFromTable('games').find(g => g.id === gameId);
             const admin = database.findAccountById('Guru', 'admins');
 
             if (!dealer || !game || !admin) throw { status: 404, message: 'Dealer, Game or Admin not found' };
             if (user.isRestricted) throw { status: 403, message: 'Your account is restricted.' };
+            if (!Array.isArray(bets) || bets.length === 0) throw { status: 400, message: 'Invalid bet format.' };
 
-            const totalAmount = numbers.length * amountPerNumber;
-            if (user.wallet < totalAmount) throw { status: 400, message: 'Insufficient funds' };
-            if (user.betLimit && totalAmount > user.betLimit) throw { status: 400, message: `Bet amount exceeds your transaction limit of PKR ${user.betLimit}` };
+            // 1. Calculate total amount for the entire transaction first
+            const totalTransactionAmount = bets.reduce((total, bet) => {
+                if (!Array.isArray(bet.numbers) || typeof bet.amountPerNumber !== 'number' || bet.amountPerNumber <= 0) {
+                    throw { status: 400, message: 'Invalid bet data within the transaction.' };
+                }
+                return total + (bet.numbers.length * bet.amountPerNumber);
+            }, 0);
 
-            const newBet = { id: uuidv4(), userId: user.id, dealerId: dealer.id, gameId, subGameType, numbers: JSON.stringify(numbers), amountPerNumber, totalAmount, timestamp: new Date().toISOString() };
-            database.createBet(newBet);
+            // 2. Perform checks against wallet and betLimits
+            if (user.wallet < totalTransactionAmount) throw { status: 400, message: 'Insufficient funds' };
             
-            database.addLedgerEntry(user.id, 'USER', `Bet placed - ${game.name} (${subGameType})`, totalAmount, 0);
-            database.addLedgerEntry(admin.id, 'ADMIN', `Bet stake from ${user.name} on ${game.name}`, 0, totalAmount);
-            
-            const userCommission = totalAmount * (user.commissionRate / 100);
-            const dealerCommission = totalAmount * (dealer.commissionRate - user.commissionRate) / 100;
+            if (user.betLimits) {
+                let limit = 0;
+                if (subGameType === '1 Digit Open') {
+                    limit = user.betLimits.oneDigitOpen;
+                } else if (subGameType === '1 Digit Close') {
+                    limit = user.betLimits.oneDigitClose;
+                } else { // 2 Digit, Bulk Game, Combo Game
+                    limit = user.betLimits.twoDigit;
+                }
 
-            if (userCommission > 0) {
-                database.addLedgerEntry(admin.id, 'ADMIN', `Commission to user ${user.name}`, userCommission, 0);
-                database.addLedgerEntry(user.id, 'USER', `Commission earned on bet – ${game.name}`, 0, userCommission);
+                if (limit > 0 && totalTransactionAmount > limit) {
+                    throw { status: 400, message: `Total bet amount of PKR ${totalTransactionAmount.toFixed(2)} exceeds your limit of PKR ${limit.toFixed(2)} for this game type.` };
+                }
             }
-            if (dealerCommission > 0) {
-                database.addLedgerEntry(admin.id, 'ADMIN', `Commission to dealer ${dealer.name}`, dealerCommission, 0);
-                database.addLedgerEntry(dealer.id, 'DEALER', `Commission from user bet – ${game.name}`, 0, dealerCommission);
+
+            // 3. Process a single set of ledger entries for the entire transaction
+            database.addLedgerEntry(user.id, 'USER', `Bet placed - ${game.name} (${subGameType})`, totalTransactionAmount, 0);
+            database.addLedgerEntry(admin.id, 'ADMIN', `Bet stake from ${user.name} on ${game.name}`, 0, totalTransactionAmount);
+
+            const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
+            const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
+
+            if (totalUserCommission > 0) {
+                database.addLedgerEntry(admin.id, 'ADMIN', `Commission to user ${user.name}`, totalUserCommission, 0);
+                database.addLedgerEntry(user.id, 'USER', `Commission earned on bet – ${game.name}`, 0, totalUserCommission);
             }
-            res.status(201).json({ ...newBet, numbers: JSON.parse(newBet.numbers) });
+            if (totalDealerCommission > 0) {
+                database.addLedgerEntry(admin.id, 'ADMIN', `Commission to dealer ${dealer.name}`, totalDealerCommission, 0);
+                database.addLedgerEntry(dealer.id, 'DEALER', `Commission from user bet – ${game.name}`, 0, totalDealerCommission);
+            }
+
+            // 4. Create individual bet records
+            const createdBets = [];
+            bets.forEach(betGroup => {
+                const { numbers, amountPerNumber } = betGroup;
+                const totalAmount = numbers.length * amountPerNumber;
+                const newBet = {
+                    id: uuidv4(),
+                    userId: user.id,
+                    dealerId: dealer.id,
+                    gameId,
+                    subGameType,
+                    numbers: JSON.stringify(numbers),
+                    amountPerNumber,
+                    totalAmount,
+                    timestamp: new Date().toISOString()
+                };
+                database.createBet(newBet);
+                createdBets.push({ ...newBet, numbers: JSON.parse(newBet.numbers) });
+            });
+
+            res.status(201).json(createdBets);
         });
     } catch (error) {
         res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
@@ -328,6 +370,17 @@ app.post('/api/admin/games/:id/declare-winner', authMiddleware, (req, res) => {
         return res.status(404).json({ message: 'Game not found.' });
     }
     res.json(updatedGame);
+});
+
+app.put('/api/admin/games/:id/update-winner', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    const { newWinningNumber } = req.body;
+    try {
+        const updatedGame = database.updateWinningNumber(req.params.id, newWinningNumber);
+        res.json(updatedGame);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
 });
 
 app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {

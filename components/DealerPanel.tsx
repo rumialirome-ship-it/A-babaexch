@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dealer, User, PrizeRates, LedgerEntry } from '../types';
+import { Dealer, User, PrizeRates, LedgerEntry, BetLimits } from '../types';
 import { Icons } from '../constants';
 
 // Internal components
@@ -50,8 +50,22 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
 
 const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, originalId?: string, initialDeposit?: number) => void; onCancel: () => void; dealerPrizeRates: PrizeRates, dealerId: string }> = ({ user, users, onSave, onCancel, dealerPrizeRates, dealerId }) => {
     const [formData, setFormData] = useState(() => {
-        const defaults = { id: '', name: '', password: '', area: '', contact: '', commissionRate: 0, prizeRates: { ...dealerPrizeRates }, avatarUrl: '', wallet: '', betLimit: '' };
-        if (user) { return { ...user, password: '' }; }
+        const defaults = {
+            id: '', name: '', password: '', area: '', contact: '', commissionRate: 0, 
+            prizeRates: { ...dealerPrizeRates }, avatarUrl: '', wallet: '',
+            betLimits: { oneDigitOpen: '', oneDigitClose: '', twoDigit: '' }
+        };
+        if (user) {
+            return {
+                ...user,
+                password: '',
+                betLimits: {
+                    oneDigitOpen: user.betLimits?.oneDigitOpen || '',
+                    oneDigitClose: user.betLimits?.oneDigitClose || '',
+                    twoDigit: user.betLimits?.twoDigit || '',
+                }
+            };
+        }
         return defaults;
     });
 
@@ -85,11 +99,13 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
 
         let finalData: User;
         const initialDeposit = Number(formData.wallet) || 0;
-        const betLimitValue = Number(formData.betLimit);
+        const betLimitsValue: BetLimits = {
+            oneDigitOpen: Number((formData.betLimits as any).oneDigitOpen) || 0,
+            oneDigitClose: Number((formData.betLimits as any).oneDigitClose) || 0,
+            twoDigit: Number((formData.betLimits as any).twoDigit) || 0,
+        };
 
         if (user) { // Editing
-            // FIX: Replaced broad `...formData` spread with explicit properties from the form
-            // to avoid type mismatch on properties like `wallet` which are not editable here.
             finalData = {
                 ...user,
                 name: formData.name,
@@ -97,7 +113,7 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
                 area: formData.area,
                 contact: formData.contact,
                 avatarUrl: formData.avatarUrl,
-                betLimit: betLimitValue > 0 ? betLimitValue : undefined,
+                betLimits: betLimitsValue,
                 commissionRate: Number(formData.commissionRate) || 0,
                 prizeRates: {
                     oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
@@ -115,7 +131,7 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
                 contact: formData.contact,
                 wallet: 0, // Wallet is set by parent logic
                 commissionRate: Number(formData.commissionRate) || 0,
-                betLimit: betLimitValue > 0 ? betLimitValue : undefined,
+                betLimits: betLimitsValue,
                 isRestricted: false,
                 prizeRates: {
                     oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
@@ -162,11 +178,26 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
               <label className="block text-sm font-medium text-slate-400 mb-1">Commission Rate (%)</label>
               <input type="number" name="commissionRate" value={formData.commissionRate} onChange={handleChange} placeholder="e.g. 2" className={inputClass} />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Bet Limit per Transaction (PKR)</label>
-              <input type="number" name="betLimit" value={formData.betLimit || ''} onChange={handleChange} placeholder="e.g. 5000 (0 or empty for no limit)" className={inputClass} />
-            </div>
             
+            <fieldset className="border border-slate-600 p-4 rounded-md">
+                <legend className="px-2 text-sm font-medium text-slate-400">Bet Limits (per transaction)</legend>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-sm">1 Digit Open</label>
+                        <input type="number" name="betLimits.oneDigitOpen" value={(formData.betLimits as any).oneDigitOpen} onChange={handleChange} placeholder="0 for no limit" className={inputClass} />
+                    </div>
+                    <div>
+                        <label className="text-sm">1 Digit Close</label>
+                        <input type="number" name="betLimits.oneDigitClose" value={(formData.betLimits as any).oneDigitClose} onChange={handleChange} placeholder="0 for no limit" className={inputClass} />
+                    </div>
+                    <div className="sm:col-span-2">
+                        <label className="text-sm">2 Digit (incl. Bulk/Combo)</label>
+                        <input type="number" name="betLimits.twoDigit" value={(formData.betLimits as any).twoDigit} onChange={handleChange} placeholder="0 for no limit" className={inputClass} />
+                    </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">Setting a limit to 0 or leaving it empty means there is no limit for that game type.</p>
+            </fieldset>
+
             <fieldset className="border border-slate-600 p-4 rounded-md">
                 <legend className="px-2 text-sm font-medium text-slate-400">Prize Rates</legend>
                  <div className="grid grid-cols-2 gap-4">
@@ -283,10 +314,9 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
                          <tr>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Login ID</th>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Contact</th>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wallet (PKR)</th>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Commission</th>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Bet Limit (PKR)</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Bet Limits (PKR)</th>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
                          </tr>
@@ -299,10 +329,17 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
                                      <span className="font-semibold text-white">{user.name}</span>
                                  </div></td>
                                  <td className="p-4 text-slate-400 font-mono">{user.id}</td>
-                                 <td className="p-4 text-slate-400">{user.contact}</td>
                                  <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
                                  <td className="p-4 text-slate-300">{user.commissionRate}%</td>
-                                 <td className="p-4 text-slate-300 font-mono">{user.betLimit ? user.betLimit.toLocaleString() : 'No Limit'}</td>
+                                 <td className="p-4 text-slate-300 font-mono text-xs">
+                                    {user.betLimits && (user.betLimits.oneDigitOpen > 0 || user.betLimits.oneDigitClose > 0 || user.betLimits.twoDigit > 0) ? (
+                                        <div>
+                                            <div>1D-O: {user.betLimits.oneDigitOpen > 0 ? user.betLimits.oneDigitOpen.toLocaleString() : 'N/A'}</div>
+                                            <div>1D-C: {user.betLimits.oneDigitClose > 0 ? user.betLimits.oneDigitClose.toLocaleString() : 'N/A'}</div>
+                                            <div>2D: {user.betLimits.twoDigit > 0 ? user.betLimits.twoDigit.toLocaleString() : 'N/A'}</div>
+                                        </div>
+                                    ) : 'No Limits'}
+                                 </td>
                                  <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                  <td className="p-4">
                                      <div className="flex items-center gap-2">

@@ -112,11 +112,20 @@ const AppContent: React.FC = () => {
         }
     }, [account, fetchData]);
 
-    const placeBet = useCallback(async (userId: string, gameId: string, subGameType: SubGameType, numbers: string[], amountPerNumber: number) => {
+    const placeBet = useCallback(async (details: {
+        userId: string;
+        gameId: string;
+        subGameType: SubGameType;
+        bets: { numbers: string[]; amountPerNumber: number }[];
+    }) => {
         try {
             const response = await fetchWithAuth('/api/user/bets', {
                 method: 'POST',
-                body: JSON.stringify({ gameId, subGameType, numbers, amountPerNumber })
+                body: JSON.stringify({
+                    gameId: details.gameId,
+                    subGameType: details.subGameType,
+                    bets: details.bets,
+                })
             });
             if (!response.ok) {
                 const err = await response.json();
@@ -192,6 +201,20 @@ const AppContent: React.FC = () => {
         }
     }, [fetchWithAuth, fetchData]);
 
+    const updateWinner = useCallback(async (gameId: string, newWinningNumber: string) => {
+        try {
+            const response = await fetchWithAuth(`/api/admin/games/${gameId}/update-winner`, { method: 'PUT', body: JSON.stringify({ newWinningNumber }) });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message);
+            }
+            await fetchData();
+        } catch (error: any) {
+            alert(`Error updating winner: ${error.message}`);
+        }
+    }, [fetchWithAuth, fetchData]);
+
+
     const approvePayouts = useCallback(async (gameId: string) => {
         try {
             const response = await fetchWithAuth(`/api/admin/games/${gameId}/approve-payouts`, { method: 'POST' });
@@ -254,7 +277,7 @@ const AppContent: React.FC = () => {
             <main className="flex-grow">
                 {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
                 {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} toggleAccountRestriction={toggleAccountRestriction} />}
-                {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} toggleAccountRestriction={toggleAccountRestriction} />}
+                {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} toggleAccountRestriction={toggleAccountRestriction} />}
             </main>
         </div>
     );

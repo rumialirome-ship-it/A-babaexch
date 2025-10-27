@@ -34,10 +34,16 @@ export interface BaseAccount {
   avatarUrl?: string;
 }
 
+export interface BetLimits {
+  oneDigitOpen: number;
+  oneDigitClose: number;
+  twoDigit: number;
+}
+
 export interface User extends BaseAccount {
   dealerId: string;
   prizeRates: PrizeRates;
-  betLimit?: number;
+  betLimits?: BetLimits;
 }
 
 export interface Dealer extends BaseAccount {

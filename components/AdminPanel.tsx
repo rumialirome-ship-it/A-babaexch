@@ -312,12 +312,13 @@ interface AdminPanelProps {
   games: Game[]; 
   bets: Bet[]; 
   declareWinner: (gameId: string, winningNumber: string) => void;
+  updateWinner: (gameId: string, newWinningNumber: string) => void;
   approvePayouts: (gameId: string) => void;
   topUpDealerWallet: (dealerId: string, amount: number) => void;
   toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, approvePayouts, topUpDealerWallet, toggleAccountRestriction }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, toggleAccountRestriction }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -328,6 +329,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
+  const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
   const { fetchWithAuth } = useAuth();
   
   useEffect(() => {
@@ -379,6 +381,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         declareWinner(gameId, num);
         setWinningNumbers(prev => ({...prev, [gameId]: ''}));
     } else { alert("Please enter a valid 2-digit number."); }
+  };
+
+  const handleUpdateWinner = (gameId: string) => {
+    if (editingGame && editingGame.number.length === 2 && !isNaN(parseInt(editingGame.number))) {
+        updateWinner(gameId, editingGame.number);
+        setEditingGame(null);
+    } else {
+        alert("Please enter a valid 2-digit number.");
+    }
   };
 
   const filteredDealers = dealers.filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()) || (d.area || '').toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -496,23 +507,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                         <span>Approved</span>
                                     </div>
                                 </div>
+                            ) : editingGame?.id === game.id ? (
+                                <div className="my-2">
+                                    <p className="text-sm text-slate-400">Editing Number...</p>
+                                    <div className="flex items-center space-x-2 mt-1">
+                                        <input type="text" maxLength={2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-900 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder="00" />
+                                        <button onClick={() => handleUpdateWinner(game.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Save</button>
+                                        <button onClick={() => setEditingGame(null)} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Cancel</button>
+                                    </div>
+                                </div>
                             ) : (
-                                <div className="flex items-center justify-between my-2">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between my-2 gap-2">
                                     <div>
                                         <p className="text-sm text-slate-400">Pending Approval</p>
                                         <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
                                     </div>
-                                    <button 
-                                        onClick={() => { if (window.confirm(`Are you sure you want to approve payouts for ${game.name}? This action cannot be undone.`)) { approvePayouts(game.id); } }} 
-                                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors animate-pulse"
-                                    >
-                                        Approve Payouts
-                                    </button>
+                                    <div className='flex gap-2 self-end sm:self-center'>
+                                        <button onClick={() => setEditingGame({ id: game.id, number: game.winningNumber! })} className="bg-slate-700 hover:bg-slate-600 text-amber-400 font-semibold py-2 px-3 rounded-md text-sm transition-colors">
+                                            Edit
+                                        </button>
+                                        <button 
+                                            onClick={() => { if (window.confirm(`Are you sure you want to approve payouts for ${game.name}? This action cannot be undone.`)) { approvePayouts(game.id); } }} 
+                                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors animate-pulse whitespace-nowrap"
+                                        >
+                                            Approve Payouts
+                                        </button>
+                                    </div>
                                 </div>
                             )
                         ) : (
                             <div className="flex items-center space-x-2 my-2">
-                                <input type="text" maxLength={2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value})} className="w-20 bg-slate-800 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder="00" />
+                                <input type="text" maxLength={2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-800 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder="00" />
                                 <button onClick={() => handleDeclareWinner(game.id)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Declare</button>
                             </div>
                         )}
