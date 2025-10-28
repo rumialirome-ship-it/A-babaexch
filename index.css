@@ -6,15 +6,12 @@
 body {
   font-family: 'Russo One', sans-serif;
   background-color: #020617; /* slate-950 */
-  overflow: hidden;
 }
 
 #root {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 
 .animated-bg {
@@ -37,10 +34,11 @@ body {
   100% { background-position: 500px 500px; }
 }
 
-/* Custom Scrollbar */
-#root::-webkit-scrollbar { width: 8px; }
-#root::-webkit-scrollbar-track { background: #0f172a; }
-#root::-webkit-scrollbar-thumb { background-color: #0891b2; border-radius: 20px; border: 2px solid #0f172a; }
+/* Custom Scrollbar - Now applied to the whole document */
+html::-webkit-scrollbar { width: 8px; }
+html::-webkit-scrollbar-track { background: #0f172a; }
+html::-webkit-scrollbar-thumb { background-color: #0891b2; border-radius: 20px; border: 2px solid #0f172a; }
+
 
 /* Text Glitch Effect */
 .glitch-text {

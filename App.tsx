@@ -82,7 +82,9 @@ const AppContent: React.FC = () => {
                 const response = await fetchWithAuth('/api/dealer/data');
                 if (!response.ok) throw new Error('Failed to fetch dealer data');
                 data = await response.json();
-                setUsers(parseAllDates(data).users);
+                const parsedData = parseAllDates(data);
+                setUsers(parsedData.users);
+                setBets(parsedData.bets);
                 const gamesResponse = await fetchWithAuth('/api/games');
                 const gamesData = await gamesResponse.json();
                 setGames(gamesData);
@@ -304,7 +306,7 @@ const AppContent: React.FC = () => {
             <Header />
             <main className="flex-grow">
                 {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
-                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} />}
+                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} />}
                 {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} />}
             </main>
         </div>

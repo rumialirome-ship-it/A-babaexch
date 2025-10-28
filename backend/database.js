@@ -437,7 +437,37 @@ const updateDealer = (dealerData, originalId) => {
 };
 
 const findUsersByDealerId = (dealerId) => {
-    return getAllFromTable('users').filter(u => u.dealerId === dealerId);
+    return db.prepare('SELECT * FROM users WHERE dealerId = ?').all(dealerId).map(u => findAccountById(u.id, 'users'));
+};
+
+const findBetsByDealerId = (dealerId) => {
+    const stmt = db.prepare('SELECT * FROM bets WHERE dealerId = ? ORDER BY timestamp DESC');
+    const bets = stmt.all(dealerId);
+    return bets.map(b => {
+        try {
+            if (b.numbers && typeof b.numbers === 'string') {
+                b.numbers = JSON.parse(b.numbers);
+            }
+        } catch (e) {
+            console.error(`Failed to parse numbers for bet id ${b.id}`, e);
+        }
+        return b;
+    });
+};
+
+const findBetsByGameId = (gameId) => {
+    const stmt = db.prepare('SELECT * FROM bets WHERE gameId = ?');
+    const bets = stmt.all(gameId);
+    return bets.map(b => {
+        try {
+            if (b.numbers && typeof b.numbers === 'string') {
+                b.numbers = JSON.parse(b.numbers);
+            }
+        } catch (e) {
+            console.error(`Failed to parse numbers for bet id ${b.id}`, e);
+        }
+        return b;
+    });
 };
 
 const findUserByDealer = (userId, dealerId) => {
@@ -498,6 +528,37 @@ const createBet = (betData) => {
     );
 };
 
+const getUserStakesForGame = (userId, gameId) => {
+    const stmt = db.prepare(`
+        SELECT subGameType, numbers, amountPerNumber 
+        FROM bets 
+        WHERE userId = ? AND gameId = ?
+    `);
+    const userBetsForGame = stmt.all(userId, gameId);
+
+    const stakesMap = new Map(); // Key: 'oneDigit-7' or 'twoDigit-42', Value: total stake
+
+    userBetsForGame.forEach(bet => {
+        try {
+            const numbers = JSON.parse(bet.numbers);
+            const amount = bet.amountPerNumber;
+            const isOneDigit = bet.subGameType === '1 Digit Open' || bet.subGameType === '1 Digit Close';
+            const typeKey = isOneDigit ? 'oneDigit' : 'twoDigit';
+
+            numbers.forEach(num => {
+                const key = `${typeKey}-${num}`;
+                const currentStake = stakesMap.get(key) || 0;
+                stakesMap.set(key, currentStake + amount);
+            });
+        } catch(e) {
+            console.error(`Error parsing numbers for bet in getUserStakesForGame: ${e}`);
+        }
+    });
+
+    return stakesMap;
+};
+
+
 // Number Limit Functions
 const getAllNumberLimits = () => db.prepare('SELECT * FROM number_limits ORDER BY gameType, numberValue ASC').all();
 const saveNumberLimit = ({ gameType, numberValue, limitAmount }) => {
@@ -516,16 +577,9 @@ const getCurrentStakeForNumber = (gameType, numberValue) => {
         : ['1 Digit Close'];
     
     const placeholders = subGameTypes.map(() => '?').join(',');
-    const query = `
-        SELECT SUM(amountPerNumber) as totalStake
-        FROM bets
-        WHERE subGameType IN (${placeholders}) AND json_each.value = ?
-        AND gameId IN (SELECT id FROM games WHERE winningNumber IS NULL OR payoutsApproved = 0)
-    `;
     
     let totalStake = 0;
-    // This is a simplified approach. A more robust way would be to iterate through bets in JS.
-    // The current query won't work as json_each is complex. Let's do it in JS.
+    
     const bets = db.prepare(`
         SELECT numbers, amountPerNumber 
         FROM bets 
@@ -536,10 +590,87 @@ const getCurrentStakeForNumber = (gameType, numberValue) => {
     for (const bet of bets) {
         const numbers = JSON.parse(bet.numbers);
         if (numbers.includes(numberValue)) {
-            totalStake += bet.amountPerNumber;
+            // This logic is slightly flawed for combo/bulk as one line item might contribute to the stake on a number.
+            // Let's assume a bet with ['12', '34'] for 10 is two separate 10 rupee stakes.
+            const occurrences = numbers.filter(n => n === numberValue).length;
+            totalStake += occurrences * bet.amountPerNumber;
         }
     }
     return totalStake;
+};
+
+const getNumberStakeSummary = ({ gameId, dealerId, date }) => {
+    let query = 'SELECT subGameType, numbers, amountPerNumber FROM bets';
+    const params = [];
+    const conditions = [];
+
+    if (gameId) {
+        conditions.push('gameId = ?');
+        params.push(gameId);
+    }
+    if (dealerId) {
+        conditions.push('dealerId = ?');
+        params.push(dealerId);
+    }
+    if (date) {
+        conditions.push('date(timestamp) = ?');
+        params.push(date);
+    }
+
+    if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    const stmt = db.prepare(query);
+    const bets = stmt.all(...params);
+
+    const summary = {
+        '2-digit': new Map(),
+        '1-open': new Map(),
+        '1-close': new Map(),
+    };
+
+    bets.forEach(bet => {
+        try {
+            const numbers = JSON.parse(bet.numbers);
+            const amount = bet.amountPerNumber;
+
+            let targetMap;
+            switch (bet.subGameType) {
+                case '2 Digit':
+                case 'Bulk Game':
+                case 'Combo Game':
+                    targetMap = summary['2-digit'];
+                    break;
+                case '1 Digit Open':
+                    targetMap = summary['1-open'];
+                    break;
+                case '1 Digit Close':
+                    targetMap = summary['1-close'];
+                    break;
+                default:
+                    return;
+            }
+            
+            numbers.forEach(num => {
+                targetMap.set(num, (targetMap.get(num) || 0) + amount);
+            });
+        } catch (e) {
+            console.error(`Could not parse numbers for bet: ${e}`);
+        }
+    });
+    
+    const formatAndSort = (map) => {
+        return Array.from(map.entries())
+            .map(([number, stake]) => ({ number, stake }))
+            .sort((a, b) => b.stake - a.stake);
+    };
+
+    return {
+        twoDigit: formatAndSort(summary['2-digit']),
+        oneDigitOpen: formatAndSort(summary['1-open']),
+        oneDigitClose: formatAndSort(summary['1-close']),
+    };
 };
 
 
@@ -566,9 +697,13 @@ module.exports = {
     approvePayoutsForGame,
     createBet,
     getFinancialSummary,
+    getUserStakesForGame,
     getAllNumberLimits,
     saveNumberLimit,
     deleteNumberLimit,
     getNumberLimit,
     getCurrentStakeForNumber,
+    findBetsByDealerId,
+    findBetsByGameId,
+    getNumberStakeSummary,
 };

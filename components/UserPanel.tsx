@@ -36,6 +36,9 @@ const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
 );
 
 const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ bets, games, user }) => {
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const getBetOutcome = (bet: Bet) => {
         const game = games.find(g => g.id === bet.gameId);
@@ -68,9 +71,75 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
         return { status: 'Lost', payout: 0, color: 'text-red-400' };
     };
 
+    const filteredBets = useMemo(() => {
+        return bets.filter(bet => {
+            // Date range filter using YYYY-MM-DD strings to avoid timezone issues
+            const betDateStr = bet.timestamp.toISOString().split('T')[0];
+            if (startDate && betDateStr < startDate) {
+                return false;
+            }
+            if (endDate && betDateStr > endDate) {
+                return false;
+            }
+
+            // Search term filter
+            if (searchTerm.trim()) {
+                const game = games.find(g => g.id === bet.gameId);
+                const lowerSearchTerm = searchTerm.trim().toLowerCase();
+
+                const gameNameMatch = game?.name.toLowerCase().includes(lowerSearchTerm);
+                const subGameTypeMatch = bet.subGameType.toLowerCase().includes(lowerSearchTerm);
+
+                // Allow generic searches like "1 digit" to match "1 Digit Open" and "1 Digit Close"
+                let genericTypeMatch = false;
+                if (('1 digit'.includes(lowerSearchTerm) || '1-digit'.includes(lowerSearchTerm)) && bet.subGameType.includes('1 Digit')) {
+                    genericTypeMatch = true;
+                }
+                if (('2 digit'.includes(lowerSearchTerm) || '2-digit'.includes(lowerSearchTerm)) && (bet.subGameType.includes('2 Digit') || bet.subGameType.includes('Bulk') || bet.subGameType.includes('Combo'))) {
+                    genericTypeMatch = true;
+                }
+
+                if (!gameNameMatch && !subGameTypeMatch && !genericTypeMatch) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }, [bets, games, startDate, endDate, searchTerm]);
+
+    const handleClearFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setSearchTerm('');
+    };
+    
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white";
+
     return (
         <div className="mt-12">
             <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">My Bet History</h3>
+            
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label htmlFor="start-date" className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
+                        <input id="start-date" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div>
+                        <label htmlFor="end-date" className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
+                        <input id="end-date" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div className="md:col-span-2 lg:col-span-1">
+                        <label htmlFor="search-term" className="block text-sm font-medium text-slate-400 mb-1">Game / Type</label>
+                        <input id="search-term" type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="e.g., AK, 1 digit, LS3" className={inputClass} />
+                    </div>
+                    <div className="flex items-center">
+                        <button onClick={handleClearFilters} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Clear Filters</button>
+                    </div>
+                </div>
+            </div>
+
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
                 <div className="overflow-x-auto max-h-[30rem]">
                     <table className="w-full text-left">
@@ -85,7 +154,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                           {[...bets].reverse().map(bet => {
+                           {[...filteredBets].reverse().map(bet => {
                                 const game = games.find(g => g.id === bet.gameId);
                                 const outcome = getBetOutcome(bet);
                                 return (
@@ -101,8 +170,14 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
                                     <td className="p-4 text-right font-semibold"><span className={outcome.color}>{outcome.status}</span></td>
                                 </tr>);
                            })}
+                           {filteredBets.length === 0 && (
+                               <tr>
+                                   <td colSpan={6} className="p-8 text-center text-slate-500">
+                                       {bets.length === 0 ? "No bets placed yet." : "No bets found matching your filters."}
+                                   </td>
+                               </tr>
+                           )}
                         </tbody>
-                     {bets.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-500">No bets placed yet.</td></tr>}
                     </table>
                 </div>
             </div>
@@ -233,7 +308,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             numbers: string[];
             stake: number;
             cost: number;
-            subGameType: SubGameType;
+            subGameType: SubGameType | 'Mixed' | 'Combo'; // For display
             error?: string;
         }
         const result = {
@@ -243,127 +318,136 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             error: null as string | null,
             betGroups: [] as { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[],
         };
+        
         const input = bulkInput.trim();
         if (!input) return result;
 
-        const allLines = input.split('\n');
+        const allLines = input.split('\n').filter(line => line.trim() !== '');
+        if (allLines.length === 0) return result;
+
+        const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*(combo|k)?\s*$/i;
+        let globalStake: number | null = null;
         
+        // Check last line for a global stake, but only if it doesn't contain bet numbers.
+        const lastLineText = allLines[allLines.length - 1];
+        const lastLineTokens = lastLineText.replace(/[^a-zA-Z0-9xX]/g, ' ').split(/\s+/).filter(Boolean);
+        const lastLineHasNumbers = lastLineTokens.some(token => /^\d{1,2}$/.test(token) || /^[xX\d]{2}$/.test(token) && token.toLowerCase() !== 'rs');
+        
+        if (!lastLineHasNumbers) {
+            const globalStakeMatch = lastLineText.match(/(?:r|rs)\s*(\d*\.?\d+)/i);
+             if (globalStakeMatch) {
+                const parsedStake = parseFloat(globalStakeMatch[1]);
+                if (!isNaN(parsedStake) && parsedStake > 0) {
+                    globalStake = parsedStake;
+                    // Remove the global stake line from processing
+                    allLines.pop();
+                }
+            }
+        }
+        
+        const determineType = (token: string): SubGameType | null => {
+            if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
+            if (/^\d[xX]$/.test(token)) return SubGameType.OneDigitOpen;
+            if (/^[xX]\d$/.test(token)) return SubGameType.OneDigitClose;
+            return null;
+        };
+        
+        const aggregatedGroups: Map<string, { subGameType: SubGameType; numbers: Set<string>; amountPerNumber: number }> = new Map();
+
         for (const lineText of allLines) {
-            if (!lineText.trim()) continue;
-
-            const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit };
+            const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit, error: undefined };
             
-            const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*(combo|k)?\s*$/i;
-            const stakeMatch = lineText.match(stakeRegex);
+            let betPart = lineText.trim();
+            let lineStake: number | null = null;
+            let isComboLine = false;
 
-            if (!stakeMatch) {
-                parsedLine.error = "Stake not found (e.g., '... r10')";
-                result.lines.push(parsedLine);
-                continue;
+            const localStakeMatch = lineText.match(stakeRegex);
+            if (localStakeMatch) {
+                const parsedStake = parseFloat(localStakeMatch[1]);
+                if (!isNaN(parsedStake) && parsedStake > 0) {
+                    lineStake = parsedStake;
+                }
+                isComboLine = !!localStakeMatch[2];
+                betPart = betPart.substring(0, localStakeMatch.index).trim();
             }
 
-            const stake = parseFloat(stakeMatch[1]);
-            const isCombo = !!stakeMatch[2];
-            if (isNaN(stake) || stake <= 0) {
-                parsedLine.error = 'Invalid stake amount.';
-                result.lines.push(parsedLine);
-                continue;
-            }
-            parsedLine.stake = stake;
-
-            let betPart = lineText.substring(0, stakeMatch.index).trim();
+            const effectiveStake = lineStake ?? globalStake;
             betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
+            const tokens = betPart.replace(/[^a-zA-Z0-9xX]/g, ' ').split(/\s+/).filter(Boolean);
 
-            const tokens = betPart.replace(/[^a-zA-Z0-9xX\s]/g, ' ').split(/\s+/).filter(Boolean);
-            if (tokens.length === 0) {
+            if (tokens.length === 0 && betPart !== '') { 
                  parsedLine.error = "No numbers found.";
                  result.lines.push(parsedLine);
                  continue;
             }
+            if (tokens.length === 0) continue;
             
-            let lineNumbers = new Set<string>();
-            let lineError: string | null = null;
-            let lineType: SubGameType | 'mixed' | 'unknown' = 'unknown';
-            
-            const determineType = (token: string): SubGameType | null => {
-                if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
-                if (/^\d[xX]$/.test(token)) return SubGameType.OneDigitOpen;
-                if (/^[xX]\d$/.test(token)) return SubGameType.OneDigitClose;
-                return null;
-            };
-
-            for (const token of tokens) {
-                const currentTokenType = determineType(token);
-                if (!currentTokenType) {
-                    lineError = `Invalid token: '${token}'`;
-                    break;
-                }
-                if (lineType === 'unknown') {
-                    lineType = currentTokenType;
-                } else if (lineType !== currentTokenType) {
-                    lineType = 'mixed';
-                    break;
-                }
-            }
-
-            if (lineError) {
-                parsedLine.error = lineError;
-            } else if (lineType === 'mixed') {
-                parsedLine.error = 'Mixed bet types on one line are not allowed.';
-            } else if (lineType === 'unknown') {
-                parsedLine.error = 'Could not determine bet type.';
-            } else {
-                 parsedLine.subGameType = lineType;
-                 if (isCombo) {
-                     const digits = tokens.join('');
-                     const uniqueDigits = [...new Set(digits.split(''))];
-                     if (uniqueDigits.length < 3 || uniqueDigits.length > 7) {
-                         parsedLine.error = `Combo requires 3-7 unique digits.`;
-                     } else {
-                         const sortedDigits = uniqueDigits.sort();
-                         for (let i = 0; i < sortedDigits.length; i++) {
-                            for (let j = i + 1; j < sortedDigits.length; j++) {
-                                lineNumbers.add(sortedDigits[i] + sortedDigits[j]);
-                            }
-                         }
-                         parsedLine.subGameType = SubGameType.TwoDigit;
-                     }
-                 } else {
-                     tokens.forEach(token => {
-                         if (lineType === SubGameType.TwoDigit) lineNumbers.add(token.padStart(2, '0'));
-                         if (lineType === SubGameType.OneDigitOpen) lineNumbers.add(token[0]);
-                         if (lineType === SubGameType.OneDigitClose) lineNumbers.add(token[1]);
-                     });
-                 }
+            if (!effectiveStake || effectiveStake <= 0) {
+                parsedLine.error = "Stake not found (e.g., '... r10')";
+                result.lines.push(parsedLine);
+                continue;
             }
             
-            if (parsedLine.error) {
-                // do nothing
-            } else if (lineNumbers.size === 0) {
-                 parsedLine.error = "No valid numbers found.";
-            } else {
-                parsedLine.numbers = Array.from(lineNumbers);
-                parsedLine.cost = parsedLine.numbers.length * parsedLine.stake;
-                result.totalCost += parsedLine.cost;
-                result.totalNumbers += parsedLine.numbers.length;
-
-                const existingGroup = result.betGroups.find(g => g.subGameType === parsedLine.subGameType && g.amountPerNumber === parsedLine.stake);
-                if (existingGroup) {
-                    existingGroup.numbers.push(...parsedLine.numbers);
+            parsedLine.stake = effectiveStake;
+            const lineItems: { type: SubGameType, value: string }[] = [];
+            let lineHasError = false;
+            
+            if (isComboLine) {
+                const digits = tokens.join('').replace(/[^0-9]/g, '');
+                const uniqueDigits = [...new Set(digits.split(''))].sort();
+                if (uniqueDigits.length < 2) {
+                     parsedLine.error = `Combo needs at least 2 unique digits.`;
+                     lineHasError = true;
                 } else {
-                    result.betGroups.push({ subGameType: parsedLine.subGameType, numbers: parsedLine.numbers, amountPerNumber: parsedLine.stake });
+                    for (let i = 0; i < uniqueDigits.length; i++) {
+                        for (let j = i + 1; j < uniqueDigits.length; j++) {
+                            lineItems.push({ type: SubGameType.TwoDigit, value: uniqueDigits[i] + uniqueDigits[j] });
+                        }
+                    }
+                }
+            } else {
+                for (const token of tokens) {
+                    const tokenType = determineType(token);
+                    if (!tokenType) {
+                        parsedLine.error = `Invalid token: '${token}'`;
+                        lineHasError = true;
+                        break;
+                    }
+                    let numberValue = '';
+                    if (tokenType === SubGameType.TwoDigit) numberValue = token.padStart(2, '0');
+                    else if (tokenType === SubGameType.OneDigitOpen) numberValue = token[0];
+                    else if (tokenType === SubGameType.OneDigitClose) numberValue = token[1];
+                    lineItems.push({ type: tokenType, value: numberValue });
                 }
             }
+
+            if (lineHasError) {
+                result.lines.push(parsedLine);
+                continue;
+            }
+            
+            const typesOnLine = new Set<SubGameType>();
+            lineItems.forEach(item => {
+                typesOnLine.add(item.type);
+                const groupKey = `${item.type}-${effectiveStake}`;
+                if (!aggregatedGroups.has(groupKey)) {
+                    aggregatedGroups.set(groupKey, { subGameType: item.type, numbers: new Set(), amountPerNumber: effectiveStake });
+                }
+                aggregatedGroups.get(groupKey)!.numbers.add(item.value);
+            });
+
+            parsedLine.numbers = lineItems.map(item => item.value);
+            parsedLine.cost = lineItems.length * effectiveStake;
+            parsedLine.subGameType = isComboLine ? 'Combo' : (typesOnLine.size > 1 ? 'Mixed' : typesOnLine.values().next().value);
             result.lines.push(parsedLine);
         }
         
-        // Deduplicate numbers within each final group
-        result.betGroups.forEach(group => {
-            group.numbers = [...new Set(group.numbers)];
-        });
-
-        if (result.lines.some(l => l.error)) result.error = 'Please review invalid lines.';
+        result.betGroups = Array.from(aggregatedGroups.values()).map(g => ({ ...g, numbers: Array.from(g.numbers) }));
+        result.totalNumbers = result.betGroups.reduce((sum, group) => sum + group.numbers.length, 0);
+        result.totalCost = result.betGroups.reduce((sum, group) => sum + (group.numbers.length * group.amountPerNumber), 0);
         
+        if (result.lines.some(l => l.error)) result.error = 'Please review invalid lines.';
+
         return result;
     }, [bulkInput]);
 
@@ -374,7 +458,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
 
         const rIndex = input.lastIndexOf('r');
         if (rIndex === -1) {
-            result.error = "Stake not found. Use 'r' to specify amount (e.g., '147 r10')."; return result;
+            result.error = "Stake not found. Use 'r' to specify amount (e.g., '324 r10')."; return result;
         }
         const digitsPartRaw = input.substring(0, rIndex).trim();
         const digitsPart = digitsPartRaw.replace(/\D/g, '');
@@ -385,21 +469,24 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         if (!digitsPart) { result.error = "No digits entered."; return result; }
         
         const uniqueDigits = [...new Set(digitsPart.split(''))].sort();
-        if (uniqueDigits.length > 0 && (uniqueDigits.length < 3 || uniqueDigits.length > 7)) {
-            result.error = "Please enter between 3 and 7 unique digits to form combinations."; return result;
+        
+        if (uniqueDigits.length < 3 || uniqueDigits.length > 6) {
+            if (digitsPart) { // only show error if user has typed something
+                 result.error = "Please enter between 3 and 6 unique digits.";
+            }
+            return result;
         }
-        if (uniqueDigits.length < 2) {
-            if (digitsPart) result.error = "Please enter at least two unique digits."; return result;
-        }
-
-        const combinations: string[] = [];
+        
+        const permutations: string[] = [];
         for (let i = 0; i < uniqueDigits.length; i++) {
-            for (let j = i + 1; j < uniqueDigits.length; j++) {
-                combinations.push(uniqueDigits[i] + uniqueDigits[j]);
+            for (let j = 0; j < uniqueDigits.length; j++) {
+                if (i !== j) {
+                    permutations.push(uniqueDigits[i] + uniqueDigits[j]);
+                }
             }
         }
-        result.generatedNumbers = combinations;
-        result.numberOfCombinations = combinations.length;
+        result.generatedNumbers = permutations;
+        result.numberOfCombinations = permutations.length;
         return result;
     }, [comboInput]);
     
@@ -445,43 +532,11 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     const handleBet = () => {
         setError(null);
 
-        const checkBetLimit = (totalCost: number, type: SubGameType) => {
-            if (user.betLimits) {
-                let limit = 0;
-                if (type === SubGameType.OneDigitOpen) {
-                    limit = user.betLimits.oneDigitOpen;
-                } else if (type === SubGameType.OneDigitClose) {
-                    limit = user.betLimits.oneDigitClose;
-                } else { // TwoDigit, Bulk, Combo
-                    limit = user.betLimits.twoDigit;
-                }
-
-                if (limit > 0 && totalCost > limit) {
-                    setError(`Bet amount (PKR ${totalCost.toFixed(2)}) for ${type} exceeds your limit of PKR ${limit.toFixed(2)}.`);
-                    return false;
-                }
-            }
-            return true;
-        };
-        
-        const checkTotalLimit = (betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[]) => {
-            const costsPerType = new Map<SubGameType, number>();
-            betGroups.forEach(group => {
-                const cost = group.numbers.length * group.amountPerNumber;
-                costsPerType.set(group.subGameType, (costsPerType.get(group.subGameType) || 0) + cost);
-            });
-            for(const [type, cost] of costsPerType.entries()) {
-                if (!checkBetLimit(cost, type)) return false;
-            }
-            return true;
-        }
-
         if (subGameType === SubGameType.Combo) {
             if (parsedComboBet.error) { setError(parsedComboBet.error); return; }
             const { numbers, stake, totalCost } = finalComboBetDetails;
-            if (numbers.length === 0) { setError("Please select at least one combination to bet on."); return; }
+            if (numbers.length === 0) { setError("Please select at least one permutation to bet on."); return; }
             if (stake <= 0) { setError("Invalid stake amount."); return; }
-            if (!checkBetLimit(totalCost, SubGameType.TwoDigit)) return;
             if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
             onPlaceBet({ subGameType: SubGameType.TwoDigit, numbers, amountPerNumber: stake });
             setComboInput('');
@@ -492,7 +547,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             const { totalCost, betGroups, error: parseError } = parsedBulkBet;
             if (parseError) { setError(parseError); return; }
             if (betGroups.length === 0) { setError("No valid bets entered."); return; }
-            if (!checkTotalLimit(betGroups)) return;
             if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
             onPlaceBet({ subGameType: SubGameType.Bulk, betGroups });
             setBulkInput('');
@@ -503,7 +557,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         if (stake <= 0) { setError("Please enter a valid amount."); return; }
         if (parseError) { setError(parseError); return; }
         if (numbers.length === 0) { setError("Please enter at least one number."); return; }
-        if (!checkBetLimit(totalCost, subGameType)) return;
         if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
         onPlaceBet({ subGameType, numbers, amountPerNumber: stake });
         setManualNumbersInput(''); setManualAmountInput('');
@@ -546,8 +599,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <>
                            <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"12 23 45 Rs20\n47 49 31 R30\n1x 2x r50\nk 123 r10 combo"} className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Formats: '12 34 r10', '1x r20' (open), 'x2 r30' (close), 'k 123 r5 combo'. One bet type per line.</p>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"45..75..96..65\n4x..x4..x7..5x\n75,,85,,x8,,x9\n58..54..85..rs50"} className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Enter multiple lines. A stake on the last line (e.g., 'rs50') applies to all lines without their own stake. Mixed types (e.g., 1x and 23) are allowed.</p>
                             </div>
                             
                              {parsedBulkBet.lines.length > 0 && (
@@ -578,15 +631,15 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                     ) : subGameType === SubGameType.Combo ? (
                         <>
                              <div className="mb-2">
-                                <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Digits for Combo</label>
-                                <input type="text" value={comboInput} onChange={e => setComboInput(e.target.value)} placeholder="e.g., 1478 r10 (3-7 unique digits)" className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Enter 3-7 unique digits, followed by 'r' and the stake per combination.</p>
+                                <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Digits for Permutations</label>
+                                <input type="text" value={comboInput} onChange={e => setComboInput(e.target.value)} placeholder="e.g., 324 r10 (3-6 unique digits)" className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Enter 3-6 unique digits, followed by 'r' and the stake per permutation.</p>
                             </div>
                             
                             {parsedComboBet.generatedNumbers.length > 0 && (
                                 <div className="mb-4">
                                     <div className="flex justify-between items-center mb-2">
-                                        <label className="text-slate-400 text-sm font-medium">Generated Combinations ({parsedComboBet.numberOfCombinations})</label>
+                                        <label className="text-slate-400 text-sm font-medium">Generated Permutations ({parsedComboBet.numberOfCombinations})</label>
                                         <div className="flex gap-2">
                                             <button onClick={handleSelectAllCombo} className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded transition-colors">Select All</button>
                                             <button onClick={handleClearComboSelection} className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded transition-colors">Clear</button>
@@ -604,7 +657,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                             
                             <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-3 gap-2 text-center border border-slate-700">
                                 <div><p className="text-slate-400 text-xs uppercase">Selected</p><p className="font-bold text-white text-lg">{finalComboBetDetails.count}</p></div>
-                                <div><p className="text-slate-400 text-xs uppercase">Stake/Combo</p><p className="font-bold text-white text-lg font-mono">{finalComboBetDetails.stake.toFixed(2)}</p></div>
+                                <div><p className="text-slate-400 text-xs uppercase">Stake/Number</p><p className="font-bold text-white text-lg font-mono">{finalComboBetDetails.stake.toFixed(2)}</p></div>
                                 <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{finalComboBetDetails.totalCost.toFixed(2)}</p></div>
                             </div>
                         </>
@@ -749,51 +802,67 @@ const BetConfirmationModal: React.FC<{ details: BetConfirmationDetails; onClose:
     );
 };
 
-const PrizeRatesView: React.FC<{ rates: PrizeRates }> = ({ rates }) => (
-    <div className="mt-12">
-        <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">My Prize Rates</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-            <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-                <p className="text-sm text-slate-400 uppercase tracking-wider">1 Digit Open</p>
-                <p className="text-4xl font-bold text-white mt-1">{rates.oneDigitOpen}x</p>
-            </div>
-            <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-                <p className="text-sm text-slate-400 uppercase tracking-wider">1 Digit Close</p>
-                <p className="text-4xl font-bold text-white mt-1">{rates.oneDigitClose}x</p>
-            </div>
-            <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-                <p className="text-sm text-slate-400 uppercase tracking-wider">2 Digit</p>
-                <p className="text-4xl font-bold text-white mt-1">{rates.twoDigit}x</p>
-            </div>
-        </div>
+const SummaryCard: React.FC<{ title: string; value: number; color: string }> = ({ title, value, color }) => (
+    <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+        <p className="text-sm text-slate-400 uppercase tracking-wider">{title}</p>
+        <p className={`text-3xl font-bold font-mono mt-1 ${color}`}>{value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
     </div>
 );
 
-const BetLimitsView: React.FC<{ limits?: BetLimits }> = ({ limits }) => (
-    <div className="mt-12">
-        <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">My Bet Limits</h3>
-        {!limits || (limits.oneDigitOpen === 0 && limits.oneDigitClose === 0 && limits.twoDigit === 0) ? (
-            <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 text-center text-slate-400">
-                You have no betting limits set.
+interface WalletSummary {
+    deposit: number;
+    prize: number;
+    commission: number;
+    booking: number;
+    withdrawal: number;
+}
+
+const WalletSummaryView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
+    const summary: WalletSummary = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const dailySummary: WalletSummary = {
+            deposit: 0, prize: 0, commission: 0, booking: 0, withdrawal: 0,
+        };
+
+        const todayEntries = entries.filter(entry => new Date(entry.timestamp) >= today);
+        
+        todayEntries.forEach(entry => {
+            const description = entry.description.toLowerCase();
+            if (entry.credit > 0) {
+                if (description.includes('top-up') || description.includes('deposit')) {
+                    dailySummary.deposit += entry.credit;
+                } else if (description.includes('prize')) {
+                    dailySummary.prize += entry.credit;
+                } else if (description.includes('commission')) {
+                    dailySummary.commission += entry.credit;
+                }
+            } else if (entry.debit > 0) {
+                if (description.includes('bet placed')) {
+                    dailySummary.booking += entry.debit;
+                } else if (description.includes('withdrawal')) {
+                    dailySummary.withdrawal += entry.debit;
+                }
+            }
+        });
+
+        return dailySummary;
+    }, [entries]);
+
+    return (
+        <div className="mt-12">
+            <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">Today’s Wallet Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 text-center">
+                <SummaryCard title="Deposit" value={summary.deposit} color="text-green-400" />
+                <SummaryCard title="Prize" value={summary.prize} color="text-emerald-400" />
+                <SummaryCard title="Commission" value={summary.commission} color="text-cyan-400" />
+                <SummaryCard title="Booking" value={summary.booking} color="text-red-400" />
+                <SummaryCard title="Withdrawal" value={summary.withdrawal} color="text-amber-400" />
             </div>
-        ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-                <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-                    <p className="text-sm text-slate-400 uppercase tracking-wider">1 Digit Open</p>
-                    <p className="text-4xl font-bold text-white mt-1">{limits.oneDigitOpen > 0 ? `PKR ${limits.oneDigitOpen.toLocaleString()}` : 'No Limit'}</p>
-                </div>
-                <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-                    <p className="text-sm text-slate-400 uppercase tracking-wider">1 Digit Close</p>
-                    <p className="text-4xl font-bold text-white mt-1">{limits.oneDigitClose > 0 ? `PKR ${limits.oneDigitClose.toLocaleString()}` : 'No Limit'}</p>
-                </div>
-                <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-                    <p className="text-sm text-slate-400 uppercase tracking-wider">2 Digit / Bulk / Combo</p>
-                    <p className="text-4xl font-bold text-white mt-1">{limits.twoDigit > 0 ? `PKR ${limits.twoDigit.toLocaleString()}` : 'No Limit'}</p>
-                </div>
-            </div>
-        )}
-    </div>
-);
+        </div>
+    );
+};
 
 
 interface UserPanelProps {
@@ -942,8 +1011,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
         ))}
       </div>
       
-      <PrizeRatesView rates={user.prizeRates} />
-      <BetLimitsView limits={user.betLimits} />
+      <WalletSummaryView entries={user.ledger} />
       <BetHistoryView bets={userBets} games={games} user={user} />
       <LedgerView entries={user.ledger} />
       

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit } from '../types';
+import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
 import { Icons } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 
@@ -252,7 +252,7 @@ const DealerTransactionForm: React.FC<{
 };
 
 // --- NEW DASHBOARD COMPONENT ---
-const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: {name: string, wallet: number} }> = ({ summary, admin }) => {
+const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }> = ({ summary, admin }) => {
     if (!summary) {
         return <div className="text-center p-8 text-slate-400">Loading financial summary...</div>;
     }
@@ -469,9 +469,265 @@ const NumberLimitsView: React.FC = () => {
     );
 };
 
+// --- LIVE BOOKING VIEW ---
+interface BookingData {
+    totalBets: number;
+    totalStake: number;
+    dealerData: { name: string; amount: number }[];
+    typeData: { type: SubGameType; amount: number }[];
+    userData: { name: string; amount: number }[];
+}
+
+const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[] }> = ({ games, users, dealers }) => {
+    const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+    const [bookingData, setBookingData] = useState<BookingData | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const { fetchWithAuth } = useAuth();
+    
+    const ongoingGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
+
+    useEffect(() => {
+        let intervalId: ReturnType<typeof setInterval>;
+        
+        const fetchDataForGame = async (gameId: string) => {
+            setIsLoading(true);
+            try {
+                const response = await fetchWithAuth(`/api/admin/live-booking/${gameId}`);
+                if (!response.ok) throw new Error('Failed to fetch data');
+                const liveBets: Bet[] = await response.json();
+
+                const dealerMap = new Map<string, number>();
+                const typeMap = new Map<SubGameType, number>();
+                const userMap = new Map<string, number>();
+
+                liveBets.forEach(bet => {
+                    const currentDealerStake = dealerMap.get(bet.dealerId) || 0;
+                    dealerMap.set(bet.dealerId, currentDealerStake + bet.totalAmount);
+
+                    const currentTypeStake = typeMap.get(bet.subGameType) || 0;
+                    typeMap.set(bet.subGameType, currentTypeStake + bet.totalAmount);
+
+                    const currentUserStake = userMap.get(bet.userId) || 0;
+                    userMap.set(bet.userId, currentUserStake + bet.totalAmount);
+                });
+
+                const totalStake = liveBets.reduce((sum, b) => sum + b.totalAmount, 0);
+
+                const dealerData = Array.from(dealerMap.entries()).map(([dealerId, amount]) => ({
+                    name: dealers.find(d => d.id === dealerId)?.name || 'Unknown Dealer',
+                    amount,
+                })).sort((a, b) => b.amount - a.amount);
+
+                const typeData = Array.from(typeMap.entries()).map(([type, amount]) => ({
+                    type,
+                    amount,
+                })).sort((a, b) => b.amount - a.amount);
+
+                const userData = Array.from(userMap.entries()).map(([userId, amount]) => ({
+                    name: users.find(u => u.id === userId)?.name || 'Unknown User',
+                    amount,
+                })).sort((a, b) => b.amount - a.amount).slice(0, 10); // Top 10 users
+
+                setBookingData({
+                    totalBets: liveBets.length,
+                    totalStake,
+                    dealerData,
+                    typeData,
+                    userData
+                });
+
+            } catch (error) {
+                console.error("Error fetching live booking data:", error);
+                setBookingData(null);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (selectedGameId) {
+            fetchDataForGame(selectedGameId); // Initial fetch
+            intervalId = setInterval(() => fetchDataForGame(selectedGameId), 5000); // Poll every 5 seconds
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [selectedGameId, fetchWithAuth, users, dealers]);
+    
+    const BreakdownCard: React.FC<{ title: string; data: { name: string; amount: number }[] | { type: string; amount: number }[]; total: number; children?: React.ReactNode }> = ({ title, data, total }) => (
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 h-full flex flex-col">
+            <h4 className="text-lg font-semibold text-white mb-3">{title}</h4>
+            <div className="flex-grow overflow-y-auto pr-2 space-y-2">
+                {data.length === 0 ? <p className="text-slate-500 text-sm">No data yet.</p> : data.map((item, index) => {
+                    const name = 'name' in item ? item.name : item.type;
+                    const amount = item.amount;
+                    const percentage = total > 0 ? (amount / total) * 100 : 0;
+                    return (
+                        <div key={index} className="text-sm">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-slate-300 truncate pr-2">{name}</span>
+                                <span className="font-mono text-white font-semibold">{amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                            </div>
+                            <div className="w-full bg-slate-700 rounded-full h-1.5">
+                                <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${percentage}%` }}></div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+
+    return (
+        <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Live Game Booking Breakdown</h3>
+            <div className="bg-slate-800/50 p-3 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
+                {ongoingGames.length > 0 ? ongoingGames.map(game => (
+                    <button key={game.id} onClick={() => setSelectedGameId(game.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${selectedGameId === game.id ? 'bg-slate-700 text-cyan-400 shadow-lg' : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'}`}>
+                        <img src={game.logo} alt={game.name} className="w-5 h-5 rounded-full" />
+                        <span>{game.name}</span>
+                    </button>
+                )) : <p className="text-slate-400 p-2">No games are currently open for betting.</p>}
+            </div>
+
+            {!selectedGameId ? (
+                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700">
+                    <p className="text-slate-400">Please select an ongoing game to view its live booking status.</p>
+                </div>
+            ) : isLoading && !bookingData ? (
+                <div className="text-center p-8"><p className="text-slate-400">Loading live data...</p></div>
+            ) : bookingData ? (
+                <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+                            <p className="text-sm text-slate-400 uppercase tracking-wider">Total Bets</p>
+                            <p className="text-4xl font-bold font-mono text-white">{bookingData.totalBets.toLocaleString()}</p>
+                        </div>
+                         <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+                            <p className="text-sm text-slate-400 uppercase tracking-wider">Total Stake</p>
+                            <p className="text-4xl font-bold font-mono text-cyan-400">{bookingData.totalStake.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <BreakdownCard title="Booking by Dealer" data={bookingData.dealerData} total={bookingData.totalStake} />
+                        <BreakdownCard title="Booking by Type" data={bookingData.typeData} total={bookingData.totalStake} />
+                        <BreakdownCard title="Top Players (by Stake)" data={bookingData.userData} total={bookingData.totalStake} />
+                    </div>
+                </div>
+            ) : (
+                 <div className="text-center p-8"><p className="text-slate-500">No betting data available for this game yet.</p></div>
+            )}
+        </div>
+    );
+};
+
+// --- NUMBER SUMMARY VIEW ---
+const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: number }[]; color: string; }> = ({ title, data, color }) => (
+    <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col">
+        <h4 className={`text-lg font-semibold text-center mb-3 ${color}`}>{title}</h4>
+        <div className="flex-grow overflow-y-auto pr-2 space-y-1 max-h-[60vh]">
+            {data.length === 0 ? <p className="text-slate-500 text-sm text-center pt-4">No data for this selection.</p> : data.map((item, index) => (
+                <div key={index} className="flex justify-between items-center text-sm p-2 rounded-md bg-slate-900/50">
+                    <span className={`font-mono text-xl ${color}`}>{item.number}</span>
+                    <span className="font-mono text-white font-semibold">→ Rs {item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+const NumberSummaryView: React.FC<{ games: Game[]; dealers: Dealer[]; }> = ({ games, dealers }) => {
+    const getTodayDateString = () => new Date().toISOString().split('T')[0];
+    const [filters, setFilters] = useState({ gameId: '', dealerId: '', date: getTodayDateString() });
+    const [summary, setSummary] = useState<{ twoDigit: any[], oneDigitOpen: any[], oneDigitClose: any[] } | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const { fetchWithAuth } = useAuth();
+    
+    const fetchSummary = async () => {
+        if (!filters.date) {
+            setSummary(null);
+            return;
+        }
+        setIsLoading(true);
+        const params = new URLSearchParams();
+        if (filters.gameId) params.append('gameId', filters.gameId);
+        if (filters.dealerId) params.append('dealerId', filters.dealerId);
+        if (filters.date) params.append('date', filters.date);
+
+        try {
+            const response = await fetchWithAuth(`/api/admin/number-summary?${params.toString()}`);
+            if (!response.ok) throw new Error('Failed to fetch summary');
+            const data = await response.json();
+            setSummary(data);
+        } catch (error) {
+            console.error("Error fetching number summary:", error);
+            setSummary(null);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    useEffect(() => {
+        let intervalId: ReturnType<typeof setInterval>;
+        fetchSummary();
+        intervalId = setInterval(fetchSummary, 5000);
+        return () => clearInterval(intervalId);
+    }, [filters, fetchWithAuth]);
+
+    const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+        setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    };
+    
+    const clearFilters = () => {
+        setFilters({ gameId: '', dealerId: '', date: getTodayDateString() });
+    };
+
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
+
+    return (
+        <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Number-wise Stake Summary</h3>
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Date</label>
+                        <input type="date" name="date" value={filters.date} onChange={handleFilterChange} className={`${inputClass} font-sans`} />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Game</label>
+                        <select name="gameId" value={filters.gameId} onChange={handleFilterChange} className={inputClass}>
+                            <option value="">All Games</option>
+                            {games.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Dealer</label>
+                        <select name="dealerId" value={filters.dealerId} onChange={handleFilterChange} className={inputClass}>
+                            <option value="">All Dealers</option>
+                            {dealers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                    </div>
+                    <button onClick={clearFilters} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Clear Filters</button>
+                </div>
+            </div>
+            {isLoading && !summary ? (
+                <div className="text-center p-8 text-slate-400">Loading summary...</div>
+            ) : !summary ? (
+                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 text-slate-500">Please select a date to view the summary.</div>
+            ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <SummaryColumn title="2 Digit Stakes" data={summary.twoDigit} color="text-cyan-400" />
+                    <SummaryColumn title="1 Digit Open" data={summary.oneDigitOpen} color="text-amber-400" />
+                    <SummaryColumn title="1 Digit Close" data={summary.oneDigitClose} color="text-rose-400" />
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 interface AdminPanelProps {
-  admin: { name: string, prizeRates: PrizeRates, wallet: number }; 
+  admin: Admin; 
   dealers: Dealer[]; 
   onSaveDealer: (dealer: Dealer, originalId?: string) => Promise<void>;
   users: User[]; 
@@ -492,7 +748,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
   const [winningNumbers, setWinningNumbers] = useState<{[key: string]: string}>({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewingLedgerFor, setViewingLedgerFor] = useState<Dealer | null>(null);
+  const [viewingLedgerFor, setViewingLedgerFor] = useState<Dealer | Admin | null>(null);
   const [betSearchQuery, setBetSearchQuery] = useState('');
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
@@ -592,7 +848,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
     { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
     { id: 'games', label: 'Games', icon: Icons.gamepad },
-    { id: 'limits', label: 'Limits', icon: Icons.sparkles },
+    { id: 'liveBooking', label: 'Live Booking', icon: Icons.sparkles },
+    { id: 'numberSummary', label: 'Number Summary', icon: Icons.chartBar },
+    { id: 'limits', label: 'Limits', icon: Icons.clipboardList }, 
     { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search }, 
     { id: 'users', label: 'Users', icon: Icons.clipboardList },
     { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
@@ -610,6 +868,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </div>
       
       {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
+      {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} />}
+      {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} />}
       {activeTab === 'limits' && <NumberLimitsView />}
 
       {activeTab === 'dealers' && (
@@ -852,12 +1112,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         <div>
           <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
             <h3 className="text-xl font-semibold text-white">Dealer Transaction Ledgers</h3>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                 {Icons.plus} Wallet Top-Up
               </button>
               <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                 {Icons.minus} Withdraw Funds
+              </button>
+               <button onClick={() => setViewingLedgerFor(admin)} className="flex items-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                {Icons.eye} View Admin Ledger
               </button>
             </div>
           </div>

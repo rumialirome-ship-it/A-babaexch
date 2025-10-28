@@ -35,8 +35,7 @@ export interface BaseAccount {
 }
 
 export interface BetLimits {
-  oneDigitOpen: number;
-  oneDigitClose: number;
+  oneDigit: number;
   twoDigit: number;
 }
 
