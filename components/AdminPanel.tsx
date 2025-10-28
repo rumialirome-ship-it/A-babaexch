@@ -746,44 +746,50 @@ const BulkBettingView: React.FC<{ users: User[], games: Game[], onPlaceBets: (pa
     const parsedBulkBet = useMemo(() => {
         interface ParsedLine { originalText: string; numbers: string[]; stake: number; cost: number; subGameType: string; error?: string; }
         const result = { lines: [] as ParsedLine[], totalCost: 0, totalNumbers: 0, error: null as string | null, betGroups: [] as { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] };
+        
         const input = bulkInput.trim();
         if (!input) return result;
+
         const allLines = input.split('\n').filter(line => line.trim() !== '');
         if (allLines.length === 0) return result;
+        
         const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*(combo|k)?\s*$/i;
+        const linesWithStakes = allLines.map(line => line.match(stakeRegex)).filter(Boolean);
         let globalStake: number | null = null;
-        const lastLineText = allLines[allLines.length - 1];
-        const lastLineTokens = lastLineText.replace(/[^a-zA-Z0-9xX]/g, ' ').split(/\s+/).filter(Boolean);
-        const lastLineHasNumbers = lastLineTokens.some(token => /^\d{1,2}$/.test(token) || /^[xX\d]{2}$/.test(token) && token.toLowerCase() !== 'rs');
-        if (!lastLineHasNumbers) {
-            const globalStakeMatch = lastLineText.match(/(?:r|rs)\s*(\d*\.?\d+)/i);
-             if (globalStakeMatch) {
-                const parsedStake = parseFloat(globalStakeMatch[1]);
-                if (!isNaN(parsedStake) && parsedStake > 0) { globalStake = parsedStake; allLines.pop(); }
-            }
+        if (linesWithStakes.length === 1) {
+            const match = linesWithStakes[0];
+            const parsedStake = parseFloat(match[1]);
+            if (!isNaN(parsedStake) && parsedStake > 0) { globalStake = parsedStake; }
         }
+
         const determineType = (token: string): SubGameType | null => {
             if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
-            if (/^\d[xX]$/.test(token)) return SubGameType.OneDigitOpen;
-            if (/^[xX]\d$/.test(token)) return SubGameType.OneDigitClose;
+            if (/^\d[xX]$/i.test(token)) return SubGameType.OneDigitOpen;
+            if (/^[xX]\d$/i.test(token)) return SubGameType.OneDigitClose;
             return null;
         };
         const aggregatedGroups: Map<string, { subGameType: SubGameType; numbers: Set<string>; amountPerNumber: number }> = new Map();
+        
         for (const lineText of allLines) {
             const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit, error: undefined };
             let betPart = lineText.trim();
             let lineStake: number | null = null;
             let isComboLine = false;
             const localStakeMatch = lineText.match(stakeRegex);
-            if (localStakeMatch) {
+
+            if (globalStake) {
+                lineStake = globalStake;
+                if (localStakeMatch) { betPart = betPart.substring(0, localStakeMatch.index).trim(); }
+            } else if (localStakeMatch) {
                 const parsedStake = parseFloat(localStakeMatch[1]);
                 if (!isNaN(parsedStake) && parsedStake > 0) { lineStake = parsedStake; }
-                isComboLine = !!localStakeMatch[2];
                 betPart = betPart.substring(0, localStakeMatch.index).trim();
             }
-            const effectiveStake = lineStake ?? globalStake;
+
+            isComboLine = !!localStakeMatch?.[2];
+            const effectiveStake = lineStake;
             betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
-            const tokens = betPart.replace(/[^a-zA-Z0-9xX]/g, ' ').split(/\s+/).filter(Boolean);
+            const tokens = betPart.replace(/,{1,2}|\.{2,}/g, ' ').split(/\s+/).filter(Boolean);
             if (tokens.length === 0) { if (betPart !== '') { parsedLine.error = "No numbers found."; result.lines.push(parsedLine); } continue; }
             if (!effectiveStake || effectiveStake <= 0) { parsedLine.error = "Stake not found (e.g., '... r10')"; result.lines.push(parsedLine); continue; }
             parsedLine.stake = effectiveStake;
@@ -839,7 +845,7 @@ const BulkBettingView: React.FC<{ users: User[], games: Game[], onPlaceBets: (pa
         setIsLoading(true);
         try {
             await onPlaceBets({ userId: selectedUserId, gameId: selectedGameId, betGroups: parsedBulkBet.betGroups });
-            setSuccess(`Successfully placed ${parsedBulkBet.totalNumbers} bets for ${selectedUser?.name}.`);
+            setSuccess(`Successfully placed ${parsedBulkBet.totalNumbers} bets for ${selectedUser?.name}. Total cost: ${parsedBulkBet.totalCost.toFixed(2)}`);
             setBulkInput('');
         } catch (err: any) {
             setError(err.message || "An unknown error occurred.");
@@ -878,7 +884,7 @@ const BulkBettingView: React.FC<{ users: User[], games: Game[], onPlaceBets: (pa
 
                 <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Paste Bulk Bets</label>
-                    <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={8} placeholder={"45..75..96..65\n4x..x4..x7..5x\n75,,85,,x8,,x9\n58..54..85..rs50"} className={`${inputClass} font-mono`} />
+                    <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={8} placeholder={"45..75..96..65\n4x,x4,x7,5x\n58,,54,,85,,r50"} className={`${inputClass} font-mono`} />
                 </div>
                  {bulkInput && (
                     <div className="text-sm bg-slate-900/50 p-3 rounded-md grid grid-cols-2 gap-2 text-center border border-slate-700">
@@ -914,9 +920,10 @@ interface AdminPanelProps {
   topUpDealerWallet: (dealerId: string, amount: number) => void;
   withdrawFromDealerWallet: (dealerId: string, amount: number) => void;
   toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
+  onPlaceAdminBets: (payload: { userId: string, gameId: string, betGroups: any[] }) => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -972,27 +979,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
           console.error("Failed to save dealer:", error);
           // Error alert is handled by the parent component, so the modal remains open for correction.
       }
-  };
-
-  const handlePlaceBulkBet = async (payload: { userId: string, gameId: string, betGroups: any[] }) => {
-    try {
-        const response = await fetchWithAuth('/api/admin/bulk-bet', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message || 'Failed to place bets.');
-        }
-        // Instead of a full refetch which can be slow, we can just update the user's wallet
-        // But for simplicity and consistency, a full refetch ensures all data is up to date.
-        // A more advanced implementation might update state locally for a faster UX.
-        const fullRefetch = users.map(u => u.id).concat(dealers.map(d => d.id)); // A bit of a hack to ensure we refetch all data
-        setUsers(prev => [...prev]); // Trigger a re-render of child components that depend on users
-    } catch (error) {
-        console.error("Failed to place bulk bets:", error);
-        throw error; // Re-throw to be caught by the component
-    }
   };
 
   const handleDeclareWinner = (gameId: string, gameName: string) => {
@@ -1066,7 +1052,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
       {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} />}
       {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} />}
-      {activeTab === 'bulkBetting' && <BulkBettingView users={users} games={games} onPlaceBets={handlePlaceBulkBet} />}
+      {activeTab === 'bulkBetting' && <BulkBettingView users={users} games={games} onPlaceBets={onPlaceAdminBets} />}
       {activeTab === 'limits' && <NumberLimitsView />}
 
       {activeTab === 'dealers' && (

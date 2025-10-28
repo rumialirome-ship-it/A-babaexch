@@ -303,116 +303,70 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     if (!game) return null;
     
     const parsedBulkBet = useMemo(() => {
-        interface ParsedLine {
-            originalText: string;
-            numbers: string[];
-            stake: number;
-            cost: number;
-            subGameType: SubGameType | 'Mixed' | 'Combo'; // For display
-            error?: string;
-        }
-        const result = {
-            lines: [] as ParsedLine[],
-            totalCost: 0,
-            totalNumbers: 0,
-            error: null as string | null,
-            betGroups: [] as { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[],
-        };
+        interface ParsedLine { originalText: string; numbers: string[]; stake: number; cost: number; subGameType: string; error?: string; }
+        const result = { lines: [] as ParsedLine[], totalCost: 0, totalNumbers: 0, error: null as string | null, betGroups: [] as { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] };
         
         const input = bulkInput.trim();
         if (!input) return result;
 
         const allLines = input.split('\n').filter(line => line.trim() !== '');
         if (allLines.length === 0) return result;
-
+        
         const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*(combo|k)?\s*$/i;
+        const linesWithStakes = allLines.map(line => line.match(stakeRegex)).filter(Boolean);
         let globalStake: number | null = null;
-        
-        // Check last line for a global stake, but only if it doesn't contain bet numbers.
-        const lastLineText = allLines[allLines.length - 1];
-        const lastLineTokens = lastLineText.replace(/[^a-zA-Z0-9xX]/g, ' ').split(/\s+/).filter(Boolean);
-        const lastLineHasNumbers = lastLineTokens.some(token => /^\d{1,2}$/.test(token) || /^[xX\d]{2}$/.test(token) && token.toLowerCase() !== 'rs');
-        
-        if (!lastLineHasNumbers) {
-            const globalStakeMatch = lastLineText.match(/(?:r|rs)\s*(\d*\.?\d+)/i);
-             if (globalStakeMatch) {
-                const parsedStake = parseFloat(globalStakeMatch[1]);
-                if (!isNaN(parsedStake) && parsedStake > 0) {
-                    globalStake = parsedStake;
-                    // Remove the global stake line from processing
-                    allLines.pop();
-                }
-            }
+        if (linesWithStakes.length === 1) {
+            const match = linesWithStakes[0];
+            const parsedStake = parseFloat(match[1]);
+            if (!isNaN(parsedStake) && parsedStake > 0) { globalStake = parsedStake; }
         }
-        
+
         const determineType = (token: string): SubGameType | null => {
             if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
-            if (/^\d[xX]$/.test(token)) return SubGameType.OneDigitOpen;
-            if (/^[xX]\d$/.test(token)) return SubGameType.OneDigitClose;
+            if (/^\d[xX]$/i.test(token)) return SubGameType.OneDigitOpen;
+            if (/^[xX]\d$/i.test(token)) return SubGameType.OneDigitClose;
             return null;
         };
-        
         const aggregatedGroups: Map<string, { subGameType: SubGameType; numbers: Set<string>; amountPerNumber: number }> = new Map();
-
+        
         for (const lineText of allLines) {
             const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit, error: undefined };
-            
             let betPart = lineText.trim();
             let lineStake: number | null = null;
             let isComboLine = false;
-
             const localStakeMatch = lineText.match(stakeRegex);
-            if (localStakeMatch) {
+
+            if (globalStake) {
+                lineStake = globalStake;
+                if (localStakeMatch) { betPart = betPart.substring(0, localStakeMatch.index).trim(); }
+            } else if (localStakeMatch) {
                 const parsedStake = parseFloat(localStakeMatch[1]);
-                if (!isNaN(parsedStake) && parsedStake > 0) {
-                    lineStake = parsedStake;
-                }
-                isComboLine = !!localStakeMatch[2];
+                if (!isNaN(parsedStake) && parsedStake > 0) { lineStake = parsedStake; }
                 betPart = betPart.substring(0, localStakeMatch.index).trim();
             }
 
-            const effectiveStake = lineStake ?? globalStake;
+            isComboLine = !!localStakeMatch?.[2];
+            const effectiveStake = lineStake;
             betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
-            const tokens = betPart.replace(/[^a-zA-Z0-9xX]/g, ' ').split(/\s+/).filter(Boolean);
-
-            if (tokens.length === 0 && betPart !== '') { 
-                 parsedLine.error = "No numbers found.";
-                 result.lines.push(parsedLine);
-                 continue;
-            }
-            if (tokens.length === 0) continue;
-            
-            if (!effectiveStake || effectiveStake <= 0) {
-                parsedLine.error = "Stake not found (e.g., '... r10')";
-                result.lines.push(parsedLine);
-                continue;
-            }
-            
+            const tokens = betPart.replace(/,{1,2}|\.{2,}/g, ' ').split(/\s+/).filter(Boolean);
+            if (tokens.length === 0) { if (betPart !== '') { parsedLine.error = "No numbers found."; result.lines.push(parsedLine); } continue; }
+            if (!effectiveStake || effectiveStake <= 0) { parsedLine.error = "Stake not found (e.g., '... r10')"; result.lines.push(parsedLine); continue; }
             parsedLine.stake = effectiveStake;
             const lineItems: { type: SubGameType, value: string }[] = [];
             let lineHasError = false;
-            
             if (isComboLine) {
                 const digits = tokens.join('').replace(/[^0-9]/g, '');
                 const uniqueDigits = [...new Set(digits.split(''))].sort();
-                if (uniqueDigits.length < 2) {
-                     parsedLine.error = `Combo needs at least 2 unique digits.`;
-                     lineHasError = true;
-                } else {
+                if (uniqueDigits.length < 2) { parsedLine.error = `Combo needs at least 2 unique digits.`; lineHasError = true; } 
+                else {
                     for (let i = 0; i < uniqueDigits.length; i++) {
-                        for (let j = i + 1; j < uniqueDigits.length; j++) {
-                            lineItems.push({ type: SubGameType.TwoDigit, value: uniqueDigits[i] + uniqueDigits[j] });
-                        }
+                        for (let j = i + 1; j < uniqueDigits.length; j++) { lineItems.push({ type: SubGameType.TwoDigit, value: uniqueDigits[i] + uniqueDigits[j] }); }
                     }
                 }
             } else {
                 for (const token of tokens) {
                     const tokenType = determineType(token);
-                    if (!tokenType) {
-                        parsedLine.error = `Invalid token: '${token}'`;
-                        lineHasError = true;
-                        break;
-                    }
+                    if (!tokenType) { parsedLine.error = `Invalid token: '${token}'`; lineHasError = true; break; }
                     let numberValue = '';
                     if (tokenType === SubGameType.TwoDigit) numberValue = token.padStart(2, '0');
                     else if (tokenType === SubGameType.OneDigitOpen) numberValue = token[0];
@@ -420,34 +374,23 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                     lineItems.push({ type: tokenType, value: numberValue });
                 }
             }
-
-            if (lineHasError) {
-                result.lines.push(parsedLine);
-                continue;
-            }
-            
+            if (lineHasError) { result.lines.push(parsedLine); continue; }
             const typesOnLine = new Set<SubGameType>();
             lineItems.forEach(item => {
                 typesOnLine.add(item.type);
                 const groupKey = `${item.type}-${effectiveStake}`;
-                if (!aggregatedGroups.has(groupKey)) {
-                    aggregatedGroups.set(groupKey, { subGameType: item.type, numbers: new Set(), amountPerNumber: effectiveStake });
-                }
+                if (!aggregatedGroups.has(groupKey)) { aggregatedGroups.set(groupKey, { subGameType: item.type, numbers: new Set(), amountPerNumber: effectiveStake }); }
                 aggregatedGroups.get(groupKey)!.numbers.add(item.value);
             });
-
             parsedLine.numbers = lineItems.map(item => item.value);
             parsedLine.cost = lineItems.length * effectiveStake;
             parsedLine.subGameType = isComboLine ? 'Combo' : (typesOnLine.size > 1 ? 'Mixed' : typesOnLine.values().next().value);
             result.lines.push(parsedLine);
         }
-        
         result.betGroups = Array.from(aggregatedGroups.values()).map(g => ({ ...g, numbers: Array.from(g.numbers) }));
         result.totalNumbers = result.betGroups.reduce((sum, group) => sum + group.numbers.length, 0);
         result.totalCost = result.betGroups.reduce((sum, group) => sum + (group.numbers.length * group.amountPerNumber), 0);
-        
         if (result.lines.some(l => l.error)) result.error = 'Please review invalid lines.';
-
         return result;
     }, [bulkInput]);
 
@@ -599,8 +542,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <>
                            <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"45..75..96..65\n4x..x4..x7..5x\n75,,85,,x8,,x9\n58..54..85..rs50"} className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Enter multiple lines. A stake on the last line (e.g., 'rs50') applies to all lines without their own stake. Mixed types (e.g., 1x and 23) are allowed.</p>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"45..75,96 65\n4x..x4,x7,5x\n75,,85,x8,,x9 r50"} className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Use spaces, `,`, `,,`, or `..`. A single stake (e.g., 'r50') applies to all numbers in the box.</p>
                             </div>
                             
                              {parsedBulkBet.lines.length > 0 && (
@@ -636,7 +579,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                                 <p className="text-xs text-slate-500 mt-1">Enter 3-6 unique digits, followed by 'r' and the stake per permutation.</p>
                             </div>
                             
-                            {/* FIX: Use parsedComboBet instead of parsedBulkBet for combo game logic */}
                             {parsedComboBet.generatedNumbers.length > 0 && (
                                 <div className="mb-4">
                                     <div className="flex justify-between items-center mb-2">
