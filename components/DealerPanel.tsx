@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game } from '../types';
 import { Icons } from '../constants';
@@ -180,11 +181,11 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
             <fieldset className="border border-slate-600 p-4 rounded-md">
                 <legend className="px-2 text-sm font-medium text-slate-400">Bet Limits (Per Number)</legend>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="sm:col-span-2">
+                    <div className="col-span-1 sm:col-span-2">
                         <label className="text-sm">1 Digit Limit (per number)</label>
                         <input type="number" name="betLimits.oneDigit" value={(formData.betLimits as any).oneDigit} onChange={handleChange} placeholder="e.g., 200" className={inputClass} />
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="col-span-1 sm:col-span-2">
                         <label className="text-sm">2 Digit Limit (per number)</label>
                         <input type="number" name="betLimits.twoDigit" value={(formData.betLimits as any).twoDigit} onChange={handleChange} placeholder="e.g., 500" className={inputClass} />
                     </div>
@@ -194,10 +195,10 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
 
             <fieldset className="border border-slate-600 p-4 rounded-md">
                 <legend className="px-2 text-sm font-medium text-slate-400">Prize Rates</legend>
-                 <div className="grid grid-cols-2 gap-4">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div><label className="text-sm">1 Digit Open</label><input type="number" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
                     <div><label className="text-sm">1 Digit Close</label><input type="number" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
-                    <div className="col-span-2"><label className="text-sm">2 Digit</label><input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
+                    <div className="col-span-1 sm:col-span-2"><label className="text-sm">2 Digit</label><input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
                 </div>
             </fieldset>
 
@@ -348,8 +349,8 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
             </div>
 
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto max-h-[60vh]">
-                    <table className="w-full text-left">
+                <div className="overflow-x-auto max-h-[60vh] mobile-scroll-x">
+                    <table className="w-full text-left min-w-[800px]">
                         <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                             <tr>
                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Timestamp</th>
@@ -440,18 +441,18 @@ const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
         <div>
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                 <h3 className="text-xl font-semibold text-white">My Wallet</h3>
-                <div className="flex gap-2">
-                    <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                <div className="flex gap-2 w-full md:w-auto">
+                    <button onClick={() => setIsTopUpModalOpen(true)} className="flex-1 flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                         {Icons.plus} Request Top-Up
                     </button>
-                    <button onClick={() => setIsWithdrawModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                    <button onClick={() => setIsWithdrawModalOpen(true)} className="flex-1 flex items-center justify-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                         {Icons.minus} Request Withdrawal
                     </button>
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center col-span-1 lg:col-span-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center sm:col-span-2 lg:col-span-1">
                     <p className="text-sm text-slate-400 uppercase">Current Balance</p>
                     <p className="text-3xl font-bold font-mono text-emerald-400">{dealer.wallet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                 </div>
@@ -633,7 +634,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
         <div>
           <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
             <h3 className="text-xl font-semibold text-white text-left w-full md:w-auto">My Users ({sortedAndFilteredUsers.length})</h3>
-            <div className="flex w-full md:flex-row flex-col sm:flex-row items-center md:w-auto md:justify-end gap-2">
+            <div className="flex flex-col sm:flex-row w-full md:w-auto md:justify-end gap-2">
                 <div className="relative w-full md:w-52">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
                     <input type="text" placeholder="Search ID, Name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none w-full"/>
@@ -654,8 +655,8 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
             </div>
           </div>
           <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-             <div className="overflow-x-auto">
-                 <table className="w-full text-left">
+             <div className="overflow-x-auto mobile-scroll-x">
+                 <table className="w-full text-left min-w-[800px]">
                      <thead className="bg-slate-800/50">
                          <tr>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
@@ -683,10 +684,10 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
                                  <td className="p-4 text-slate-400 whitespace-nowrap">{formatLastActive(userStats.get(user.id)?.lastBet || 0)}</td>
                                  <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                  <td className="p-4">
-                                     <div className="flex items-center gap-2">
-                                        <button onClick={() => { setSelectedUser(user); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Edit</button>
-                                        <button onClick={() => setViewingLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Ledger</button>
-                                        <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                        <button onClick={() => { setSelectedUser(user); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
+                                        <button onClick={() => setViewingLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
+                                        <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                             {user.isRestricted ? 'Unrestrict' : 'Restrict'}
                                         </button>
                                      </div>
@@ -708,18 +709,18 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
         <div>
           <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
               <h3 className="text-xl font-semibold text-white">User Transaction Ledgers</h3>
-              <div className="flex gap-2">
-                <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+              <div className="flex gap-2 w-full md:w-auto">
+                <button onClick={() => setIsTopUpModalOpen(true)} className="flex-1 flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                   {Icons.plus} Wallet Top-Up
                 </button>
-                <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex-1 flex items-center justify-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                   {Icons.minus} Withdraw Funds
                 </button>
               </div>
           </div>
           <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
+            <div className="overflow-x-auto mobile-scroll-x">
+              <table className="w-full text-left min-w-[600px]">
                 <thead className="bg-slate-800/50">
                   <tr>
                     <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>

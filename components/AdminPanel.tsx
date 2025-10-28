@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
 import { Icons } from '../constants';
@@ -188,10 +189,10 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
             
             <fieldset className="border border-slate-600 p-4 rounded-md">
                 <legend className="px-2 text-sm font-medium text-slate-400">Prize Rates</legend>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div><label className="text-sm">1 Digit Open</label><input type="number" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
                     <div><label className="text-sm">1 Digit Close</label><input type="number" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
-                    <div className="col-span-2"><label className="text-sm">2 Digit</label><input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
+                    <div className="col-span-1 sm:col-span-2"><label className="text-sm">2 Digit</label><input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
                 </div>
             </fieldset>
 
@@ -276,8 +277,8 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
 
             <h3 className="text-xl font-semibold text-white mb-4">Game-by-Game Breakdown</h3>
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                <div className="overflow-x-auto mobile-scroll-x">
+                    <table className="w-full text-left min-w-[700px]">
                         <thead className="bg-slate-800/50">
                             <tr>
                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
@@ -434,8 +435,8 @@ const NumberLimitsView: React.FC = () => {
                 </form>
             </div>
              <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                 <div className="overflow-x-auto">
-                     <table className="w-full text-left">
+                 <div className="overflow-x-auto mobile-scroll-x">
+                     <table className="w-full text-left min-w-[600px]">
                          <thead className="bg-slate-800/50">
                              <tr>
                                  <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game Type</th>
@@ -722,7 +723,7 @@ const NumberSummaryView: React.FC<{ games: Game[]; dealers: Dealer[]; }> = ({ ga
             ) : !summary ? (
                 <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 text-slate-500">Please select a date to view the summary.</div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <SummaryColumn title="2 Digit Stakes" data={summary.twoDigit} color="text-cyan-400" />
                     <SummaryColumn title="1 Digit Open" data={summary.oneDigitOpen} color="text-amber-400" />
                     <SummaryColumn title="1 Digit Close" data={summary.oneDigitClose} color="text-rose-400" />
@@ -886,21 +887,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 
       {activeTab === 'dealers' && (
         <div>
-          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-            <h3 className="text-xl font-semibold text-white text-left w-full md:w-auto">Dealers ({filteredDealers.length})</h3>
-            <div className="flex w-full md:w-auto md:justify-end gap-2">
-                 <div className="relative w-full md:w-64">
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+            <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">Dealers ({filteredDealers.length})</h3>
+            <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
+                 <div className="relative w-full sm:w-64">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
                     <input type="text" placeholder="Search by name, area, ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full"/>
                 </div>
-                <button onClick={() => { setSelectedDealer(undefined); setIsModalOpen(true); }} className="flex items-center bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
+                <button onClick={() => { setSelectedDealer(undefined); setIsModalOpen(true); }} className="flex items-center justify-center bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
                   {Icons.plus} Create Dealer
                 </button>
             </div>
           </div>
           <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-             <div className="overflow-x-auto">
-                 <table className="w-full text-left">
+             <div className="overflow-x-auto mobile-scroll-x">
+                 <table className="w-full text-left min-w-[800px]">
                      <thead className="bg-slate-800/50">
                          <tr>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
@@ -925,10 +926,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                  <td className="p-4 text-slate-300">{dealer.commissionRate}%</td>
                                  <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${dealer.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{dealer.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                  <td className="p-4">
-                                      <div className="flex items-center gap-2">
-                                        <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Edit</button>
-                                        <button onClick={() => setViewingLedgerFor(dealer)} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Ledger</button>
-                                        <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors ${dealer.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                        <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
+                                        <button onClick={() => setViewingLedgerFor(dealer)} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
+                                        <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${dealer.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                             {dealer.isRestricted ? 'Unrestrict' : 'Restrict'}
                                         </button>
                                       </div>
@@ -994,7 +995,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                             <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
                                         </div>
                                     )}
-                                    <div className='flex gap-2 self-end sm:self-center'>
+                                    <div className='flex flex-col sm:flex-row gap-2 self-end sm:self-center'>
                                         <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="bg-slate-700 hover:bg-slate-600 text-amber-400 font-semibold py-2 px-3 rounded-md text-sm transition-colors">
                                             Edit
                                         </button>
@@ -1047,8 +1048,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
             )}
 
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto max-h-[60vh]">
-                    <table className="w-full text-left">
+                <div className="overflow-x-auto max-h-[60vh] mobile-scroll-x">
+                    <table className="w-full text-left min-w-[700px]">
                         <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                             <tr>
                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Timestamp</th>
@@ -1085,8 +1086,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         <div>
           <h3 className="text-xl font-semibold mb-4 text-white">All Users ({users.length})</h3>
            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-               <div className="overflow-x-auto">
-                   <table className="w-full text-left">
+               <div className="overflow-x-auto mobile-scroll-x">
+                   <table className="w-full text-left min-w-[700px]">
                        <thead className="bg-slate-800/50">
                            <tr>
                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
@@ -1104,9 +1105,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                    <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                    <td className="p-4 text-center">
-                                       <div className="flex items-center justify-center gap-2">
-                                            <button onClick={() => setViewingUserLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">View Ledger</button>
-                                            <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                       <div className="flex items-center justify-center gap-2 flex-col sm:flex-row">
+                                            <button onClick={() => setViewingUserLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">View Ledger</button>
+                                            <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                                 {user.isRestricted ? 'Unrestrict' : 'Restrict'}
                                             </button>
                                        </div>
@@ -1137,8 +1138,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
             </div>
           </div>
           <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
+            <div className="overflow-x-auto mobile-scroll-x">
+              <table className="w-full text-left min-w-[600px]">
                 <thead className="bg-slate-800/50">
                   <tr>
                     <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
