@@ -117,16 +117,14 @@ const AppContent: React.FC = () => {
     const placeBet = useCallback(async (details: {
         userId: string;
         gameId: string;
-        subGameType: SubGameType;
-        bets: { numbers: string[]; amountPerNumber: number }[];
+        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
     }) => {
         try {
             const response = await fetchWithAuth('/api/user/bets', {
                 method: 'POST',
                 body: JSON.stringify({
                     gameId: details.gameId,
-                    subGameType: details.subGameType,
-                    bets: details.bets,
+                    betGroups: details.betGroups,
                 })
             });
             if (!response.ok) {

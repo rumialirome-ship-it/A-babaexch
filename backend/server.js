@@ -131,136 +131,11 @@ app.get('/api/user/data', authMiddleware, (req, res) => {
 
 app.post('/api/user/bets', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
-    const { gameId, subGameType, bets } = req.body;
+    const { gameId, betGroups } = req.body;
 
     try {
-        database.runInTransaction(() => {
-            const user = database.findAccountById(req.user.id, 'users');
-            if (!user) throw { status: 404, message: 'User not found' };
-
-            const dealer = database.findAccountById(user.dealerId, 'dealers');
-            const game = database.getAllFromTable('games').find(g => g.id === gameId);
-            const admin = database.findAccountById('Guru', 'admins');
-
-            if (!dealer || !game || !admin) throw { status: 404, message: 'Dealer, Game or Admin not found' };
-            if (user.isRestricted) throw { status: 403, message: 'Your account is restricted.' };
-            if (!Array.isArray(bets) || bets.length === 0) throw { status: 400, message: 'Invalid bet format.' };
-
-            // 1. Calculate total amount for the entire transaction first
-            const totalTransactionAmount = bets.reduce((total, bet) => {
-                if (!Array.isArray(bet.numbers) || typeof bet.amountPerNumber !== 'number' || bet.amountPerNumber <= 0) {
-                    throw { status: 400, message: 'Invalid bet data within the transaction.' };
-                }
-                return total + (bet.numbers.length * bet.amountPerNumber);
-            }, 0);
-
-            // 2. Perform wallet check
-            if (user.wallet < totalTransactionAmount) throw { status: 400, message: 'Insufficient funds' };
-            
-            // 3. Check per-number bet limits
-            const oneDigitLimit = user.betLimits?.oneDigit || 0;
-            const twoDigitLimit = user.betLimits?.twoDigit || 0;
-
-            if (oneDigitLimit > 0 || twoDigitLimit > 0) {
-                // Get all of the user's existing stakes on all numbers for this specific game draw
-                const existingStakesForGame = database.getUserStakesForGame(req.user.id, gameId);
-                
-                // Aggregate the stakes from the incoming transaction to handle multiple bets on the same number within one request
-                const incomingStakes = new Map();
-                bets.forEach(betGroup => {
-                    const isOneDigit = subGameType === '1 Digit Open' || subGameType === '1 Digit Close';
-                    const typeKey = isOneDigit ? 'oneDigit' : 'twoDigit';
-                    const amount = betGroup.amountPerNumber;
-
-                    betGroup.numbers.forEach(num => {
-                        const key = `${typeKey}-${num}`;
-                        const currentIncoming = incomingStakes.get(key) || 0;
-                        incomingStakes.set(key, currentIncoming + amount);
-                    });
-                });
-
-                // Now validate the combined stakes against the user's limits
-                for (const [key, incomingAmount] of incomingStakes.entries()) {
-                    const [type, number] = key.split('-');
-                    const limit = (type === 'oneDigit') ? oneDigitLimit : twoDigitLimit;
-
-                    if (limit > 0) {
-                        const existingAmount = existingStakesForGame.get(key) || 0;
-                        if ((existingAmount + incomingAmount) > limit) {
-                            throw {
-                                status: 400,
-                                message: `Bet limit of Rs ${limit.toFixed(2)} for number '${number}' has been exceeded. You have already staked Rs ${existingAmount.toFixed(2)} on this number for this game.`
-                            };
-                        }
-                    }
-                }
-            }
-            
-            // 4. Perform checks against global number limits
-            const allNumbersInTx = new Map(); // Key: 'gameType-number', Value: total stake in this TX
-            const gameType = subGameType === '1 Digit Open' ? '1-open' : subGameType === '1 Digit Close' ? '1-close' : '2-digit';
-            
-            bets.forEach(betGroup => {
-                betGroup.numbers.forEach(num => {
-                    const key = `${gameType}-${num}`;
-                    const currentStake = allNumbersInTx.get(key) || 0;
-                    allNumbersInTx.set(key, currentStake + betGroup.amountPerNumber);
-                });
-            });
-
-            for (const [key, incomingStake] of allNumbersInTx.entries()) {
-                const [type, numberValue] = key.split('-');
-                const limit = database.getNumberLimit(type, numberValue);
-                if (!limit || limit.limitAmount <= 0) continue; 
-
-                const currentStake = database.getCurrentStakeForNumber(type, numberValue);
-                
-                if ((currentStake + incomingStake) > limit.limitAmount) {
-                    throw {
-                        status: 400,
-                        message: `Bet on number '${numberValue}' rejected. The betting limit of PKR ${limit.limitAmount.toFixed(2)} has been reached or would be exceeded. Current stake is PKR ${currentStake.toFixed(2)}.`
-                    };
-                }
-            }
-
-            // 5. Process a single set of ledger entries for the entire transaction
-            database.addLedgerEntry(user.id, 'USER', `Bet placed - ${game.name} (${subGameType})`, totalTransactionAmount, 0);
-            database.addLedgerEntry(admin.id, 'ADMIN', `Bet stake from ${user.name} on ${game.name}`, 0, totalTransactionAmount);
-
-            const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
-            const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
-
-            if (totalUserCommission > 0) {
-                database.addLedgerEntry(admin.id, 'ADMIN', `Commission to user ${user.name}`, totalUserCommission, 0);
-                database.addLedgerEntry(user.id, 'USER', `Commission earned on bet – ${game.name}`, 0, totalUserCommission);
-            }
-            if (totalDealerCommission > 0) {
-                database.addLedgerEntry(admin.id, 'ADMIN', `Commission to dealer ${dealer.name}`, totalDealerCommission, 0);
-                database.addLedgerEntry(dealer.id, 'DEALER', `Commission from user bet – ${game.name}`, 0, totalDealerCommission);
-            }
-
-            // 6. Create individual bet records
-            const createdBets = [];
-            bets.forEach(betGroup => {
-                const { numbers, amountPerNumber } = betGroup;
-                const totalAmount = numbers.length * amountPerNumber;
-                const newBet = {
-                    id: uuidv4(),
-                    userId: user.id,
-                    dealerId: dealer.id,
-                    gameId,
-                    subGameType,
-                    numbers: JSON.stringify(numbers),
-                    amountPerNumber,
-                    totalAmount,
-                    timestamp: new Date().toISOString()
-                };
-                database.createBet(newBet);
-                createdBets.push({ ...newBet, numbers: JSON.parse(newBet.numbers) });
-            });
-
-            res.status(201).json(createdBets);
-        });
+        const createdBets = database.placeBulkBets(req.user.id, gameId, betGroups, 'USER');
+        res.status(201).json(createdBets);
     } catch (error) {
         res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
     }
@@ -368,6 +243,18 @@ app.get('/api/admin/data', authMiddleware, (req, res) => {
         games: database.getAllFromTable('games'),
         bets: database.getAllFromTable('bets')
     });
+});
+
+app.post('/api/admin/bulk-bet', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    const { userId, gameId, betGroups } = req.body;
+
+    try {
+        const createdBets = database.placeBulkBets(userId, gameId, betGroups, 'ADMIN');
+        res.status(201).json({ message: `Successfully placed ${createdBets.length} bet records for user ${userId}.`, bets: createdBets });
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
 });
 
 app.get('/api/admin/summary', authMiddleware, (req, res) => {

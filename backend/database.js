@@ -673,7 +673,131 @@ const getNumberStakeSummary = ({ gameId, dealerId, date }) => {
     };
 };
 
+const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
+    let finalResult = null;
+    runInTransaction(() => {
+        // 1. Initial validation and data fetching
+        const user = findAccountById(userId, 'users');
+        if (!user) throw { status: 404, message: `User with ID ${userId} not found` };
+        if (user.isRestricted) throw { status: 403, message: 'The selected user account is restricted.' };
 
+        const dealer = findAccountById(user.dealerId, 'dealers');
+        const game = getAllFromTable('games').find(g => g.id === gameId);
+        const admin = findAccountById('Guru', 'admins');
+
+        if (!dealer || !game || !admin) throw { status: 404, message: 'Dealer, Game or Admin not found' };
+        if (!Array.isArray(betGroups) || betGroups.length === 0) throw { status: 400, message: 'Invalid bet format.' };
+
+        // 2. Calculate total cost and aggregate numbers for checks
+        let totalTransactionAmount = 0;
+        const allNumbersInTx = new Map(); // For global limits check. Key: 'gameType-number', Value: total stake
+        const incomingStakes = new Map(); // For user limits check. Key: 'typeKey-num', Value: total stake
+
+        betGroups.forEach(group => {
+            if (!Array.isArray(group.numbers) || typeof group.amountPerNumber !== 'number' || group.amountPerNumber <= 0) {
+                throw { status: 400, message: 'Invalid bet data within a bet group.' };
+            }
+            totalTransactionAmount += group.numbers.length * group.amountPerNumber;
+
+            const isOneDigit = group.subGameType === '1 Digit Open' || group.subGameType === '1 Digit Close';
+            const userLimitTypeKey = isOneDigit ? 'oneDigit' : 'twoDigit';
+            const globalLimitGameType = group.subGameType === '1 Digit Open' ? '1-open' : group.subGameType === '1 Digit Close' ? '1-close' : '2-digit';
+            
+            group.numbers.forEach(num => {
+                const userKey = `${userLimitTypeKey}-${num}`;
+                incomingStakes.set(userKey, (incomingStakes.get(userKey) || 0) + group.amountPerNumber);
+                const globalKey = `${globalLimitGameType}-${num}`;
+                allNumbersInTx.set(globalKey, (allNumbersInTx.get(globalKey) || 0) + group.amountPerNumber);
+            });
+        });
+
+        // 3. Wallet Check
+        if (user.wallet < totalTransactionAmount) {
+            throw { status: 400, message: `Insufficient funds for user ${user.name}. Required: ${totalTransactionAmount.toFixed(2)}, Available: ${user.wallet.toFixed(2)}` };
+        }
+
+        // 4. User Bet Limits Check
+        const oneDigitLimit = user.betLimits?.oneDigit || 0;
+        const twoDigitLimit = user.betLimits?.twoDigit || 0;
+
+        if (oneDigitLimit > 0 || twoDigitLimit > 0) {
+            const existingStakesForGame = getUserStakesForGame(userId, gameId);
+            for (const [key, incomingAmount] of incomingStakes.entries()) {
+                const [type, number] = key.split('-');
+                const limit = (type === 'oneDigit') ? oneDigitLimit : twoDigitLimit;
+
+                if (limit > 0) {
+                    const existingAmount = existingStakesForGame.get(key) || 0;
+                    if ((existingAmount + incomingAmount) > limit) {
+                        throw {
+                            status: 400,
+                            message: `User's bet limit of Rs ${limit.toFixed(2)} for number '${number}' has been exceeded. They have already staked Rs ${existingAmount.toFixed(2)} on this number.`
+                        };
+                    }
+                }
+            }
+        }
+        
+        // 5. Global Number Limits Check
+        for (const [key, incomingStake] of allNumbersInTx.entries()) {
+            const [type, numberValue] = key.split('-');
+            const limit = getNumberLimit(type, numberValue);
+            if (!limit || limit.limitAmount <= 0) continue;
+
+            const currentStake = getCurrentStakeForNumber(type, numberValue);
+            
+            if ((currentStake + incomingStake) > limit.limitAmount) {
+                throw {
+                    status: 400,
+                    message: `Bet on number '${numberValue}' rejected. The global betting limit of PKR ${limit.limitAmount.toFixed(2)} has been reached or would be exceeded. Current stake is PKR ${currentStake.toFixed(2)}.`
+                };
+            }
+        }
+
+        // 6. Process Ledger Entries
+        const ledgerDescription = placedBy === 'ADMIN'
+            ? `Bet placed via Admin - ${game.name}`
+            : `Bet placed - ${game.name}`;
+
+        addLedgerEntry(user.id, 'USER', ledgerDescription, totalTransactionAmount, 0);
+        addLedgerEntry(admin.id, 'ADMIN', `Bet stake from ${user.name} on ${game.name}`, 0, totalTransactionAmount);
+
+        const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
+        const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
+
+        if (totalUserCommission > 0) {
+            addLedgerEntry(admin.id, 'ADMIN', `Commission to user ${user.name}`, totalUserCommission, 0);
+            addLedgerEntry(user.id, 'USER', `Commission earned on bet – ${game.name}`, 0, totalUserCommission);
+        }
+        if (totalDealerCommission > 0) {
+            addLedgerEntry(admin.id, 'ADMIN', `Commission to dealer ${dealer.name}`, totalDealerCommission, 0);
+            addLedgerEntry(dealer.id, 'DEALER', `Commission from user bet – ${game.name}`, 0, totalDealerCommission);
+        }
+
+        // 7. Create Bet Records
+        const createdBets = [];
+        betGroups.forEach(group => {
+            const { subGameType, numbers, amountPerNumber } = group;
+            const totalAmount = numbers.length * amountPerNumber;
+            const newBet = {
+                id: uuidv4(),
+                userId: user.id,
+                dealerId: dealer.id,
+                gameId,
+                subGameType,
+                numbers: JSON.stringify(numbers),
+                amountPerNumber,
+                totalAmount,
+                timestamp: new Date().toISOString()
+            };
+            createBet(newBet);
+            createdBets.push({ ...newBet, numbers });
+        });
+        
+        finalResult = createdBets;
+    });
+    return finalResult;
+};
 
 module.exports = {
     connect,
@@ -706,4 +830,5 @@ module.exports = {
     findBetsByDealerId,
     findBetsByGameId,
     getNumberStakeSummary,
+    placeBulkBets,
 };

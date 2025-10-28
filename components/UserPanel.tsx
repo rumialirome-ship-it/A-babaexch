@@ -636,6 +636,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                                 <p className="text-xs text-slate-500 mt-1">Enter 3-6 unique digits, followed by 'r' and the stake per permutation.</p>
                             </div>
                             
+                            {/* FIX: Use parsedComboBet instead of parsedBulkBet for combo game logic */}
                             {parsedComboBet.generatedNumbers.length > 0 && (
                                 <div className="mb-4">
                                     <div className="flex justify-between items-center mb-2">
@@ -872,8 +873,7 @@ interface UserPanelProps {
   placeBet: (details: {
     userId: string;
     gameId: string;
-    subGameType: SubGameType;
-    bets: { numbers: string[]; amountPerNumber: number }[];
+    betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
   }) => void;
 }
 
@@ -932,42 +932,23 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
   
   const handleConfirmBet = () => {
     if (betToConfirm) {
-        let betsArray: { numbers: string[]; amountPerNumber: number }[] = [];
+        let betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] = [];
 
         if (betToConfirm.subGameType === SubGameType.Bulk && betToConfirm.betGroups) {
-            // For bulk bets, we need to submit each sub-game type as a separate transaction.
-            // This is a simplification; for now, we'll assume the API can handle grouped bets.
-            // The API needs to be updated to handle an array of bet groups.
-            // Let's structure the data for an updated API.
-            const betsBySubGameType = new Map<SubGameType, { numbers: string[]; amountPerNumber: number }[]>();
-            
-            betToConfirm.betGroups.forEach(group => {
-                const existing = betsBySubGameType.get(group.subGameType) || [];
-                existing.push({ numbers: group.numbers, amountPerNumber: group.amountPerNumber });
-                betsBySubGameType.set(group.subGameType, existing);
-            });
-
-            betsBySubGameType.forEach((bets, subGameType) => {
-                 placeBet({
-                    userId: user.id,
-                    gameId: betToConfirm.gameId,
-                    subGameType: subGameType,
-                    bets: bets,
-                });
-            });
-
-        } else if (betToConfirm.numbers && betToConfirm.amountPerNumber !== undefined) { // Manual/Combo
-            betsArray = [{
+            betGroups = betToConfirm.betGroups;
+        } else if (betToConfirm.numbers && betToConfirm.amountPerNumber !== undefined) {
+            betGroups = [{
+                subGameType: betToConfirm.subGameType,
                 numbers: betToConfirm.numbers,
                 amountPerNumber: betToConfirm.amountPerNumber,
             }];
-             placeBet({
-                userId: user.id,
-                gameId: betToConfirm.gameId,
-                subGameType: betToConfirm.subGameType,
-                bets: betsArray,
-            });
         }
+        
+        placeBet({
+            userId: user.id,
+            gameId: betToConfirm.gameId,
+            betGroups: betGroups,
+        });
         
         setBetConfirmation(betToConfirm);
         setBetToConfirm(null);
