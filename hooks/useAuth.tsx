@@ -62,7 +62,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [token, logout]);
     
     useEffect(() => {
-        // FIX: Replaced NodeJS.Timeout with a browser-compatible type for setInterval.
         let pollInterval: ReturnType<typeof setInterval> | undefined;
         
         const verifyTokenAndPoll = async () => {
@@ -79,8 +78,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setAccount(parseAccountDates(data.account));
                 setRole(data.role);
 
-                // If the logged-in user is a USER, start polling for updates.
-                if (data.role === Role.User) {
+                // If the logged-in user is a USER or DEALER, start polling for updates.
+                if (data.role === Role.User || data.role === Role.Dealer) {
                     pollInterval = setInterval(async () => {
                         try {
                             const pollResponse = await fetch('/api/auth/verify', { headers: { 'Authorization': `Bearer ${token}` }});
@@ -95,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                             console.error("Polling for account update failed:", error);
                             logout(); // Stop polling on error
                         }
-                    }, 5000); // Poll every 5 seconds
+                    }, 1000); // Poll every second
                 }
             } catch (error) {
                 console.error("Session verification failed:", error);

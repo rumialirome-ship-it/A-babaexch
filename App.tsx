@@ -102,17 +102,29 @@ const AppContent: React.FC = () => {
     }, [role, account, fetchWithAuth]);
 
     useEffect(() => {
+        let intervalId: ReturnType<typeof setInterval> | undefined;
+    
         if (account) {
-            fetchData();
+            fetchData(); // Initial fetch on login/account change
+    
+            if (role === Role.User || role === Role.Dealer) {
+                intervalId = setInterval(fetchData, 1000); // Poll every second
+            }
         } else {
-            // When account becomes null (on logout), clear all data states
-            // to prevent stale data from persisting between sessions.
+            // Clear data on logout
             setUsers([]);
             setDealers([]);
             setGames([]);
             setBets([]);
         }
-    }, [account, fetchData]);
+    
+        // Cleanup interval on component unmount or when dependencies change
+        return () => {
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+        };
+    }, [account, role, fetchData]);
 
     const placeBet = useCallback(async (details: {
         userId: string;

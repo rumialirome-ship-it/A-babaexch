@@ -395,6 +395,124 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
     );
 };
 
+// --- NEW WALLET VIEW ---
+const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+    const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+
+    const { filteredEntries, summary } = useMemo(() => {
+        const filtered = dealer.ledger.filter(entry => {
+            const entryDateStr = entry.timestamp.toISOString().split('T')[0];
+            if (startDate && entryDateStr < startDate) return false;
+            if (endDate && entryDateStr > endDate) return false;
+            if (searchTerm.trim() && !entry.description.toLowerCase().includes(searchTerm.trim().toLowerCase())) return false;
+            return true;
+        });
+        
+        const summaryData = dealer.ledger.reduce((acc, entry) => {
+            const desc = entry.description.toLowerCase();
+            if (entry.credit > 0) {
+                if (desc.includes('top-up from admin')) acc.totalDeposits += entry.credit;
+                if (desc.includes('commission') || desc.includes('profit')) acc.totalEarnings += entry.credit;
+            }
+            if (entry.debit > 0) {
+                if (desc.includes('withdrawal by admin')) acc.totalWithdrawals += entry.debit;
+                if (desc.includes('top-up for user') || desc.includes('initial deposit for user')) acc.transfersToUsers += entry.debit;
+            }
+            return acc;
+        }, { totalDeposits: 0, totalWithdrawals: 0, transfersToUsers: 0, totalEarnings: 0 });
+
+        return { filteredEntries: filtered, summary: summaryData };
+    }, [dealer.ledger, startDate, endDate, searchTerm]);
+
+    const handleClearFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setSearchTerm('');
+    };
+    
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
+
+    return (
+        <div>
+            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h3 className="text-xl font-semibold text-white">My Wallet</h3>
+                <div className="flex gap-2">
+                    <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                        {Icons.plus} Request Top-Up
+                    </button>
+                    <button onClick={() => setIsWithdrawModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                        {Icons.minus} Request Withdrawal
+                    </button>
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center col-span-1 lg:col-span-1">
+                    <p className="text-sm text-slate-400 uppercase">Current Balance</p>
+                    <p className="text-3xl font-bold font-mono text-emerald-400">{dealer.wallet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center">
+                    <p className="text-sm text-slate-400 uppercase">Total Deposits</p>
+                    <p className="text-2xl font-bold font-mono text-green-400">{summary.totalDeposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center">
+                    <p className="text-sm text-slate-400 uppercase">Total Withdrawals</p>
+                    <p className="text-2xl font-bold font-mono text-red-400">{summary.totalWithdrawals.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center">
+                    <p className="text-sm text-slate-400 uppercase">Transfers to Users</p>
+                    <p className="text-2xl font-bold font-mono text-amber-400">{summary.transfersToUsers.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center">
+                    <p className="text-sm text-slate-400 uppercase">Total Earnings</p>
+                    <p className="text-2xl font-bold font-mono text-cyan-400">{summary.totalEarnings.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+            </div>
+
+            <h4 className="text-lg font-semibold mb-4 text-white">Transaction History</h4>
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div className="md:col-span-2 lg:col-span-1">
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Search Description</label>
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="e.g., Top-Up, Commission" className={inputClass} />
+                    </div>
+                    <div className="flex items-center">
+                        <button onClick={handleClearFilters} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Clear Filters</button>
+                    </div>
+                </div>
+            </div>
+
+            <LedgerTable entries={filteredEntries} />
+            {filteredEntries.length === 0 && (
+                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 mt-[-1px]">
+                    <p className="text-slate-500">
+                        {dealer.ledger.length === 0 ? "No transactions recorded yet." : "No transactions found for the selected filters."}
+                    </p>
+                </div>
+            )}
+            <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Request Top-Up" themeColor="emerald">
+                <p className="text-slate-300">Please contact your administrator directly to request a wallet top-up. Provide your Dealer ID for faster processing.</p>
+            </Modal>
+            <Modal isOpen={isWithdrawModalOpen} onClose={() => setIsWithdrawModalOpen(false)} title="Request Withdrawal" themeColor="amber">
+                <p className="text-slate-300">Please contact your administrator directly to request a withdrawal from your wallet.</p>
+            </Modal>
+        </div>
+    );
+};
+
+
 // Helper function to format the last active timestamp
 const formatLastActive = (timestamp: number): React.ReactNode => {
     if (timestamp === 0) return <span className="text-slate-500">Never</span>;
@@ -449,6 +567,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
   
   const tabs = [
     { id: 'users', label: 'Users', icon: Icons.userGroup }, 
+    { id: 'wallet', label: 'Wallet', icon: Icons.wallet },
     { id: 'betHistory', label: 'Bet History', icon: Icons.clipboardList },
     { id: 'ledgers', label: 'Ledgers', icon: Icons.bookOpen },
   ];
@@ -581,8 +700,10 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
         </div>
       )}
 
-      {activeTab === 'betHistory' && <BetHistoryView bets={bets} games={games} users={myUsers} />}
+      {activeTab === 'wallet' && <WalletView dealer={dealer} />}
 
+      {activeTab === 'betHistory' && <BetHistoryView bets={bets} games={games} users={myUsers} />}
+      
       {activeTab === 'ledgers' && (
         <div>
           <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">

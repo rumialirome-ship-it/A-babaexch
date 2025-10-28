@@ -625,16 +625,23 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
 const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: number }[]; color: string; }> = ({ title, data, color }) => (
     <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col">
         <h4 className={`text-lg font-semibold text-center mb-3 ${color}`}>{title}</h4>
-        <div className="flex-grow overflow-y-auto pr-2 space-y-1 max-h-[60vh]">
-            {data.length === 0 ? <p className="text-slate-500 text-sm text-center pt-4">No data for this selection.</p> : data.map((item, index) => (
-                <div key={index} className="flex justify-between items-center text-sm p-2 rounded-md bg-slate-900/50">
-                    <span className={`font-mono text-xl ${color}`}>{item.number}</span>
-                    <span className="font-mono text-white font-semibold">→ Rs {item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}</span>
-                </div>
-            ))}
+        <div className="flex-grow overflow-y-auto pr-2 space-y-2 max-h-[60vh]">
+            {data.length === 0 ? (
+                <p className="text-slate-500 text-sm text-center pt-4">No data for this selection.</p>
+            ) : (
+                data.map((item, index) => (
+                    <div key={index} className="flex justify-between items-baseline text-sm p-3 rounded-md bg-slate-900/50 transition-all hover:bg-slate-800/70 border-l-4 border-transparent hover:border-cyan-500">
+                        <span className={`font-mono text-2xl font-bold ${color}`}>{item.number}</span>
+                        <span className="font-mono text-white font-semibold text-lg">
+                            Rs {item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                        </span>
+                    </div>
+                ))
+            )}
         </div>
     </div>
 );
+
 
 const NumberSummaryView: React.FC<{ games: Game[]; dealers: Dealer[]; }> = ({ games, dealers }) => {
     const getTodayDateString = () => new Date().toISOString().split('T')[0];
