@@ -759,16 +759,24 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
             ? `Bet placed via Admin - ${game.name}`
             : `Bet placed - ${game.name}`;
 
-        addLedgerEntry(user.id, 'USER', ledgerDescription, totalTransactionAmount, 0);
-        addLedgerEntry(admin.id, 'ADMIN', `Bet stake from ${user.name} on ${game.name}`, 0, totalTransactionAmount);
-
         const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
         const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
 
-        if (totalUserCommission > 0) {
-            addLedgerEntry(admin.id, 'ADMIN', `Commission to user ${user.name}`, totalUserCommission, 0);
-            addLedgerEntry(user.id, 'USER', `Commission earned on bet – ${game.name}`, 0, totalUserCommission);
+        // User's wallet is debited the net cost of the bet (stake - commission).
+        const netBetCost = totalTransactionAmount - totalUserCommission;
+        if (netBetCost > 0) { // In case commission is 100%, the cost is 0.
+            addLedgerEntry(user.id, 'USER', ledgerDescription, netBetCost, 0);
         }
+
+        // Admin still receives the full stake amount, as they will pay out commissions from it.
+        addLedgerEntry(admin.id, 'ADMIN', `Bet stake from ${user.name} on ${game.name}`, 0, totalTransactionAmount);
+
+        // Admin's wallet is debited for the user's commission (as it was given as a discount).
+        if (totalUserCommission > 0) {
+            addLedgerEntry(admin.id, 'ADMIN', `Commission for user ${user.name} (as discount)`, totalUserCommission, 0);
+        }
+
+        // Admin pays the dealer their share of the commission.
         if (totalDealerCommission > 0) {
             addLedgerEntry(admin.id, 'ADMIN', `Commission to dealer ${dealer.name}`, totalDealerCommission, 0);
             addLedgerEntry(dealer.id, 'DEALER', `Commission from user bet – ${game.name}`, 0, totalDealerCommission);

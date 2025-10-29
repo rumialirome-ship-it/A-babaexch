@@ -1,4 +1,5 @@
 
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,6 +12,7 @@ html {
 body {
   font-family: 'Russo One', sans-serif;
   background-color: #020617; /* slate-950 */
+  touch-action: pan-y; /* Improve mobile scroll */
 }
 
 #root {
@@ -49,15 +51,18 @@ html::-webkit-scrollbar-thumb { background-color: #0891b2; border-radius: 20px; 
   -webkit-overflow-scrolling: touch; /* Momentum scrolling on iOS */
 }
 .mobile-scroll-x::-webkit-scrollbar {
-  height: 4px;
-  width: 4px;
+  height: 6px;
+  width: 6px;
 }
 .mobile-scroll-x::-webkit-scrollbar-track {
   background: transparent;
 }
 .mobile-scroll-x::-webkit-scrollbar-thumb {
-  background-color: #0891b2;
+  background-color: rgba(8, 145, 178, 0.5); /* Semi-transparent cyan */
   border-radius: 20px;
+}
+.mobile-scroll-x:hover::-webkit-scrollbar-thumb {
+  background-color: #0891b2; /* Solid cyan on hover */
 }
 
 

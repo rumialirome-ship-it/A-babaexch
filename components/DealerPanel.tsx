@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game } from '../types';
 import { Icons } from '../constants';
@@ -22,8 +23,8 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
 
 const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     <div className="bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
-        <div className="overflow-y-auto max-h-[60vh]">
-            <table className="w-full text-left">
+        <div className="overflow-y-auto max-h-[60vh] mobile-scroll-x">
+            <table className="w-full text-left min-w-[600px]">
                 <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                     <tr>
                         <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
@@ -451,8 +452,8 @@ const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center sm:col-span-2 lg:col-span-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center sm:col-span-2 md:col-span-3 lg:col-span-1">
                     <p className="text-sm text-slate-400 uppercase">Current Balance</p>
                     <p className="text-3xl font-bold font-mono text-emerald-400">{dealer.wallet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                 </div>
@@ -622,7 +623,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
       <h2 className="text-3xl font-bold text-emerald-400 mb-6 uppercase tracking-widest">Dealer Console</h2>
-      <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start border border-slate-700">
+      <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
             {tab.icon} <span>{tab.label}</span>

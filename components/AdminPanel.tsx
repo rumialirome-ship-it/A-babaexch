@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
 import { Icons } from '../constants';
@@ -47,8 +48,8 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
 
 const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     <div className="bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
-        <div className="overflow-y-auto max-h-[60vh]">
-            <table className="w-full text-left">
+        <div className="overflow-y-auto max-h-[60vh] mobile-scroll-x">
+            <table className="w-full text-left min-w-[600px]">
                 <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                     <tr>
                         <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
@@ -1105,7 +1106,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                    <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                    <td className="p-4 text-center">
-                                       <div className="flex items-center justify-center gap-2 flex-col sm:flex-row">
+                                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
                                             <button onClick={() => setViewingUserLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">View Ledger</button>
                                             <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                                 {user.isRestricted ? 'Unrestrict' : 'Restrict'}
