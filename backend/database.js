@@ -754,21 +754,28 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
             }
         }
 
-        // 6. Process Ledger Entries (Simplified for User)
+        // 6. Process Ledger Entries
         const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
         const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
-        const netAmountToDebit = totalTransactionAmount - totalUserCommission;
 
-        const userLedgerDescription = `Bet on ${game.name} (Stake: ${totalTransactionAmount.toFixed(2)}, Commission Earned: ${totalUserCommission.toFixed(2)})`;
-        addLedgerEntry(user.id, 'USER', userLedgerDescription, netAmountToDebit, 0);
+        // User Ledger: Debit full stake, then credit their commission back for clarity.
+        addLedgerEntry(user.id, 'USER', `Bet placed on ${game.name}`, totalTransactionAmount, 0);
+        if (totalUserCommission > 0) {
+            addLedgerEntry(user.id, 'USER', `Commission earned for ${game.name} bet`, 0, totalUserCommission);
+        }
 
-        // Admin receives the net amount from the user.
-        addLedgerEntry(admin.id, 'ADMIN', `Net stake received from ${user.name} on ${game.name}`, 0, netAmountToDebit);
-        
-        // Admin pays the dealer their commission.
+        // Admin Ledger: Receives full stake, then pays out commissions to user and dealer.
+        addLedgerEntry(admin.id, 'ADMIN', `Stake from ${user.name} on ${game.name}`, 0, totalTransactionAmount);
+        if (totalUserCommission > 0) {
+            addLedgerEntry(admin.id, 'ADMIN', `Commission payout to user ${user.name}`, totalUserCommission, 0);
+        }
         if (totalDealerCommission > 0) {
             addLedgerEntry(admin.id, 'ADMIN', `Commission payout to dealer ${dealer.name}`, totalDealerCommission, 0);
-            addLedgerEntry(dealer.id, 'DEALER', `Commission from ${user.name}'s bet – ${game.name}`, 0, totalDealerCommission);
+        }
+        
+        // Dealer Ledger: Receives their net commission from the system (Admin).
+        if (totalDealerCommission > 0) {
+            addLedgerEntry(dealer.id, 'DEALER', `Commission from ${user.name}'s bet on ${game.name}`, 0, totalDealerCommission);
         }
 
 
