@@ -149,7 +149,7 @@ const runInTransaction = (fn) => {
 const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
     const table = accountType.toLowerCase() + 's';
     
-    const lastBalanceStmt = db.prepare('SELECT balance FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 1');
+    const lastBalanceStmt = db.prepare('SELECT balance FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC, ROWID DESC LIMIT 1');
     const lastEntry = lastBalanceStmt.get(accountId);
     const lastBalance = lastEntry ? lastEntry.balance : 0;
 
