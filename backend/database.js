@@ -754,35 +754,23 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
             }
         }
 
-        // 6. Process Ledger Entries
-        const ledgerDescription = placedBy === 'ADMIN'
-            ? `Bet placed via Admin - ${game.name}`
-            : `Bet placed - ${game.name}`;
-
+        // 6. Process Ledger Entries (Simplified for User)
         const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
         const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
+        const netAmountToDebit = totalTransactionAmount - totalUserCommission;
 
-        // Debit the user for the full bet amount
-        addLedgerEntry(user.id, 'USER', ledgerDescription, totalTransactionAmount, 0);
+        const userLedgerDescription = `Bet on ${game.name} (Stake: ${totalTransactionAmount.toFixed(2)}, Commission Earned: ${totalUserCommission.toFixed(2)})`;
+        addLedgerEntry(user.id, 'USER', userLedgerDescription, netAmountToDebit, 0);
 
-        // Credit the user for their commission
-        if (totalUserCommission > 0) {
-            addLedgerEntry(user.id, 'USER', `Commission for bet on ${game.name}`, 0, totalUserCommission);
-        }
+        // Admin receives the net amount from the user.
+        addLedgerEntry(admin.id, 'ADMIN', `Net stake received from ${user.name} on ${game.name}`, 0, netAmountToDebit);
         
-        // Admin receives the full stake from the user
-        addLedgerEntry(admin.id, 'ADMIN', `Bet stake from ${user.name} on ${game.name}`, 0, totalTransactionAmount);
-
-        // Admin pays the user their commission
-        if (totalUserCommission > 0) {
-            addLedgerEntry(admin.id, 'ADMIN', `Commission to user ${user.name}`, totalUserCommission, 0);
-        }
-
-        // Admin pays the dealer their share of the commission.
+        // Admin pays the dealer their commission.
         if (totalDealerCommission > 0) {
-            addLedgerEntry(admin.id, 'ADMIN', `Commission to dealer ${dealer.name}`, totalDealerCommission, 0);
-            addLedgerEntry(dealer.id, 'DEALER', `Commission from user bet – ${game.name}`, 0, totalDealerCommission);
+            addLedgerEntry(admin.id, 'ADMIN', `Commission payout to dealer ${dealer.name}`, totalDealerCommission, 0);
+            addLedgerEntry(dealer.id, 'DEALER', `Commission from ${user.name}'s bet – ${game.name}`, 0, totalDealerCommission);
         }
+
 
         // 7. Create Bet Records
         const createdBets = [];
