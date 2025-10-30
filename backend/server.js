@@ -17,6 +17,25 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// --- API BROWSER ACCESS GUARD ---
+// This middleware prevents browsers from directly navigating to API endpoints,
+// which can cause them to try and download the JSON response as a file.
+app.use('/api', (req, res, next) => {
+    const acceptHeader = req.headers.accept || '';
+    // A typical browser navigation request will prioritize text/html. AJAX/fetch requests
+    // from the app will usually accept */* or application/json.
+    if (acceptHeader.toLowerCase().startsWith('text/html')) {
+        return res.status(404).setHeader('Content-Type', 'text/html').send(
+            `<body style="font-family: sans-serif; background-color: #020617; color: #cbd5e1; padding: 2rem;">
+               <h2>Endpoint Not Accessible</h2>
+               <p>This is an API endpoint and is not meant to be accessed directly in a browser.</p>
+               <p>Please use the main application interface.</p>
+            </body>`
+        );
+    }
+    next();
+});
+
 const JWT_SECRET = process.env.JWT_SECRET;
 const API_KEY = process.env.API_KEY;
 

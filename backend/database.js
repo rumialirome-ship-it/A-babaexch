@@ -5,6 +5,49 @@ const { v4: uuidv4 } = require('uuid');
 const DB_PATH = path.join(__dirname, 'database.sqlite');
 let db;
 
+// --- CENTRALIZED GAME TIMING LOGIC ---
+const OPEN_HOUR = 16; // 4:00 PM
+
+/**
+ * Calculates the current or next valid betting window (open time to close time) for a game.
+ * @param {string} drawTime - The game's draw time in "HH:MM" format.
+ * @returns {{openTime: Date, closeTime: Date}}
+ */
+function getGameCycle(drawTime) {
+    const now = new Date();
+    const [drawHours, drawMinutes] = drawTime.split(':').map(Number);
+
+    let openTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), OPEN_HOUR, 0, 0);
+    let closeTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), drawHours, drawMinutes, 0, 0);
+
+    // This handles overnight games. If a game's draw is in the early morning (e.g., 02:10),
+    // its market must have opened the previous day at 16:00.
+    if (drawHours < OPEN_HOUR) {
+        openTime.setDate(openTime.getDate() - 1);
+    }
+
+    // If the current time is already past this cycle's closing time,
+    // we need to calculate the *next* cycle.
+    if (now >= closeTime) {
+        openTime.setDate(openTime.getDate() + 1);
+        closeTime.setDate(closeTime.getDate() + 1);
+    }
+    
+    return { openTime, closeTime };
+}
+
+/**
+ * Checks if a game is currently within its valid betting window.
+ * @param {string} drawTime - The game's draw time in "HH:MM" format.
+ * @returns {boolean}
+ */
+function isGameOpen(drawTime) {
+    const now = new Date();
+    const { openTime, closeTime } = getGameCycle(drawTime);
+    return now >= openTime && now < closeTime;
+}
+
+
 /**
  * Connects to the SQLite database.
  */
@@ -689,27 +732,12 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         if (!Array.isArray(betGroups) || betGroups.length === 0) throw { status: 400, message: 'Invalid bet format.' };
         if (game.winningNumber) throw { status: 400, message: `Betting is closed for ${game.name} (winner declared).` };
 
-        // Check if game is open for betting
-        const now = new Date();
-        const [drawHours, drawMinutes] = game.drawTime.split(':').map(Number);
-        const OPEN_HOUR = 16;
-        let openTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), OPEN_HOUR, 0, 0);
-        let closeTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), drawHours, drawMinutes, 0, 0);
-
-        if (drawHours < OPEN_HOUR) {
-             openTime.setDate(openTime.getDate() - 1);
+        // 2. Centralized Game Open/Close Check
+        if (!isGameOpen(game.drawTime)) {
+             throw { status: 400, message: `Betting is currently closed for ${game.name}. Market is not open.` };
         }
 
-        if (now >= closeTime) {
-            openTime.setDate(openTime.getDate() + 1);
-            closeTime.setDate(closeTime.getDate() + 1);
-        }
-        
-        if (now < openTime || now >= closeTime) {
-            throw { status: 400, message: `Betting is currently closed for ${game.name}. Market is not open.` };
-        }
-
-        // 2. Calculate total cost and aggregate numbers for checks
+        // 3. Calculate total cost and aggregate numbers for checks
         let totalTransactionAmount = 0;
         const allNumbersInTx = new Map(); // For global limits check. Key: 'gameType-number', Value: total stake
         const incomingStakes = new Map(); // For user limits check. Key: 'typeKey-num', Value: total stake
@@ -732,12 +760,12 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
             });
         });
 
-        // 3. Wallet Check
+        // 4. Wallet Check
         if (user.wallet < totalTransactionAmount) {
             throw { status: 400, message: `Insufficient funds for user ${user.name}. Required: ${totalTransactionAmount.toFixed(2)}, Available: ${user.wallet.toFixed(2)}` };
         }
 
-        // 4. User Bet Limits Check
+        // 5. User Bet Limits Check
         const oneDigitLimit = user.betLimits?.oneDigit || 0;
         const twoDigitLimit = user.betLimits?.twoDigit || 0;
 
@@ -759,7 +787,7 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
             }
         }
         
-        // 5. Global Number Limits Check
+        // 6. Global Number Limits Check
         for (const [key, incomingStake] of allNumbersInTx.entries()) {
             const [type, numberValue] = key.split('-');
             const limit = getNumberLimit(type, numberValue);
@@ -775,7 +803,7 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
             }
         }
 
-        // 6. Process Ledger Entries
+        // 7. Process Ledger Entries
         const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
         const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
         const betDescription = placedBy === 'DEALER' ? `Bet placed by Dealer on ${game.name}` : `Bet placed on ${game.name}`;
@@ -801,7 +829,7 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         }
 
 
-        // 7. Create Bet Records
+        // 8. Create Bet Records
         const createdBets = [];
         betGroups.forEach(group => {
             const { subGameType, numbers, amountPerNumber } = group;

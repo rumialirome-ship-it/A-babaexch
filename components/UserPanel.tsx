@@ -689,7 +689,7 @@ interface BetConfirmationDetails {
 }
 
 
-const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; onConfirm: () => void; onClose: () => void; }> = ({ details, onConfirm, onClose }) => {
+const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; onConfirm: () => void; onClose: () => void; isLoading: boolean; }> = ({ details, onConfirm, onClose, isLoading }) => {
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
             <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-md border border-sky-500/30">
@@ -730,7 +730,9 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
 
                     <div className="flex justify-end space-x-4 pt-2">
                         <button onClick={onClose} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 px-6 rounded-md transition-colors">Cancel</button>
-                        <button onClick={onConfirm} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors">Confirm</button>
+                        <button onClick={onConfirm} disabled={isLoading} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-wait">
+                            {isLoading ? 'Processing...' : 'Confirm'}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -847,7 +849,7 @@ interface UserPanelProps {
     userId: string;
     gameId: string;
     betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-  }) => void;
+  }) => Promise<void>;
 }
 
 
@@ -863,6 +865,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [betConfirmation, setBetConfirmation] = useState<BetConfirmationDetails | null>(null);
   const [betToConfirm, setBetToConfirm] = useState<BetConfirmationDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   
   const userBets = bets.filter(b => b.userId === user.id);
 
@@ -903,28 +906,36 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
     }
   };
   
-  const handleConfirmBet = () => {
+  const handleConfirmBet = async () => {
     if (betToConfirm) {
-        let betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] = [];
+        setIsLoading(true);
+        try {
+            let betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] = [];
 
-        if (betToConfirm.subGameType === SubGameType.Bulk && betToConfirm.betGroups) {
-            betGroups = betToConfirm.betGroups;
-        } else if (betToConfirm.numbers && betToConfirm.amountPerNumber !== undefined) {
-            betGroups = [{
-                subGameType: betToConfirm.subGameType,
-                numbers: betToConfirm.numbers,
-                amountPerNumber: betToConfirm.amountPerNumber,
-            }];
+            if (betToConfirm.subGameType === SubGameType.Bulk && betToConfirm.betGroups) {
+                betGroups = betToConfirm.betGroups;
+            } else if (betToConfirm.numbers && betToConfirm.amountPerNumber !== undefined) {
+                betGroups = [{
+                    subGameType: betToConfirm.subGameType,
+                    numbers: betToConfirm.numbers,
+                    amountPerNumber: betToConfirm.amountPerNumber,
+                }];
+            }
+            
+            await placeBet({
+                userId: user.id,
+                gameId: betToConfirm.gameId,
+                betGroups: betGroups,
+            });
+            
+            setBetConfirmation(betToConfirm);
+        } catch (error) {
+            console.error("Bet placement failed:", error);
+            // Error is alerted globally in App.tsx
+        } finally {
+            setBetToConfirm(null);
+            setIsLoading(false);
         }
-        
-        placeBet({
-            userId: user.id,
-            gameId: betToConfirm.gameId,
-            betGroups: betGroups,
-        });
-        
-        setBetConfirmation(betToConfirm);
-        setBetToConfirm(null);
     }
   };
 
@@ -970,7 +981,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
       <LedgerView entries={user.ledger} />
       
       {selectedGame && <BettingModal game={selectedGame} user={user} onClose={() => setSelectedGame(null)} onPlaceBet={handleReviewBet} />}
-      {betToConfirm && <BetConfirmationPromptModal details={betToConfirm} onConfirm={handleConfirmBet} onClose={() => setBetToConfirm(null)} />}
+      {betToConfirm && <BetConfirmationPromptModal details={betToConfirm} onConfirm={handleConfirmBet} onClose={() => setBetToConfirm(null)} isLoading={isLoading} />}
       {betConfirmation && <BetConfirmationModal details={betConfirmation} onClose={() => setBetConfirmation(null)} />}
     </div>
   );

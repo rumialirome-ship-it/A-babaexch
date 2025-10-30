@@ -21,6 +21,29 @@
 </script>
 </head>
   <body class="bg-slate-900">
+    <script>
+      // This script prevents the development entry point from being deployed to production.
+      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        document.body.innerHTML = `
+          <div style="font-family: monospace; padding: 2rem; background: #220000; color: #ff8888; height: 100vh; font-size: 16px; line-height: 1.6;">
+            <h1 style="font-size: 24px; color: #ffaaaa; border-bottom: 2px solid #ff4444; padding-bottom: 1rem; margin-bottom: 1rem;">[CRITICAL DEPLOYMENT MISCONFIGURATION]</h1>
+            <p><strong>Error:</strong> You are attempting to serve the development entry point in a production environment.</p>
+            <p><strong>Problem:</strong> Your web server's "document root" is incorrectly pointing to the project's main folder instead of the compiled <strong>/dist</strong> subfolder.</p>
+            <p><strong>Solution:</strong> Update your web server (e.g., Nginx, Apache) configuration to serve files from the correct directory.</p>
+            <br>
+            <p><strong>Example (for Nginx):</strong></p>
+            <pre style="background: #331111; padding: 1rem; border-radius: 4px; border: 1px solid #773333;">
+<span style="color:#ffbbbb;"># Incorrect:</span>
+root /var/www/html/A-babaexch;
+
+<span style="color:#bbffbb;"># Correct:</span>
+root /var/www/html/A-babaexch<strong style="background: #00ff00; color: #000;">/dist</strong>;
+            </pre>
+            <p style="margin-top: 1rem;">After making this change, restart your web server and clear your browser cache.</p>
+          </div>
+        `;
+      }
+    </script>
     <div class="animated-bg"></div>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>

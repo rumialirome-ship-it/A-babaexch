@@ -132,7 +132,7 @@ const AppContent: React.FC = () => {
         userId: string;
         gameId: string;
         betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-    }) => {
+    }): Promise<void> => {
         try {
             const response = await fetchWithAuth('/api/user/bets', {
                 method: 'POST',
@@ -148,6 +148,7 @@ const AppContent: React.FC = () => {
             await fetchData();
         } catch (error: any) {
             alert(`Error placing bet: ${error.message}`);
+            throw error; // Re-throw to allow components to handle loading state
         }
     }, [fetchWithAuth, fetchData]);
 
