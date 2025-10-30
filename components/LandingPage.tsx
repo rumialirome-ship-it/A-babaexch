@@ -14,26 +14,8 @@ const formatTime12h = (time24: string) => {
 
 const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, onClick }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
-
-    const getCountdownLabel = () => {
-        switch (status) {
-            case 'SOON': return 'OPENS AT';
-            case 'OPEN': return 'CLOSES IN';
-            case 'CLOSED': return 'GAME CLOSED';
-            default: return 'LOADING...';
-        }
-    };
-
-    const getCountdownStyle = () => {
-        switch (status) {
-            case 'SOON': return 'text-amber-300';
-            case 'OPEN': return 'text-cyan-300';
-            case 'CLOSED': return 'text-red-400';
-            default: return '';
-        }
-    };
-
     const hasWinner = !!game.winningNumber;
+    const isMarketClosed = status === 'SOON' || status === 'CLOSED';
     const themeColor = hasWinner ? 'emerald' : 'cyan';
     const logo = GAME_LOGOS[game.name] || '';
 
@@ -56,15 +38,30 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
                     <p className="text-slate-400 text-sm">Draw @ {formatTime12h(game.drawTime)}</p>
                 </div>
                 <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor}-400/20`}>
-                    <div className="text-xs uppercase tracking-widest text-slate-400">{hasWinner ? 'WINNING NUMBER' : getCountdownLabel()}</div>
-                     {hasWinner ? (
-                        <div className="text-4xl font-mono font-bold text-emerald-300 flex items-center justify-center gap-2">
-                            {React.cloneElement(Icons.star, { className: 'h-6 w-6 text-amber-300' })}
-                            <span>{game.winningNumber}</span>
-                        </div>
-                     ) : (
-                        <div className={`text-3xl font-mono font-bold ${getCountdownStyle()}`}>{countdownText}</div>
-                     )}
+                    {hasWinner ? (
+                        <>
+                            <div className="text-xs uppercase tracking-widest text-slate-400">WINNING NUMBER</div>
+                            <div className="text-4xl font-mono font-bold text-emerald-300 flex items-center justify-center gap-2">
+                                {React.cloneElement(Icons.star, { className: 'h-6 w-6 text-amber-300' })}
+                                <span>{game.winningNumber}</span>
+                            </div>
+                        </>
+                    ) : isMarketClosed ? (
+                        <>
+                            <div className="text-xs uppercase tracking-widest text-slate-400">STATUS</div>
+                            <div className="text-2xl font-mono font-bold text-red-400">MARKET CLOSED</div>
+                        </>
+                    ) : status === 'OPEN' ? (
+                        <>
+                            <div className="text-xs uppercase tracking-widest text-slate-400">CLOSES IN</div>
+                            <div className="text-3xl font-mono font-bold text-cyan-300">{countdownText}</div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="text-xs uppercase tracking-widest text-slate-400">LOADING...</div>
+                            <div className="text-3xl font-mono font-bold text-slate-400">{countdownText}</div>
+                        </>
+                    )}
                 </div>
             </div>
         </button>

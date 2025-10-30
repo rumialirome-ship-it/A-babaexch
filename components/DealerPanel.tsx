@@ -1,8 +1,9 @@
 
 
 import React, { useState, useMemo } from 'react';
-import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game } from '../types';
+import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType } from '../types';
 import { Icons } from '../constants';
+import { useCountdown } from '../hooks/useCountdown';
 
 // Internal components
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'emerald' }) => {
@@ -514,6 +515,233 @@ const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
     );
 };
 
+// --- NEW BETTING TERMINAL VIEW ---
+const OpenGameOption: React.FC<{ game: Game }> = ({ game }) => {
+    const { status, text } = useCountdown(game.drawTime);
+    if (status !== 'OPEN') return null;
+    return <option value={game.id}>{game.name} (Closes in: {text})</option>;
+};
+
+const BettingTerminalView: React.FC<{
+    users: User[];
+    games: Game[];
+    placeBetAsDealer: (details: { userId: string; gameId: string; betGroups: any[] }) => Promise<void>;
+}> = ({ users, games, placeBetAsDealer }) => {
+    const [selectedUserId, setSelectedUserId] = useState('');
+    const [selectedGameId, setSelectedGameId] = useState('');
+    const [bulkInput, setBulkInput] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const activeUsers = useMemo(() => users.filter(u => !u.isRestricted), [users]);
+    const openGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
+    const selectedUser = useMemo(() => users.find(u => u.id === selectedUserId), [users, selectedUserId]);
+    
+    const parsedBulkBet = useMemo(() => {
+        interface ParsedLine { originalText: string; numbers: string[]; stake: number; cost: number; subGameType: string; error?: string; }
+        const result = { lines: [] as ParsedLine[], totalCost: 0, totalNumbers: 0, error: null as string | null, betGroups: [] as { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] };
+        
+        const input = bulkInput.trim();
+        if (!input) return result;
+
+        const allLines = input.split('\n').filter(line => line.trim() !== '');
+        if (allLines.length === 0) return result;
+        
+        const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*(combo|k)?\s*$/i;
+        const linesWithStakes = allLines.map(line => line.match(stakeRegex)).filter(Boolean);
+        let globalStake: number | null = null;
+        if (linesWithStakes.length === 1) {
+            const match = linesWithStakes[0];
+            const parsedStake = parseFloat(match[1]);
+            if (!isNaN(parsedStake) && parsedStake > 0) { globalStake = parsedStake; }
+        }
+
+        const determineType = (token: string): SubGameType | null => {
+            if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
+            if (/^\d[xX]$/i.test(token)) return SubGameType.OneDigitOpen;
+            if (/^[xX]\d$/i.test(token)) return SubGameType.OneDigitClose;
+            return null;
+        };
+        const aggregatedGroups: Map<string, { subGameType: SubGameType; numbers: Set<string>; amountPerNumber: number }> = new Map();
+        
+        for (const lineText of allLines) {
+            const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit, error: undefined };
+            let betPart = lineText.trim();
+            let lineStake: number | null = null;
+            let isComboLine = false;
+            const localStakeMatch = lineText.match(stakeRegex);
+
+            if (globalStake) {
+                lineStake = globalStake;
+                if (localStakeMatch) { betPart = betPart.substring(0, localStakeMatch.index).trim(); }
+            } else if (localStakeMatch) {
+                const parsedStake = parseFloat(localStakeMatch[1]);
+                if (!isNaN(parsedStake) && parsedStake > 0) { lineStake = parsedStake; }
+                betPart = betPart.substring(0, localStakeMatch.index).trim();
+            }
+
+            isComboLine = !!localStakeMatch?.[2];
+            const effectiveStake = lineStake;
+            betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
+            const tokens = betPart.replace(/,{1,2}|\.{2,}/g, ' ').split(/\s+/).filter(Boolean);
+            if (tokens.length === 0) { if (betPart !== '') { parsedLine.error = "No numbers found."; result.lines.push(parsedLine); } continue; }
+            if (!effectiveStake || effectiveStake <= 0) { parsedLine.error = "Stake not found (e.g., '... r10')"; result.lines.push(parsedLine); continue; }
+            parsedLine.stake = effectiveStake;
+            const lineItems: { type: SubGameType, value: string }[] = [];
+            let lineHasError = false;
+            if (isComboLine) {
+                const digits = tokens.join('').replace(/[^0-9]/g, '');
+                const uniqueDigits = [...new Set(digits.split(''))].sort();
+                if (uniqueDigits.length < 2) { parsedLine.error = `Combo needs at least 2 unique digits.`; lineHasError = true; } 
+                else {
+                    for (let i = 0; i < uniqueDigits.length; i++) {
+                        for (let j = i + 1; j < uniqueDigits.length; j++) { lineItems.push({ type: SubGameType.TwoDigit, value: uniqueDigits[i] + uniqueDigits[j] }); }
+                    }
+                }
+            } else {
+                for (const token of tokens) {
+                    const tokenType = determineType(token);
+                    if (!tokenType) { parsedLine.error = `Invalid token: '${token}'`; lineHasError = true; break; }
+                    let numberValue = '';
+                    if (tokenType === SubGameType.TwoDigit) numberValue = token.padStart(2, '0');
+                    else if (tokenType === SubGameType.OneDigitOpen) numberValue = token[0];
+                    else if (tokenType === SubGameType.OneDigitClose) numberValue = token[1];
+                    lineItems.push({ type: tokenType, value: numberValue });
+                }
+            }
+            if (lineHasError) { result.lines.push(parsedLine); continue; }
+            const typesOnLine = new Set<SubGameType>();
+            lineItems.forEach(item => {
+                typesOnLine.add(item.type);
+                const groupKey = `${item.type}-${effectiveStake}`;
+                if (!aggregatedGroups.has(groupKey)) { aggregatedGroups.set(groupKey, { subGameType: item.type, numbers: new Set(), amountPerNumber: effectiveStake }); }
+                aggregatedGroups.get(groupKey)!.numbers.add(item.value);
+            });
+            parsedLine.numbers = lineItems.map(item => item.value);
+            parsedLine.cost = lineItems.length * effectiveStake;
+            parsedLine.subGameType = isComboLine ? 'Combo' : (typesOnLine.size > 1 ? 'Mixed' : typesOnLine.values().next().value);
+            result.lines.push(parsedLine);
+        }
+        result.betGroups = Array.from(aggregatedGroups.values()).map(g => ({ ...g, numbers: Array.from(g.numbers) }));
+        result.totalNumbers = result.betGroups.reduce((sum, group) => sum + group.numbers.length, 0);
+        result.totalCost = result.betGroups.reduce((sum, group) => sum + (group.numbers.length * group.amountPerNumber), 0);
+        if (result.lines.some(l => l.error)) result.error = 'Please review invalid lines.';
+        return result;
+    }, [bulkInput]);
+    
+    const canPlaceBet = selectedUserId && selectedGameId && parsedBulkBet.totalCost > 0 && !parsedBulkBet.error && selectedUser && selectedUser.wallet >= parsedBulkBet.totalCost;
+
+    const handleSubmit = async () => {
+        if (!canPlaceBet) {
+            if (selectedUser && selectedUser.wallet < parsedBulkBet.totalCost) {
+                setError(`Insufficient user balance. Required: ${parsedBulkBet.totalCost.toFixed(2)}, Available: ${selectedUser.wallet.toFixed(2)}`);
+            } else {
+                setError("Please select a user, a game, and enter valid bets.");
+            }
+            return;
+        }
+        setError(null);
+        setIsLoading(true);
+        try {
+            await placeBetAsDealer({
+                userId: selectedUserId,
+                gameId: selectedGameId,
+                betGroups: parsedBulkBet.betGroups,
+            });
+            // Reset form on success
+            setBulkInput('');
+            setSelectedGameId('');
+            setSelectedUserId('');
+        } catch (e) {
+            // Error is displayed via alert in App.tsx
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
+
+    return (
+        <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Betting Terminal</h3>
+            <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">1. Select User</label>
+                        <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} className={inputClass} required>
+                            <option value="" disabled>-- Choose a user --</option>
+                            {activeUsers.map(user => (
+                                <option key={user.id} value={user.id}>{user.name} ({user.id}) - Wallet: {user.wallet.toFixed(2)}</option>
+                            ))}
+                        </select>
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">2. Select Game</label>
+                        <select value={selectedGameId} onChange={e => setSelectedGameId(e.target.value)} className={inputClass} required>
+                            <option value="" disabled>-- Select an open game --</option>
+                            {openGames.map(game => <OpenGameOption key={game.id} game={game} />)}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">3. Paste Bulk Bets</label>
+                    <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={8} placeholder={"Example:\n45..75,96 65\n4x..x4,x7,5x r50"} className={`${inputClass} font-mono`} />
+                    <p className="text-xs text-slate-500 mt-1">Use spaces, commas, or '..' to separate numbers. A single stake (e.g., 'r50') applies to all numbers.</p>
+                </div>
+                
+                {parsedBulkBet.lines.length > 0 && (
+                    <div className="my-4 bg-slate-800 p-3 rounded-md border border-slate-700 max-h-48 overflow-y-auto space-y-2">
+                        {parsedBulkBet.lines.map((line, index) => (
+                            <div key={index} className={`p-2 rounded-md text-sm ${line.error ? 'bg-red-500/10 border-l-4 border-red-500' : 'bg-green-500/10 border-l-4 border-green-500'}`}>
+                                <div className="flex justify-between items-center font-mono">
+                                    <span className="truncate mr-4 text-slate-400" title={line.originalText}>"{line.originalText}"</span>
+                                    {line.error ? (
+                                        <span className="text-red-400 font-semibold text-right">{line.error}</span>
+                                    ) : (
+                                        <div className="flex items-center gap-4 text-xs">
+                                            <span className="text-slate-300">{line.subGameType}: <span className="font-bold text-white">{line.numbers.length}</span></span>
+                                            <span className="text-slate-300">Cost: <span className="font-bold text-white">{line.cost.toFixed(2)}</span></span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                
+                <div className="text-sm bg-slate-900/50 p-3 rounded-md my-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-center border border-slate-700">
+                     <div>
+                        <p className="text-slate-400 text-xs uppercase">Selected User</p>
+                        <p className="font-bold text-white text-lg truncate">{selectedUser?.name || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p className="text-slate-400 text-xs uppercase">Total Bets</p>
+                        <p className="font-bold text-white text-lg">{parsedBulkBet.totalNumbers}</p>
+                    </div>
+                    <div>
+                        <p className="text-slate-400 text-xs uppercase">Total Cost</p>
+                        <p className={`font-bold text-lg font-mono ${selectedUser && parsedBulkBet.totalCost > selectedUser.wallet ? 'text-red-400' : 'text-emerald-400'}`}>
+                            {parsedBulkBet.totalCost.toFixed(2)}
+                        </p>
+                    </div>
+                </div>
+                
+                {(error || parsedBulkBet.error) && (
+                    <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mb-4" role="alert">
+                        {error || parsedBulkBet.error}
+                    </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                    <button onClick={handleSubmit} disabled={!canPlaceBet || isLoading} className="bg-emerald-600 text-white font-bold py-3 px-8 rounded-md transition-all duration-300 enabled:hover:bg-emerald-500 enabled:hover:shadow-lg enabled:hover:shadow-emerald-500/30 disabled:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">
+                        {isLoading ? 'Placing Bets...' : `Place Bets for ${selectedUser?.name || 'User'}`}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // Helper function to format the last active timestamp
 const formatLastActive = (timestamp: number): React.ReactNode => {
@@ -543,9 +771,10 @@ interface DealerPanelProps {
   toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
   bets: Bet[];
   games: Game[];
+  placeBetAsDealer: (details: { userId: string; gameId: string; betGroups: any[]; }) => Promise<void>;
 }
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games }) => {
+const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
@@ -568,7 +797,8 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
   };
   
   const tabs = [
-    { id: 'users', label: 'Users', icon: Icons.userGroup }, 
+    { id: 'users', label: 'Users', icon: Icons.userGroup },
+    { id: 'bettingTerminal', label: 'Betting Terminal', icon: Icons.clipboardList },
     { id: 'wallet', label: 'Wallet', icon: Icons.wallet },
     { id: 'betHistory', label: 'Bet History', icon: Icons.clipboardList },
     { id: 'ledgers', label: 'Ledgers', icon: Icons.bookOpen },
@@ -702,6 +932,8 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
         </div>
       )}
 
+      {activeTab === 'bettingTerminal' && <BettingTerminalView users={myUsers} games={games} placeBetAsDealer={placeBetAsDealer} />}
+      
       {activeTab === 'wallet' && <WalletView dealer={dealer} />}
 
       {activeTab === 'betHistory' && <BetHistoryView bets={bets} games={games} users={myUsers} />}

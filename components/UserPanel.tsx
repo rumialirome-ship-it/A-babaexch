@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
@@ -197,20 +195,7 @@ const formatTime12h = (time24: string) => {
 const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }> = ({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const isPlayable = status === 'OPEN' && !isRestricted;
-    
-    const getCountdownLabel = () => {
-        switch(status) {
-            case 'SOON': return 'OPENS AT'; case 'OPEN': return 'TIME LEFT';
-            case 'CLOSED': return 'GAME CLOSED'; default: return 'LOADING...';
-        }
-    };
-    
-    const getCountdownStyle = () => {
-         switch(status) {
-            case 'SOON': return 'text-amber-300'; case 'OPEN': return 'text-cyan-300';
-            case 'CLOSED': return 'text-red-400'; default: return 'text-slate-400';
-        }
-    };
+    const isMarketClosed = status === 'SOON' || status === 'CLOSED';
 
     return (
         <div className={`bg-slate-800/50 rounded-lg shadow-lg p-4 flex flex-col justify-between transition-all duration-300 border border-slate-700 ${!isPlayable ? 'opacity-60' : 'hover:shadow-cyan-500/20 hover:-translate-y-1 hover:border-cyan-500/50'}`}>
@@ -223,8 +208,22 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
                     </div>
                 </div>
                 <div className={`text-center my-4 p-2 rounded-lg bg-slate-900/50 border-t border-slate-700`}>
-                    <div className="text-xs uppercase tracking-wider text-slate-400">{getCountdownLabel()}</div>
-                    <div className={`text-3xl font-mono font-bold ${getCountdownStyle()}`}>{countdownText}</div>
+                    {isMarketClosed ? (
+                        <>
+                            <div className="text-xs uppercase tracking-wider text-slate-400">STATUS</div>
+                            <div className="text-2xl font-mono font-bold text-red-400">MARKET CLOSED</div>
+                        </>
+                    ) : status === 'OPEN' ? (
+                        <>
+                            <div className="text-xs uppercase tracking-wider text-slate-400">TIME LEFT</div>
+                            <div className="text-3xl font-mono font-bold text-cyan-300">{countdownText}</div>
+                        </>
+                    ) : (
+                         <>
+                            <div className="text-xs uppercase tracking-wider text-slate-400">LOADING...</div>
+                            <div className="text-3xl font-mono font-bold text-slate-400">{countdownText}</div>
+                        </>
+                    )}
                 </div>
             </div>
              {game.winningNumber && <div className="text-center font-bold text-lg text-emerald-400 mt-2">Winner: {game.winningNumber}</div>}

@@ -233,6 +233,26 @@ app.put('/api/dealer/users/:id/toggle-restriction', authMiddleware, (req, res) =
     }
 });
 
+app.post('/api/dealer/bets/bulk', authMiddleware, (req, res) => {
+    if (req.user.role !== 'DEALER') return res.sendStatus(403);
+    const { userId, gameId, betGroups } = req.body;
+    const dealerId = req.user.id;
+
+    try {
+        // Verify user belongs to this dealer before proceeding
+        const user = database.findUserByDealer(userId, dealerId);
+        if (!user) {
+            return res.status(403).json({ message: "You can only place bets for users under your account." });
+        }
+        
+        // The placeBulkBets function handles all other logic like wallet checks, limits, etc.
+        const createdBets = database.placeBulkBets(userId, gameId, betGroups, 'DEALER');
+        res.status(201).json(createdBets);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
+});
+
 
 // --- ADMIN ROUTES ---
 app.get('/api/admin/data', authMiddleware, (req, res) => {

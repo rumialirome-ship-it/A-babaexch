@@ -682,11 +682,32 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         if (user.isRestricted) throw { status: 403, message: 'The selected user account is restricted.' };
 
         const dealer = findAccountById(user.dealerId, 'dealers');
-        const game = getAllFromTable('games').find(g => g.id === gameId);
+        const game = findAccountById(gameId, 'games');
         const admin = findAccountById('Guru', 'admins');
 
         if (!dealer || !game || !admin) throw { status: 404, message: 'Dealer, Game or Admin not found' };
         if (!Array.isArray(betGroups) || betGroups.length === 0) throw { status: 400, message: 'Invalid bet format.' };
+        if (game.winningNumber) throw { status: 400, message: `Betting is closed for ${game.name} (winner declared).` };
+
+        // Check if game is open for betting
+        const now = new Date();
+        const [drawHours, drawMinutes] = game.drawTime.split(':').map(Number);
+        const OPEN_HOUR = 16;
+        let openTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), OPEN_HOUR, 0, 0);
+        let closeTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), drawHours, drawMinutes, 0, 0);
+
+        if (drawHours < OPEN_HOUR) {
+             openTime.setDate(openTime.getDate() - 1);
+        }
+
+        if (now >= closeTime) {
+            openTime.setDate(openTime.getDate() + 1);
+            closeTime.setDate(closeTime.getDate() + 1);
+        }
+        
+        if (now < openTime || now >= closeTime) {
+            throw { status: 400, message: `Betting is currently closed for ${game.name}. Market is not open.` };
+        }
 
         // 2. Calculate total cost and aggregate numbers for checks
         let totalTransactionAmount = 0;
@@ -757,9 +778,10 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         // 6. Process Ledger Entries
         const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
         const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
+        const betDescription = placedBy === 'DEALER' ? `Bet placed by Dealer on ${game.name}` : `Bet placed on ${game.name}`;
 
         // User Ledger: Debit full stake, then credit their commission back for clarity.
-        addLedgerEntry(user.id, 'USER', `Bet placed on ${game.name}`, totalTransactionAmount, 0);
+        addLedgerEntry(user.id, 'USER', betDescription, totalTransactionAmount, 0);
         if (totalUserCommission > 0) {
             addLedgerEntry(user.id, 'USER', `Commission earned for ${game.name} bet`, 0, totalUserCommission);
         }

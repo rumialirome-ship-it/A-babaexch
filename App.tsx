@@ -151,6 +151,28 @@ const AppContent: React.FC = () => {
         }
     }, [fetchWithAuth, fetchData]);
 
+    const placeBetAsDealer = useCallback(async (details: {
+        userId: string;
+        gameId: string;
+        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
+    }) => {
+        try {
+            const response = await fetchWithAuth('/api/dealer/bets/bulk', {
+                method: 'POST',
+                body: JSON.stringify(details)
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message);
+            }
+            alert('Bets placed successfully!');
+            await fetchData();
+        } catch (error: any) {
+            alert(`Error placing bets: ${error.message}`);
+            throw error;
+        }
+    }, [fetchWithAuth, fetchData]);
+
     const onPlaceAdminBets = useCallback(async (details: {
         userId: string;
         gameId: string;
@@ -339,7 +361,7 @@ const AppContent: React.FC = () => {
             <Header />
             <main className="flex-grow">
                 {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
-                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} />}
+                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} />}
                 {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} onPlaceAdminBets={onPlaceAdminBets} />}
             </main>
         </div>
