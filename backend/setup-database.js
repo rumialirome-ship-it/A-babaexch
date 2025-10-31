@@ -97,6 +97,10 @@ function main() {
                 limitAmount REAL NOT NULL,
                 UNIQUE(gameType, numberValue)
             );
+            CREATE TABLE system_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             CREATE INDEX idx_ledgers_accountId ON ledgers(accountId);
             CREATE INDEX idx_bets_userId ON bets(userId);
             CREATE INDEX idx_users_dealerId ON users(dealerId);
@@ -139,6 +143,12 @@ function main() {
             jsonData.bets.forEach(bet => {
                 insertBet.run(bet.id, bet.userId, bet.dealerId, bet.gameId, bet.subGameType, JSON.stringify(bet.numbers), bet.amountPerNumber, bet.totalAmount, new Date(bet.timestamp).toISOString());
             });
+
+            // System State
+            const initialResetTimestamp = new Date(0).toISOString();
+            db.prepare(`INSERT INTO system_state (key, value) VALUES ('lastResetTimestamp', ?)`).run(initialResetTimestamp);
+            console.log('System state initialized.');
+            
             console.log('Data migration complete.');
         })();
     };

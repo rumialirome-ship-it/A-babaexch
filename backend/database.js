@@ -854,6 +854,46 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
     return finalResult;
 };
 
+const performDailyResetIfNeeded = () => {
+    const RESET_HOUR = 16; // 4:00 PM
+
+    const stmt = db.prepare(`SELECT value FROM system_state WHERE key = 'lastResetTimestamp'`);
+    const lastResetRow = stmt.get();
+    if (!lastResetRow) {
+        // Should not happen if DB is set up correctly, but as a safeguard:
+        db.prepare(`INSERT INTO system_state (key, value) VALUES ('lastResetTimestamp', ?)`).run(new Date(0).toISOString());
+        console.warn("Initialized missing 'lastResetTimestamp' in system_state.");
+        return;
+    }
+
+    const lastResetTimestamp = new Date(lastResetRow.value);
+
+    const now = new Date();
+    
+    // Calculate the most recent 4 PM boundary
+    let lastResetBoundary = new Date(now);
+    lastResetBoundary.setHours(RESET_HOUR, 0, 0, 0);
+
+    if (now < lastResetBoundary) {
+        // If it's before 4 PM today, the last boundary was yesterday at 4 PM.
+        lastResetBoundary.setDate(lastResetBoundary.getDate() - 1);
+    }
+
+    if (lastResetTimestamp < lastResetBoundary) {
+        console.log(`Performing daily market reset. Current time: ${now.toISOString()}, Last reset: ${lastResetTimestamp.toISOString()}, Boundary: ${lastResetBoundary.toISOString()}`);
+        
+        runInTransaction(() => {
+            const resetStmt = db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0');
+            const info = resetStmt.run();
+            console.log(`Market reset successful. ${info.changes} games updated.`);
+
+            const updateStmt = db.prepare(`UPDATE system_state SET value = ? WHERE key = 'lastResetTimestamp'`);
+            updateStmt.run(now.toISOString());
+        });
+    }
+};
+
+
 module.exports = {
     connect,
     verifySchema,
@@ -886,4 +926,5 @@ module.exports = {
     findBetsByGameId,
     getNumberStakeSummary,
     placeBulkBets,
+    performDailyResetIfNeeded,
 };
