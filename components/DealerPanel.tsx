@@ -51,7 +51,7 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     </div>
 );
 
-const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, originalId?: string, initialDeposit?: number) => void; onCancel: () => void; dealerPrizeRates: PrizeRates, dealerId: string }> = ({ user, users, onSave, onCancel, dealerPrizeRates, dealerId }) => {
+const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>; onCancel: () => void; dealerPrizeRates: PrizeRates, dealerId: string }> = ({ user, users, onSave, onCancel, dealerPrizeRates, dealerId }) => {
     const [formData, setFormData] = useState(() => {
         const defaults = {
             id: '', name: '', password: '', area: '', contact: '', commissionRate: 0, 
@@ -75,6 +75,8 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value, type, checked } = e.target;
@@ -87,15 +89,17 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
         }
     };
     
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
+
         const newPassword = user ? password : formData.password!;
-        if (newPassword && newPassword !== confirmPassword) { alert("New passwords do not match."); return; }
-        if (!user && !newPassword) { alert("Password is required for new users."); return; }
+        if (newPassword && newPassword !== confirmPassword) { setError("New passwords do not match."); return; }
+        if (!user && !newPassword) { setError("Password is required for new users."); return; }
         
         const formId = (formData.id as string).toLowerCase();
         if (!user && users.some(u => u.id.toLowerCase() === formId)) {
-            alert("This User Login ID is already taken. Please choose another one.");
+            setError("This User Login ID is already taken. Please choose another one.");
             return;
         }
 
@@ -143,7 +147,15 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
                 avatarUrl: formData.avatarUrl,
             };
         }
-        onSave(finalData, user?.id, initialDeposit);
+        
+        setIsLoading(true);
+        try {
+            await onSave(finalData, user?.id, initialDeposit);
+        } catch (err: any) {
+            setError(err.message || 'An unknown error occurred.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const displayPassword = user ? password : formData.password!;
@@ -204,9 +216,17 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
                 </div>
             </fieldset>
 
+             {error && (
+                <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mt-4" role="alert">
+                    {error}
+                </div>
+            )}
+
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Save User</button>
+                <button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-wait">
+                    {isLoading ? 'Saving...' : 'Save User'}
+                </button>
             </div>
         </form>
     );
@@ -214,26 +234,37 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
 
 const UserTransactionForm: React.FC<{ 
     users: User[]; 
-    onTransaction: (userId: string, amount: number) => void; 
+    onTransaction: (userId: string, amount: number) => Promise<void>; 
     onCancel: () => void;
     type: 'Top-Up' | 'Withdrawal';
 }> = ({ users, onTransaction, onCancel, type }) => {
     const [selectedUserId, setSelectedUserId] = useState<string>('');
     const [amount, setAmount] = useState<number | ''>('');
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
     const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
 
     const inputClass = `w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-${themeColor}-500 focus:outline-none text-white`;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
         if (!selectedUserId || !amount || amount <= 0) {
-            alert(`Please select a user and enter a valid positive amount.`);
+            setError(`Please select a user and enter a valid positive amount.`);
             return;
         }
         const userName = users.find(u => u.id === selectedUserId)?.name || 'the selected user';
         const confirmationAction = type === 'Top-Up' ? 'to' : 'from';
         if (window.confirm(`Are you sure you want to ${type.toLowerCase()} PKR ${amount} ${confirmationAction} ${userName}'s wallet?`)) {
-            onTransaction(selectedUserId, Number(amount));
+            setIsLoading(true);
+            try {
+                await onTransaction(selectedUserId, Number(amount));
+                onCancel(); // Close modal on success
+            } catch (err: any) {
+                setError(err.message || 'An unknown error occurred.');
+            } finally {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -250,10 +281,15 @@ const UserTransactionForm: React.FC<{
                 <label htmlFor="amount-input" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
                 <input id="amount-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 1000" className={inputClass} min="1" required />
             </div>
+             {error && (
+                <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mt-2" role="alert">
+                    {error}
+                </div>
+            )}
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                <button type="submit" className={`font-bold py-2 px-4 rounded-md transition-colors text-white ${type === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
-                    {type}
+                <button type="submit" disabled={isLoading} className={`font-bold py-2 px-4 rounded-md transition-colors text-white disabled:bg-slate-600 disabled:cursor-wait ${type === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
+                    {isLoading ? 'Processing...' : type}
                 </button>
             </div>
         </form>
@@ -532,6 +568,7 @@ const BettingTerminalView: React.FC<{
     const [bulkInput, setBulkInput] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const activeUsers = useMemo(() => users.filter(u => !u.isRestricted), [users]);
     const openGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
@@ -641,6 +678,7 @@ const BettingTerminalView: React.FC<{
             return;
         }
         setError(null);
+        setSuccessMessage(null);
         setIsLoading(true);
         try {
             await placeBetAsDealer({
@@ -649,6 +687,7 @@ const BettingTerminalView: React.FC<{
                 betGroups: parsedBulkBet.betGroups,
             });
             // Reset form on success
+            setSuccessMessage(`Successfully placed ${parsedBulkBet.totalNumbers} bets for ${selectedUser?.name}. Total cost: ${parsedBulkBet.totalCost.toFixed(2)} PKR.`);
             setBulkInput('');
             setSelectedGameId('');
             setSelectedUserId('');
@@ -732,6 +771,12 @@ const BettingTerminalView: React.FC<{
                         {error || parsedBulkBet.error}
                     </div>
                 )}
+                
+                {successMessage && (
+                    <div className="bg-green-500/20 border border-green-500/30 text-green-300 text-sm p-3 rounded-md mb-4" role="status">
+                        {successMessage}
+                    </div>
+                )}
 
                 <div className="flex justify-end pt-2">
                     <button onClick={handleSubmit} disabled={!canPlaceBet || isLoading} className="bg-emerald-600 text-white font-bold py-3 px-8 rounded-md transition-all duration-300 enabled:hover:bg-emerald-500 enabled:hover:shadow-lg enabled:hover:shadow-emerald-500/30 disabled:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">
@@ -765,10 +810,10 @@ const formatLastActive = (timestamp: number): React.ReactNode => {
 interface DealerPanelProps {
   dealer: Dealer;
   users: User[];
-  onSaveUser: (userData: User, originalId: string | undefined, initialDeposit?: number) => void;
-  topUpUserWallet: (userId: string, amount: number) => void;
-  withdrawFromUserWallet: (userId: string, amount: number) => void;
-  toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
+  onSaveUser: (userData: User, originalId: string | undefined, initialDeposit?: number) => Promise<void>;
+  topUpUserWallet: (userId: string, amount: number) => Promise<void>;
+  withdrawFromUserWallet: (userId: string, amount: number) => Promise<void>;
+  toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => Promise<void>;
   bets: Bet[];
   games: Game[];
   placeBetAsDealer: (details: { userId: string; gameId: string; betGroups: any[]; }) => Promise<void>;
@@ -785,15 +830,11 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
   const [sortOption, setSortOption] = useState('name_asc');
 
   const handleSaveUser = async (userData: User, originalId?: string, initialDeposit?: number) => {
-      try {
-        await onSaveUser(userData, originalId, initialDeposit);
-        setIsModalOpen(false);
-        setSelectedUser(undefined);
-      } catch (error) {
-        console.error("Failed to save user:", error);
-        // Error alerts are handled in the parent component (App.tsx)
-        // and the modal will correctly stay open now on failure.
-      }
+      // This function now returns a promise that resolves on success and rejects on failure.
+      // The UserForm component will handle showing errors.
+      await onSaveUser(userData, originalId, initialDeposit);
+      setIsModalOpen(false);
+      setSelectedUser(undefined);
   };
   
   const tabs = [
@@ -986,11 +1027,11 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
       </Modal>
 
       <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up User Wallet" themeColor="emerald">
-          <UserTransactionForm type="Top-Up" users={myUsers} onTransaction={(userId, amount) => { topUpUserWallet(userId, amount); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
+          <UserTransactionForm type="Top-Up" users={myUsers} onTransaction={topUpUserWallet} onCancel={() => setIsTopUpModalOpen(false)} />
       </Modal>
 
       <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Withdraw from User Wallet" themeColor="amber">
-          <UserTransactionForm type="Withdrawal" users={myUsers} onTransaction={(userId, amount) => { withdrawFromUserWallet(userId, amount); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
+          <UserTransactionForm type="Withdrawal" users={myUsers} onTransaction={withdrawFromUserWallet} onCancel={() => setIsWithdrawalModalOpen(false)} />
       </Modal>
 
       {viewingLedgerFor && (

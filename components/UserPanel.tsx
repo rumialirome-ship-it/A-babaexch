@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
@@ -919,37 +920,48 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
   };
   
   const handleConfirmBet = async () => {
-    if (betToConfirm) {
-        setIsLoading(true);
-        setBettingError(null);
-        try {
-            let betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] = [];
+    if (!betToConfirm) return;
 
-            if (betToConfirm.subGameType === SubGameType.Bulk && betToConfirm.betGroups) {
-                betGroups = betToConfirm.betGroups;
-            } else if (betToConfirm.numbers && betToConfirm.amountPerNumber !== undefined) {
-                betGroups = [{
-                    subGameType: betToConfirm.subGameType,
-                    numbers: betToConfirm.numbers,
-                    amountPerNumber: betToConfirm.amountPerNumber,
-                }];
-            }
-            
-            await placeBet({
-                userId: user.id,
-                gameId: betToConfirm.gameId,
-                betGroups: betGroups,
-            });
-            
+    setIsLoading(true);
+    setBettingError(null);
+    let isSuccess = false;
+
+    try {
+        let betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] = [];
+
+        if (betToConfirm.subGameType === SubGameType.Bulk && betToConfirm.betGroups) {
+            betGroups = betToConfirm.betGroups;
+        } else if (betToConfirm.numbers && betToConfirm.amountPerNumber !== undefined) {
+            betGroups = [{
+                subGameType: betToConfirm.subGameType,
+                numbers: betToConfirm.numbers,
+                amountPerNumber: betToConfirm.amountPerNumber,
+            }];
+        }
+        
+        await placeBet({
+            userId: user.id,
+            gameId: betToConfirm.gameId,
+            betGroups: betGroups,
+        });
+        
+        isSuccess = true;
+    } catch (error: any) {
+        console.error("Bet placement failed:", error);
+        setBettingError(error.message);
+        isSuccess = false;
+    } finally {
+        setIsLoading(false);
+        // Always close the confirmation prompt
+        setBetToConfirm(null);
+
+        if (isSuccess) {
+            // Only show success modal and close betting modal on success
             setBetConfirmation(betToConfirm);
             setSelectedGame(null); 
-        } catch (error: any) {
-            console.error("Bet placement failed:", error);
-            setBettingError(error.message);
-        } finally {
-            setBetToConfirm(null);
-            setIsLoading(false);
         }
+        // If !isSuccess, the betting modal remains open (selectedGame is not cleared)
+        // and will display the error message set in the catch block.
     }
   };
 
