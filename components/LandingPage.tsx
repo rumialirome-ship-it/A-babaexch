@@ -15,7 +15,7 @@ const formatTime12h = (time24: string) => {
 const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, onClick }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasWinner = !!game.winningNumber;
-    const isMarketClosed = !game.isMarketOpen;
+    const isMarketClosedForDisplay = !game.isMarketOpen || status === 'CLOSED';
     const themeColor = hasWinner ? 'emerald' : 'cyan';
     const logo = GAME_LOGOS[game.name] || '';
 
@@ -46,7 +46,7 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
                                 <span>{game.winningNumber}</span>
                             </div>
                         </>
-                    ) : isMarketClosed ? (
+                    ) : isMarketClosedForDisplay ? (
                         <>
                             <div className="text-xs uppercase tracking-widest text-slate-400">STATUS</div>
                             <div className="text-2xl font-mono font-bold text-red-400">MARKET CLOSED</div>

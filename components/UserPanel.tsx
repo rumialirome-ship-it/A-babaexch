@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
@@ -198,7 +195,7 @@ const formatTime12h = (time24: string) => {
 const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }> = ({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const isPlayable = !!game.isMarketOpen && !isRestricted;
-    const isMarketClosed = !game.isMarketOpen;
+    const isMarketClosedForDisplay = !game.isMarketOpen || status === 'CLOSED';
 
     return (
         <div className={`bg-slate-800/50 rounded-lg shadow-lg p-4 flex flex-col justify-between transition-all duration-300 border border-slate-700 ${!isPlayable ? 'opacity-60' : 'hover:shadow-cyan-500/20 hover:-translate-y-1 hover:border-cyan-500/50'}`}>
@@ -211,7 +208,7 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
                     </div>
                 </div>
                 <div className={`text-center my-4 p-2 rounded-lg bg-slate-900/50 border-t border-slate-700`}>
-                    {isMarketClosed ? (
+                    {isMarketClosedForDisplay ? (
                         <>
                             <div className="text-xs uppercase tracking-wider text-slate-400">STATUS</div>
                             <div className="text-2xl font-mono font-bold text-red-400">MARKET CLOSED</div>
@@ -729,7 +726,7 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
                                     </div>
                                 ))}
                                 <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Max Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
                             </>
                         ) : (
                             <>
@@ -775,7 +772,7 @@ const BetConfirmationModal: React.FC<{ details: BetConfirmationDetails; onClose:
                             <>
                                 <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Bets:</span><span className="font-mono text-cyan-300">{details.totalNumbers}</span></div>
                                 <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Max Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
                             </>
                         ) : (
                              <>
@@ -884,42 +881,69 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
   
   const userBets = bets.filter(b => b.userId === user.id);
 
-  const handleReviewBet = (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }) => {
-    if (selectedGame) {
-      let confirmationDetails: BetConfirmationDetails;
-      setBettingError(null);
+  const handleReviewBet = (details: {
+    subGameType: SubGameType;
+    numbers?: string[];
+    amountPerNumber?: number;
+    betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
+}) => {
+    if (!selectedGame) return;
 
-      if (details.subGameType === SubGameType.Bulk && details.betGroups) {
-          let totalAmount = 0;
-          let totalNumbers = 0;
-          let totalPotentialWinnings = 0;
-          
-          details.betGroups.forEach(group => {
-              const groupCost = group.numbers.length * group.amountPerNumber;
-              totalAmount += groupCost;
-              totalNumbers += group.numbers.length;
-              const prizeRate = getPrizeRateForBet(group.subGameType, user.prizeRates);
-              totalPotentialWinnings += group.numbers.length * group.amountPerNumber * prizeRate;
-          });
+    setBettingError(null);
+    let confirmationDetails: BetConfirmationDetails;
 
-          confirmationDetails = {
-              gameId: selectedGame.id, gameName: selectedGame.name, subGameType: details.subGameType,
-              betGroups: details.betGroups, totalAmount, totalNumbers, totalPotentialWinnings
-          };
-      } else { // Single bet (Manual or Combo)
-          const { numbers, amountPerNumber, subGameType } = details;
-          if(!numbers || amountPerNumber === undefined) return;
-          const totalAmount = numbers.length * amountPerNumber;
-          const prizeRate = getPrizeRateForBet(subGameType, user.prizeRates);
-          confirmationDetails = {
-              gameId: selectedGame.id, gameName: selectedGame.name, subGameType,
-              numbers, amountPerNumber, totalAmount, totalNumbers: numbers.length, 
-              potentialWinnings: numbers.length * amountPerNumber * prizeRate
-          };
-      }
-      setBetToConfirm(confirmationDetails);
+    if (details.subGameType === SubGameType.Bulk && details.betGroups) {
+        let totalAmount = 0;
+        let totalNumbers = 0;
+        let maxPotentialWin = 0;
+        
+        details.betGroups.forEach(group => {
+            const groupCost = group.numbers.length * group.amountPerNumber;
+            totalAmount += groupCost;
+            totalNumbers += group.numbers.length;
+            const prizeRate = getPrizeRateForBet(group.subGameType, user.prizeRates);
+            const potentialWin = group.amountPerNumber * prizeRate;
+            if (potentialWin > maxPotentialWin) {
+                maxPotentialWin = potentialWin;
+            }
+        });
+
+        confirmationDetails = {
+            gameId: selectedGame.id,
+            gameName: selectedGame.name,
+            subGameType: details.subGameType,
+            betGroups: details.betGroups,
+            totalAmount,
+            totalNumbers,
+            totalPotentialWinnings: maxPotentialWin
+        };
+    } else if (details.numbers && typeof details.amountPerNumber === 'number') {
+        const { numbers, amountPerNumber, subGameType } = details;
+        if(numbers.length === 0 || amountPerNumber <= 0) {
+            setBettingError("Invalid bet details provided.");
+            return;
+        }
+        const totalAmount = numbers.length * amountPerNumber;
+        const prizeRate = getPrizeRateForBet(subGameType, user.prizeRates);
+        
+        confirmationDetails = {
+            gameId: selectedGame.id,
+            gameName: selectedGame.name,
+            subGameType,
+            numbers,
+            amountPerNumber,
+            totalAmount,
+            totalNumbers: numbers.length, 
+            potentialWinnings: amountPerNumber * prizeRate // Prize for a single winning number
+        };
+    } else {
+        console.error("handleReviewBet received invalid details object:", details);
+        setBettingError("An internal error occurred while preparing your bet.");
+        return;
     }
-  };
+    
+    setBetToConfirm(confirmationDetails);
+};
   
   const handleConfirmBet = async () => {
     if (!betToConfirm) return;
