@@ -830,9 +830,9 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
   const [sortOption, setSortOption] = useState('name_asc');
 
   const handleSaveUser = async (userData: User, originalId?: string, initialDeposit?: number) => {
-      // This function now returns a promise that resolves on success and rejects on failure.
-      // The UserForm component will handle showing errors.
+      // The UserForm component will now handle showing errors by catching rejected promises.
       await onSaveUser(userData, originalId, initialDeposit);
+      // Only close modal on success.
       setIsModalOpen(false);
       setSelectedUser(undefined);
   };

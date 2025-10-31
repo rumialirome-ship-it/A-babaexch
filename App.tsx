@@ -312,7 +312,6 @@ const AppContent: React.FC = () => {
 
 function App() {
   return (
-    // FIX: Removed redundant AuthProvider as it's already in index.tsx
     <div className="App bg-transparent text-slate-200 h-full">
         <AppContent />
     </div>
