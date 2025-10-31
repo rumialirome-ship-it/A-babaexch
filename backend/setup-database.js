@@ -64,7 +64,8 @@ function main() {
                 name TEXT NOT NULL,
                 drawTime TEXT NOT NULL,
                 winningNumber TEXT,
-                payoutsApproved INTEGER DEFAULT 0
+                payoutsApproved INTEGER DEFAULT 0,
+                isMarketOpen INTEGER NOT NULL DEFAULT 1
             );
             CREATE TABLE bets (
                 id TEXT PRIMARY KEY,
@@ -112,7 +113,7 @@ function main() {
         const insertAdmin = db.prepare('INSERT INTO admins (id, name, password, wallet, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?)');
         const insertDealer = db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, isRestricted, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const insertUser = db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        const insertGame = db.prepare('INSERT INTO games (id, name, drawTime, winningNumber, payoutsApproved) VALUES (?, ?, ?, ?, ?)');
+        const insertGame = db.prepare('INSERT INTO games (id, name, drawTime, winningNumber, payoutsApproved, isMarketOpen) VALUES (?, ?, ?, ?, ?, ?)');
         const insertBet = db.prepare('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const insertLedger = db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
 
@@ -136,7 +137,7 @@ function main() {
 
             // Games
             jsonData.games.forEach(game => {
-                insertGame.run(game.id, game.name, game.drawTime, game.winningNumber || null, game.payoutsApproved ? 1 : 0);
+                insertGame.run(game.id, game.name, game.drawTime, game.winningNumber || null, game.payoutsApproved ? 1 : 0, 1);
             });
 
             // Bets

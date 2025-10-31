@@ -1,5 +1,6 @@
 
 
+
 export enum Role {
   Admin = 'ADMIN',
   Dealer = 'DEALER',
@@ -66,6 +67,7 @@ export interface Game {
   drawTime: string; // HH:MM
   winningNumber?: string; // two-digit string e.g., "42"
   payoutsApproved?: boolean;
+  isMarketOpen?: boolean;
 }
 
 export enum SubGameType {

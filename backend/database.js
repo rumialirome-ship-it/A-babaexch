@@ -114,6 +114,9 @@ const findAccountById = (id, table) => {
         if ('isRestricted' in account) {
             account.isRestricted = !!account.isRestricted;
         }
+        if ('isMarketOpen' in account) {
+            account.isMarketOpen = !!account.isMarketOpen;
+        }
     } catch (e) {
         console.error(`Failed to parse data for account in table ${table} with id ${id}`, e);
         // Return account with raw data to avoid crashing the entire request
@@ -178,6 +181,9 @@ const getAllFromTable = (table, withLedger = false) => {
             if ('isRestricted' in acc) {
                 acc.isRestricted = !!acc.isRestricted;
             }
+            if ('isMarketOpen' in acc) {
+                acc.isMarketOpen = !!acc.isMarketOpen;
+            }
         } catch (e) {
             console.error(`Failed to parse data for item in table ${table} with id ${acc.id}`, e);
         }
@@ -225,13 +231,13 @@ const declareWinnerForGame = (gameId, winningNumber) => {
                 throw { status: 400, message: 'AK open winner must be a single digit.' };
             }
             const partialWinner = `${winningNumber}_`;
-            db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(partialWinner, gameId);
+            db.prepare('UPDATE games SET winningNumber = ?, isMarketOpen = 0 WHERE id = ?').run(partialWinner, gameId);
         } else if (game.name === 'AKC') {
             if (!/^\d$/.test(winningNumber)) {
                 throw { status: 400, message: 'AKC winner must be a single digit.' };
             }
             // Update AKC itself
-            db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
+            db.prepare('UPDATE games SET winningNumber = ?, isMarketOpen = 0 WHERE id = ?').run(winningNumber, gameId);
 
             // Now, find the AK game and update it if it's pending
             const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get();
@@ -244,7 +250,7 @@ const declareWinnerForGame = (gameId, winningNumber) => {
             if (!/^\d{2}$/.test(winningNumber)) {
                 throw { status: 400, message: 'Winning number must be a 2-digit number.' };
             }
-            db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
+            db.prepare('UPDATE games SET winningNumber = ?, isMarketOpen = 0 WHERE id = ?').run(winningNumber, gameId);
         }
         finalGame = findAccountById(gameId, 'games');
     });
@@ -730,10 +736,9 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
 
         if (!dealer || !game || !admin) throw { status: 404, message: 'Dealer, Game or Admin not found' };
         if (!Array.isArray(betGroups) || betGroups.length === 0) throw { status: 400, message: 'Invalid bet format.' };
-        if (game.winningNumber) throw { status: 400, message: `Betting is closed for ${game.name} (winner declared).` };
-
+        
         // 2. Centralized Game Open/Close Check
-        if (!isGameOpen(game.drawTime)) {
+        if (!game.isMarketOpen || !isGameOpen(game.drawTime)) {
              throw { status: 400, message: `Betting is currently closed for ${game.name}. Market is not open.` };
         }
 
@@ -883,7 +888,7 @@ const performDailyResetIfNeeded = () => {
         console.error(`Performing daily market reset. Current time: ${now.toISOString()}, Last reset: ${lastResetTimestamp.toISOString()}, Boundary: ${lastResetBoundary.toISOString()}`);
         
         runInTransaction(() => {
-            const resetStmt = db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0');
+            const resetStmt = db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0, isMarketOpen = 1');
             const info = resetStmt.run();
             console.error(`Market reset successful. ${info.changes} games updated.`);
 

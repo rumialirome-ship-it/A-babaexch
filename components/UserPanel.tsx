@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
@@ -196,8 +197,8 @@ const formatTime12h = (time24: string) => {
 
 const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }> = ({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
-    const isPlayable = status === 'OPEN' && !isRestricted;
-    const isMarketClosed = status === 'SOON' || status === 'CLOSED';
+    const isPlayable = !!game.isMarketOpen && !isRestricted;
+    const isMarketClosed = !game.isMarketOpen;
 
     return (
         <div className={`bg-slate-800/50 rounded-lg shadow-lg p-4 flex flex-col justify-between transition-all duration-300 border border-slate-700 ${!isPlayable ? 'opacity-60' : 'hover:shadow-cyan-500/20 hover:-translate-y-1 hover:border-cyan-500/50'}`}>
@@ -222,8 +223,8 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
                         </>
                     ) : (
                          <>
-                            <div className="text-xs uppercase tracking-wider text-slate-400">LOADING...</div>
-                            <div className="text-3xl font-mono font-bold text-slate-400">{countdownText}</div>
+                            <div className="text-xs uppercase tracking-wider text-slate-400">MARKET OPENS</div>
+                            <div className="text-xl font-mono font-bold text-slate-400">{countdownText}</div>
                         </>
                     )}
                 </div>
