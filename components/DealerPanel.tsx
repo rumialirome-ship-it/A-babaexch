@@ -652,8 +652,8 @@ const BettingTerminalView: React.FC<{
             setBulkInput('');
             setSelectedGameId('');
             setSelectedUserId('');
-        } catch (e) {
-            // Error is displayed via alert in App.tsx
+        } catch (e: any) {
+            setError(e.message || 'An unknown error occurred while placing bets.');
         } finally {
             setIsLoading(false);
         }

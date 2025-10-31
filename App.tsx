@@ -147,7 +147,6 @@ const AppContent: React.FC = () => {
             }
             await fetchData();
         } catch (error: any) {
-            alert(`Error placing bet: ${error.message}`);
             throw error; // Re-throw to allow components to handle loading state
         }
     }, [fetchWithAuth, fetchData]);
@@ -169,7 +168,6 @@ const AppContent: React.FC = () => {
             alert('Bets placed successfully!');
             await fetchData();
         } catch (error: any) {
-            alert(`Error placing bets: ${error.message}`);
             throw error;
         }
     }, [fetchWithAuth, fetchData]);

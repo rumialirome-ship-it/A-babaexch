@@ -239,6 +239,8 @@ interface BettingModalProps {
     user: User;
     onClose: () => void;
     onPlaceBet: (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }) => void;
+    apiError: string | null;
+    clearApiError: () => void;
 }
 
 // Type for the new Combo Game UI state
@@ -248,7 +250,7 @@ interface ComboLine {
     selected: boolean;
 }
 
-const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlaceBet }) => {
+const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlaceBet, apiError, clearApiError }) => {
     const [subGameType, setSubGameType] = useState<SubGameType>(SubGameType.TwoDigit);
     const [manualNumbersInput, setManualNumbersInput] = useState('');
     const [manualAmountInput, setManualAmountInput] = useState('');
@@ -299,6 +301,14 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             setSubGameType(availableSubGameTabs[0]); 
         }
     }, [availableSubGameTabs, subGameType]);
+
+    // This effect clears the parent's API error when the user starts a new interaction.
+    useEffect(() => {
+        if (apiError) {
+            clearApiError();
+        }
+    }, [manualNumbersInput, manualAmountInput, bulkInput, comboDigitsInput, comboGlobalStake, subGameType, clearApiError]);
+
 
     if (!game) return null;
 
@@ -541,6 +551,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     };
 
     const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono";
+    const displayedError = apiError || error || parsedBulkBet.error || parsedManualBet.error;
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
@@ -658,9 +669,9 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                         <p className="text-slate-300">Commission: <span className="font-bold text-green-400">{user.commissionRate}%</span></p>
                     </div>
 
-                    {(error || parsedBulkBet.error || parsedManualBet.error) && (
+                    {displayedError && (
                         <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mb-4" role="alert">
-                            {error || parsedBulkBet.error || parsedManualBet.error}
+                            {displayedError}
                         </div>
                     )}
 
@@ -866,12 +877,14 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
   const [betConfirmation, setBetConfirmation] = useState<BetConfirmationDetails | null>(null);
   const [betToConfirm, setBetToConfirm] = useState<BetConfirmationDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [bettingError, setBettingError] = useState<string | null>(null);
   
   const userBets = bets.filter(b => b.userId === user.id);
 
   const handleReviewBet = (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }) => {
     if (selectedGame) {
       let confirmationDetails: BetConfirmationDetails;
+      setBettingError(null);
 
       if (details.subGameType === SubGameType.Bulk && details.betGroups) {
           let totalAmount = 0;
@@ -902,13 +915,13 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
           };
       }
       setBetToConfirm(confirmationDetails);
-      setSelectedGame(null);
     }
   };
   
   const handleConfirmBet = async () => {
     if (betToConfirm) {
         setIsLoading(true);
+        setBettingError(null);
         try {
             let betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] = [];
 
@@ -929,9 +942,10 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
             });
             
             setBetConfirmation(betToConfirm);
-        } catch (error) {
+            setSelectedGame(null); 
+        } catch (error: any) {
             console.error("Bet placement failed:", error);
-            // Error is alerted globally in App.tsx
+            setBettingError(error.message);
         } finally {
             setBetToConfirm(null);
             setIsLoading(false);
@@ -980,7 +994,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
       <BetHistoryView bets={userBets} games={games} user={user} />
       <LedgerView entries={user.ledger} />
       
-      {selectedGame && <BettingModal game={selectedGame} user={user} onClose={() => setSelectedGame(null)} onPlaceBet={handleReviewBet} />}
+      {selectedGame && <BettingModal game={selectedGame} user={user} onClose={() => { setSelectedGame(null); setBettingError(null); }} onPlaceBet={handleReviewBet} apiError={bettingError} clearApiError={() => setBettingError(null)} />}
       {betToConfirm && <BetConfirmationPromptModal details={betToConfirm} onConfirm={handleConfirmBet} onClose={() => setBetToConfirm(null)} isLoading={isLoading} />}
       {betConfirmation && <BetConfirmationModal details={betConfirmation} onClose={() => setBetConfirmation(null)} />}
     </div>
