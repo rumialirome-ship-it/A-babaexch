@@ -194,7 +194,7 @@ const formatTime12h = (time24: string) => {
 
 const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }> = ({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
-    const isPlayable = !!game.isMarketOpen && !isRestricted;
+    const isPlayable = !!game.isMarketOpen && !isRestricted && status === 'OPEN';
     const isMarketClosedForDisplay = !game.isMarketOpen || status === 'CLOSED';
 
     return (
