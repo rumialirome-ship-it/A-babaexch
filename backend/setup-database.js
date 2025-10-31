@@ -8,7 +8,7 @@ const JSON_DB_PATH = path.join(__dirname, 'db.json');
 
 function main() {
     if (fs.existsSync(DB_PATH)) {
-        console.log('Database file already exists. Aborting setup.');
+        console.error('Database file already exists. Aborting setup.');
         return;
     }
 
@@ -18,7 +18,7 @@ function main() {
     }
 
     const db = new Database(DB_PATH);
-    console.log('Created new SQLite database at:', DB_PATH);
+    console.error('Created new SQLite database at:', DB_PATH);
 
     const jsonData = JSON.parse(fs.readFileSync(JSON_DB_PATH, 'utf-8'));
 
@@ -105,7 +105,7 @@ function main() {
             CREATE INDEX idx_bets_userId ON bets(userId);
             CREATE INDEX idx_users_dealerId ON users(dealerId);
         `);
-        console.log('Database schema created.');
+        console.error('Database schema created.');
     };
     
     const migrateData = () => {
@@ -147,18 +147,18 @@ function main() {
             // System State
             const initialResetTimestamp = new Date(0).toISOString();
             db.prepare(`INSERT INTO system_state (key, value) VALUES ('lastResetTimestamp', ?)`).run(initialResetTimestamp);
-            console.log('System state initialized.');
+            console.error('System state initialized.');
             
-            console.log('Data migration complete.');
+            console.error('Data migration complete.');
         })();
     };
 
     try {
         createSchema();
         migrateData();
-        console.log('\nDatabase setup successful!');
-        console.log('You can now start the server.');
-        console.log('It is safe to delete the db.json file.');
+        console.error('\nDatabase setup successful!');
+        console.error('You can now start the server.');
+        console.error('It is safe to delete the db.json file.');
     } catch (error) {
         console.error('An error occurred during database setup:', error);
         fs.unlinkSync(DB_PATH); // Clean up failed DB creation

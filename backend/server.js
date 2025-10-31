@@ -1,8 +1,8 @@
-console.log('############################################################');
-console.log('--- EXECUTING LATEST SERVER.JS VERSION 3 ---');
-console.log('--- INTENDED PORT IS HARDCODED TO: 3001 ---');
-console.log(`--- Checking environment variable PORT: ${process.env.PORT || 'Not Set'} ---`);
-console.log('############################################################');
+console.error('############################################################');
+console.error('--- EXECUTING LATEST SERVER.JS VERSION 3 ---');
+console.error('--- INTENDED PORT IS HARDCODED TO: 3001 ---');
+console.error(`--- Checking environment variable PORT: ${process.env.PORT || 'Not Set'} ---`);
+console.error('############################################################');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -487,7 +487,7 @@ const startServer = () => {
   // The port is hardcoded here to ensure it matches the Nginx config and deployment guide.
   // This avoids conflicts from environment variables.
   app.listen(3001, () => {
-    console.log('>>> A-BABA BACKEND IS LIVE ON PORT 3001 <<<');
+    console.error('>>> A-BABA BACKEND IS LIVE ON PORT 3001 <<<');
   });
 };
 

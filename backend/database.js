@@ -56,7 +56,7 @@ const connect = () => {
         db = new Database(DB_PATH);
         db.pragma('journal_mode = WAL');
         db.pragma('foreign_keys = ON');
-        console.log('Database connected successfully.');
+        console.error('Database connected successfully.');
     } catch (error) {
         console.error('Failed to connect to database:', error);
         process.exit(1);
@@ -73,7 +73,7 @@ const verifySchema = () => {
         if (!table) {
             console.error('\n\n--- CRITICAL DATABASE ERROR ---');
             console.error('Database schema is missing. The "admins" table was not found.');
-            console.error('This means the database setup script was not run or failed.');
+            console.error('This is usually because the database setup script was not run or failed.');
             console.error('ACTION REQUIRED: Please stop the server, delete the database.sqlite file,');
             console.error('and run "npm run db:setup" in the /backend directory to initialize it.\n\n');
             process.exit(1);
@@ -880,12 +880,12 @@ const performDailyResetIfNeeded = () => {
     }
 
     if (lastResetTimestamp < lastResetBoundary) {
-        console.log(`Performing daily market reset. Current time: ${now.toISOString()}, Last reset: ${lastResetTimestamp.toISOString()}, Boundary: ${lastResetBoundary.toISOString()}`);
+        console.error(`Performing daily market reset. Current time: ${now.toISOString()}, Last reset: ${lastResetTimestamp.toISOString()}, Boundary: ${lastResetBoundary.toISOString()}`);
         
         runInTransaction(() => {
             const resetStmt = db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0');
             const info = resetStmt.run();
-            console.log(`Market reset successful. ${info.changes} games updated.`);
+            console.error(`Market reset successful. ${info.changes} games updated.`);
 
             const updateStmt = db.prepare(`UPDATE system_state SET value = ? WHERE key = 'lastResetTimestamp'`);
             updateStmt.run(now.toISOString());
