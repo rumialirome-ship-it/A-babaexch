@@ -738,7 +738,7 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         if (!Array.isArray(betGroups) || betGroups.length === 0) throw { status: 400, message: 'Invalid bet format.' };
         
         // 2. Centralized Game Open/Close Check
-        if (!game.isMarketOpen || !isGameOpen(game.drawTime)) {
+        if (!game.isMarketOpen) {
              throw { status: 400, message: `Betting is currently closed for ${game.name}. Market is not open.` };
         }
 
