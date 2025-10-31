@@ -751,6 +751,13 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
     );
 };
 
+const AnimatedCheckIcon = () => (
+  <svg className="animated-check" viewBox="0 0 52 52">
+    <circle className="animated-check__circle" cx="26" cy="26" r="25" fill="none"/>
+    <path className="animated-check__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+  </svg>
+);
+
 const BetConfirmationModal: React.FC<{ details: BetConfirmationDetails; onClose: () => void; }> = ({ details, onClose }) => {
     const [isShowing, setIsShowing] = useState(false);
     useEffect(() => { const timer = setTimeout(() => setIsShowing(true), 50); return () => clearTimeout(timer); }, []);
@@ -760,8 +767,8 @@ const BetConfirmationModal: React.FC<{ details: BetConfirmationDetails; onClose:
         <div className={`fixed inset-0 bg-black flex justify-center items-center z-50 p-4 transition-opacity duration-300 ease-out ${isShowing ? 'bg-opacity-80' : 'bg-opacity-0'}`}>
             <div className={`bg-slate-900/80 rounded-2xl shadow-2xl w-full max-w-md border border-green-500/30 transition-all duration-300 ease-out transform ${isShowing ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                 <div className="p-8 text-center">
-                    <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-500/20 mb-5 shadow-[0_0_20px_rgba(74,222,128,0.3)]">
-                       {React.cloneElement(Icons.checkCircle, { className: "h-12 w-12 text-green-400" })}
+                    <div className="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-green-500/20 mb-5 shadow-[0_0_20px_rgba(74,222,128,0.3)]">
+                       <AnimatedCheckIcon />
                     </div>
                     <h3 className="text-3xl font-bold text-white mb-2 uppercase tracking-wider">Bet Placed!</h3>
                     <p className="text-slate-300 mb-8">Your bet has been recorded. Good luck!</p>
