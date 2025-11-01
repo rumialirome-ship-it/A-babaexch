@@ -645,13 +645,28 @@ const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: nu
 );
 
 
-const NumberSummaryView: React.FC<{ games: Game[]; dealers: Dealer[]; }> = ({ games, dealers }) => {
+const NumberSummaryView: React.FC<{
+    games: Game[];
+    dealers: Dealer[];
+    users: User[];
+    onPlaceAdminBets: AdminPanelProps['onPlaceAdminBets'];
+}> = ({ games, dealers, users, onPlaceAdminBets }) => {
     const getTodayDateString = () => new Date().toISOString().split('T')[0];
     const [filters, setFilters] = useState({ gameId: '', dealerId: '', date: getTodayDateString() });
+    const [numberFilter, setNumberFilter] = useState('');
     const [summary, setSummary] = useState<{ twoDigit: any[], oneDigitOpen: any[], oneDigitClose: any[] } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const { fetchWithAuth } = useAuth();
     
+    const [betState, setBetState] = useState({
+        userId: '',
+        gameId: '',
+        stake: '',
+        isLoading: false,
+        error: null as string | null,
+        success: null as string | null,
+    });
+
     const fetchSummary = async () => {
         if (!filters.date) {
             setSummary(null);
@@ -689,15 +704,120 @@ const NumberSummaryView: React.FC<{ games: Game[]; dealers: Dealer[]; }> = ({ ga
     
     const clearFilters = () => {
         setFilters({ gameId: '', dealerId: '', date: getTodayDateString() });
+        setNumberFilter('');
+    };
+    
+    const filteredSummary = useMemo(() => {
+        if (!summary) return null;
+        if (!numberFilter.trim()) return summary;
+
+        const filterLogic = (numStr: string) => {
+            const filterValue = numberFilter.trim();
+            const cleanFilter = filterValue.replace(/[\^$]/g, '');
+            if (!cleanFilter) return true;
+            if (filterValue.startsWith('^')) return numStr.startsWith(cleanFilter);
+            if (filterValue.endsWith('$')) return numStr.endsWith(cleanFilter);
+            return numStr.includes(cleanFilter);
+        };
+        
+        return {
+            twoDigit: summary.twoDigit.filter(item => filterLogic(item.number)),
+            oneDigitOpen: summary.oneDigitOpen.filter(item => filterLogic(item.number)),
+            oneDigitClose: summary.oneDigitClose.filter(item => filterLogic(item.number)),
+        };
+    }, [summary, numberFilter]);
+
+    const handleBetStateChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+        setBetState(prev => ({
+            ...prev,
+            [e.target.name]: e.target.value,
+            error: null,
+            success: null,
+        }));
+    };
+    
+    const handleQuickBet = async (type: '2-digit' | '1-open' | '1-close') => {
+        const { userId, gameId, stake } = betState;
+        if (!userId || !gameId || !stake || Number(stake) <= 0) {
+            setBetState(prev => ({...prev, error: "Please select a user, a game, and enter a valid stake amount."}));
+            return;
+        }
+
+        setBetState(prev => ({...prev, isLoading: true, error: null, success: null}));
+        
+        const numbers = (type === '2-digit')
+            ? Array.from({ length: 100 }, (_, i) => String(i).padStart(2, '0'))
+            : Array.from({ length: 10 }, (_, i) => String(i));
+        
+        const subGameType = type === '1-open' 
+            ? SubGameType.OneDigitOpen 
+            : type === '1-close' 
+                ? SubGameType.OneDigitClose 
+                : SubGameType.TwoDigit;
+
+        try {
+            await onPlaceAdminBets({
+                userId,
+                gameId,
+                betGroups: [{
+                    subGameType: subGameType,
+                    numbers: numbers,
+                    amountPerNumber: Number(stake)
+                }]
+            });
+            setBetState(prev => ({...prev, isLoading: false, success: `Successfully placed bets on all ${type} numbers!`}));
+        } catch (err: any) {
+            setBetState(prev => ({...prev, isLoading: false, error: err.message || 'An unknown error occurred.'}));
+        }
     };
 
     const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
+    const openGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
+    const activeUsers = useMemo(() => users.filter(u => !u.isRestricted), [users]);
+    const finalSummary = filteredSummary || summary;
 
     return (
         <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Admin Quick Bet</h3>
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Bet For User</label>
+                        <select name="userId" value={betState.userId} onChange={handleBetStateChange} className={inputClass}>
+                            <option value="">-- Select User --</option>
+                            {activeUsers.map(u => <option key={u.id} value={u.id}>{u.name} ({u.id})</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Game</label>
+                        <select name="gameId" value={betState.gameId} onChange={handleBetStateChange} className={inputClass}>
+                            <option value="">-- Select Game --</option>
+                            {openGames.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Stake Per Number</label>
+                        <input type="number" name="stake" value={betState.stake} onChange={handleBetStateChange} placeholder="e.g., 10" className={inputClass} />
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                    <button onClick={() => handleQuickBet('2-digit')} disabled={betState.isLoading} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed">
+                        {betState.isLoading ? 'Processing...' : 'Bet All 2-Digit (00-99)'}
+                    </button>
+                    <button onClick={() => handleQuickBet('1-open')} disabled={betState.isLoading} className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed">
+                        {betState.isLoading ? 'Processing...' : 'Bet All 1-Digit Open (0-9)'}
+                    </button>
+                    <button onClick={() => handleQuickBet('1-close')} disabled={betState.isLoading} className="bg-rose-600 hover:bg-rose-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed">
+                        {betState.isLoading ? 'Processing...' : 'Bet All 1-Digit Close (0-9)'}
+                    </button>
+                </div>
+                {betState.error && <div className="bg-red-500/20 text-red-300 p-3 rounded-md text-sm mt-2">{betState.error}</div>}
+                {betState.success && <div className="bg-green-500/20 text-green-300 p-3 rounded-md text-sm mt-2">{betState.success}</div>}
+            </div>
+            
             <h3 className="text-xl font-semibold text-white mb-4">Number-wise Stake Summary</h3>
             <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
                     <div>
                         <label className="block text-sm font-medium text-slate-400 mb-1">Date</label>
                         <input type="date" name="date" value={filters.date} onChange={handleFilterChange} className={`${inputClass} font-sans`} />
@@ -716,18 +836,22 @@ const NumberSummaryView: React.FC<{ games: Game[]; dealers: Dealer[]; }> = ({ ga
                             {dealers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                         </select>
                     </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Filter by Number</label>
+                        <input type="text" value={numberFilter} onChange={e => setNumberFilter(e.target.value)} placeholder="e.g., ^5, 5$, 5" className={inputClass} />
+                    </div>
                     <button onClick={clearFilters} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Clear Filters</button>
                 </div>
             </div>
             {isLoading && !summary ? (
                 <div className="text-center p-8 text-slate-400">Loading summary...</div>
-            ) : !summary ? (
+            ) : !finalSummary ? (
                 <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 text-slate-500">Please select a date to view the summary.</div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <SummaryColumn title="2 Digit Stakes" data={summary.twoDigit} color="text-cyan-400" />
-                    <SummaryColumn title="1 Digit Open" data={summary.oneDigitOpen} color="text-amber-400" />
-                    <SummaryColumn title="1 Digit Close" data={summary.oneDigitClose} color="text-rose-400" />
+                    <SummaryColumn title="2 Digit Stakes" data={finalSummary.twoDigit} color="text-cyan-400" />
+                    <SummaryColumn title="1 Digit Open" data={finalSummary.oneDigitOpen} color="text-amber-400" />
+                    <SummaryColumn title="1 Digit Close" data={finalSummary.oneDigitClose} color="text-rose-400" />
                 </div>
             )}
         </div>
@@ -748,15 +872,15 @@ interface AdminPanelProps {
   topUpDealerWallet: (dealerId: string, amount: number) => void;
   withdrawFromDealerWallet: (dealerId: string, amount: number) => void;
   toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
-  // FIX: Add missing onPlaceAdminBets prop
   onPlaceAdminBets: (details: {
     userId: string;
     gameId: string;
     betGroups: any[];
   }) => Promise<void>;
+  updateGameDrawTime: (gameId: string, newDrawTime: string) => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -769,6 +893,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
+  const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
   const { fetchWithAuth } = useAuth();
   
   useEffect(() => {
@@ -883,7 +1008,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       
       {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
       {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} />}
-      {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} />}
+      {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
       {activeTab === 'limits' && <NumberLimitsView />}
 
       {activeTab === 'dealers' && (
@@ -1017,7 +1142,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                 <button onClick={() => handleDeclareWinner(game.id, game.name)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Declare</button>
                             </div>
                         )}
-                        <p className="text-sm text-slate-400">Draw Time: {game.drawTime}</p>
+                        <div className="text-sm text-slate-400 flex items-center gap-2">
+                          <span>Draw Time:</span>
+                          {editingDrawTime?.gameId === game.id ? (
+                              <>
+                                  <input 
+                                      type="time" 
+                                      value={editingDrawTime.time}
+                                      onChange={(e) => setEditingDrawTime({ ...editingDrawTime, time: e.target.value })}
+                                      className="bg-slate-900 p-1 rounded-md border border-slate-600 focus:ring-1 focus:ring-cyan-500 text-sm text-white"
+                                  />
+                                  <button 
+                                      onClick={async () => {
+                                          try {
+                                              await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time);
+                                              setEditingDrawTime(null);
+                                          } catch (error: any) {
+                                              alert(`Failed to update time: ${error.message}`);
+                                          }
+                                      }}
+                                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
+                                      Save
+                                  </button>
+                                  <button 
+                                      onClick={() => setEditingDrawTime(null)}
+                                      className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
+                                      Cancel
+                                  </button>
+                              </>
+                          ) : (
+                              <>
+                                  <span className="font-semibold text-slate-300">{game.drawTime}</span>
+                                  <button 
+                                      onClick={() => setEditingDrawTime({ gameId: game.id, time: game.drawTime })}
+                                      className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-2 rounded-md text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      disabled={!!game.winningNumber}
+                                  >
+                                      Edit
+                                  </button>
+                              </>
+                          )}
+                        </div>
                         {(isAK || isAKC) && (
                             <p className="text-xs text-slate-500 mt-2">
                                 Note: The AKC result provides the 'close' digit for the AK game.

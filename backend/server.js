@@ -441,6 +441,17 @@ app.put('/api/admin/games/:id/update-winner', authMiddleware, (req, res) => {
     }
 });
 
+app.put('/api/admin/games/:id/draw-time', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    const { newDrawTime } = req.body;
+    try {
+        const updatedGame = database.updateGameDrawTime(req.params.id, newDrawTime);
+        res.json(updatedGame);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
+});
+
 app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try {
