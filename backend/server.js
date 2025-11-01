@@ -333,6 +333,19 @@ app.get('/api/admin/number-summary', authMiddleware, (req, res) => {
     }
 });
 
+app.post('/api/admin/bulk-bet', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    const { userId, gameId, betGroups } = req.body;
+
+    try {
+        // We pass 'ADMIN' to correctly attribute the bet in the ledger.
+        const createdBets = database.placeBulkBets(userId, gameId, betGroups, 'ADMIN');
+        res.status(201).json(createdBets);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
+});
+
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     const dealerData = req.body;

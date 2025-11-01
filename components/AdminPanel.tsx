@@ -624,25 +624,81 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
 };
 
 // --- NUMBER SUMMARY VIEW ---
-const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: number }[]; color: string; }> = ({ title, data, color }) => (
-    <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col">
-        <h4 className={`text-lg font-semibold text-center mb-3 ${color}`}>{title}</h4>
-        <div className="flex-grow overflow-y-auto pr-2 space-y-2 max-h-[60vh]">
-            {data.length === 0 ? (
-                <p className="text-slate-500 text-sm text-center pt-4">No data for this selection.</p>
-            ) : (
-                data.map((item, index) => (
-                    <div key={index} className="flex justify-between items-baseline text-sm p-3 rounded-md bg-slate-900/50 transition-all hover:bg-slate-800/70 border-l-4 border-transparent hover:border-cyan-500">
-                        <span className={`font-mono text-2xl font-bold ${color}`}>{item.number}</span>
-                        <span className="font-mono text-white font-semibold text-lg">
-                            Rs {item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}
-                        </span>
-                    </div>
-                ))
-            )}
+const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: number }[]; color: string; }> = ({ title, data, color }) => {
+    const [copyStatus, setCopyStatus] = useState('Copy');
+
+    const handleCopy = () => {
+        if (data.length === 0 || copyStatus !== 'Copy') return;
+
+        const copyText = data
+            .map(item => `${item.number} - Rs${item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}`)
+            .join(', ');
+            
+        navigator.clipboard.writeText(copyText).then(() => {
+            setCopyStatus('Copied!');
+            setTimeout(() => setCopyStatus('Copy'), 2000);
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            setCopyStatus('Failed!');
+             setTimeout(() => setCopyStatus('Copy'), 2000);
+        });
+    };
+
+    const getButtonContent = () => {
+        switch(copyStatus) {
+            case 'Copied!':
+                return (
+                    <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        {copyStatus}
+                    </>
+                );
+            case 'Failed!':
+                 return (
+                    <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        {copyStatus}
+                    </>
+                );
+            default: // 'Copy'
+                return (
+                    <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        {copyStatus}
+                    </>
+                );
+        }
+    };
+
+    return (
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col">
+            <div className="flex justify-between items-center mb-3">
+                <h4 className={`text-lg font-semibold ${color}`}>{title}</h4>
+                <button
+                    onClick={handleCopy}
+                    disabled={data.length === 0}
+                    className="flex items-center bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-1 px-3 rounded-md text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {getButtonContent()}
+                </button>
+            </div>
+            <div className="flex-grow overflow-y-auto pr-2 space-y-2 max-h-[60vh]">
+                {data.length === 0 ? (
+                    <p className="text-slate-500 text-sm text-center pt-4">No data for this selection.</p>
+                ) : (
+                    data.map((item, index) => (
+                        <div key={index} className="flex justify-between items-baseline text-sm p-3 rounded-md bg-slate-900/50 transition-all hover:bg-slate-800/70 border-l-4 border-transparent hover:border-cyan-500">
+                            <span className={`font-mono text-2xl font-bold ${color}`}>{item.number}</span>
+                            <span className="font-mono text-white font-semibold text-lg">
+                                Rs {item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                            </span>
+                        </div>
+                    ))
+                )}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 
 const NumberSummaryView: React.FC<{

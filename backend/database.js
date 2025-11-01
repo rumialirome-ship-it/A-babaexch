@@ -811,7 +811,13 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         // 7. Process Ledger Entries
         const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
         const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
-        const betDescription = placedBy === 'DEALER' ? `Bet placed by Dealer on ${game.name}` : `Bet placed on ${game.name}`;
+        
+        let betDescription = `Bet placed on ${game.name}`;
+        if (placedBy === 'DEALER') {
+            betDescription = `Bet placed by Dealer on ${game.name}`;
+        } else if (placedBy === 'ADMIN') {
+            betDescription = `Bet placed by Admin on ${game.name}`;
+        }
 
         // User Ledger: Debit full stake, then credit their commission back for clarity.
         addLedgerEntry(user.id, 'USER', betDescription, totalTransactionAmount, 0);
