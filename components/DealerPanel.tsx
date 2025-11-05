@@ -580,7 +580,7 @@ const BettingTerminalView: React.FC<{
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const activeUsers = useMemo(() => users.filter(u => !u.isRestricted), [users]);
-    const openGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
+    const openGames = useMemo(() => games.filter(g => !g.winningNumber), [users]);
     const selectedUser = useMemo(() => users.find(u => u.id === selectedUserId), [users, selectedUserId]);
     const selectedGameName = useMemo(() => games.find(g => g.id === selectedGameId)?.name, [games, selectedGameId]);
     
@@ -595,7 +595,7 @@ const BettingTerminalView: React.FC<{
         const allLines = input.split('\n').filter(line => line.trim() !== '');
         if (allLines.length === 0) return result;
         
-        const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*(combo|k)?\s*$/i;
+        const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*$/i;
         const linesWithStakes = allLines.map(line => line.match(stakeRegex)).filter(Boolean);
         let globalStake: number | null = null;
         if (linesWithStakes.length === 1) {
@@ -622,7 +622,9 @@ const BettingTerminalView: React.FC<{
             const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit, error: undefined };
             let betPart = lineText.trim();
             let lineStake: number | null = null;
-            let isComboLine = false;
+            
+            const isComboLine = /\b(k|combo)\b/i.test(betPart);
+
             const localStakeMatch = lineText.match(stakeRegex);
 
             if (globalStake) {
@@ -633,8 +635,6 @@ const BettingTerminalView: React.FC<{
                 if (!isNaN(parsedStake) && parsedStake > 0) { lineStake = parsedStake; }
                 betPart = betPart.substring(0, localStakeMatch.index).trim();
             }
-
-            isComboLine = !!localStakeMatch?.[2];
 
             if (isAkcGame && isComboLine) {
                 parsedLine.error = "Combo 'k' bets are not allowed for AKC game.";
@@ -650,13 +650,20 @@ const BettingTerminalView: React.FC<{
             parsedLine.stake = effectiveStake;
             const lineItems: { type: SubGameType, value: string }[] = [];
             let lineHasError = false;
+            
             if (isComboLine) {
-                const digits = tokens.join('').replace(/[^0-9]/g, '');
-                const uniqueDigits = [...new Set(digits.split(''))].sort();
-                if (uniqueDigits.length < 2) { parsedLine.error = `Combo needs at least 2 unique digits.`; lineHasError = true; } 
-                else {
+                const digits = betPart.replace(/\D/g, '');
+                const uniqueDigits = [...new Set(digits.split(''))];
+                if (uniqueDigits.length < 3 || uniqueDigits.length > 6) { 
+                    parsedLine.error = `Combo must have 3 to 6 unique digits.`; 
+                    lineHasError = true; 
+                } else {
                     for (let i = 0; i < uniqueDigits.length; i++) {
-                        for (let j = i + 1; j < uniqueDigits.length; j++) { lineItems.push({ type: SubGameType.TwoDigit, value: uniqueDigits[i] + uniqueDigits[j] }); }
+                        for (let j = 0; j < uniqueDigits.length; j++) { 
+                            if (i !== j) {
+                                lineItems.push({ type: SubGameType.TwoDigit, value: uniqueDigits[i] + uniqueDigits[j] }); 
+                            }
+                        }
                     }
                 }
             } else {
