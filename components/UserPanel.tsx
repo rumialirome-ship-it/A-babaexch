@@ -330,8 +330,14 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     }, [game]);
 
     useEffect(() => {
+        // Clear all inputs when the sub-game type (tab) changes to prevent submitting old data
         setManualNumbersInput('');
         setManualAmountInput('');
+        setBulkInput('');
+        setComboDigitsInput('');
+        setGeneratedCombos([]);
+        setComboGlobalStake('');
+        setError(null);
     }, [subGameType]);
 
     const handleManualNumberChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

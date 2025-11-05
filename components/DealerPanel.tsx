@@ -582,11 +582,13 @@ const BettingTerminalView: React.FC<{
     const activeUsers = useMemo(() => users.filter(u => !u.isRestricted), [users]);
     const openGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
     const selectedUser = useMemo(() => users.find(u => u.id === selectedUserId), [users, selectedUserId]);
+    const selectedGameName = useMemo(() => games.find(g => g.id === selectedGameId)?.name, [games, selectedGameId]);
     
     const parsedBulkBet = useMemo(() => {
         interface ParsedLine { originalText: string; numbers: string[]; stake: number; cost: number; subGameType: string; error?: string; }
         const result = { lines: [] as ParsedLine[], totalCost: 0, totalNumbers: 0, error: null as string | null, betGroups: [] as { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] };
         
+        const isAkcGame = selectedGameName === 'AKC';
         const input = bulkInput.trim();
         if (!input) return result;
 
@@ -603,11 +605,17 @@ const BettingTerminalView: React.FC<{
         }
 
         const determineType = (token: string): SubGameType | null => {
+            if (isAkcGame) {
+                if (/^[xX]\d$/.test(token)) return SubGameType.OneDigitClose;
+                return null; // For AKC, only close numbers are valid
+            }
+            // Original logic for other games
             if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
             if (/^\d[xX]$/i.test(token)) return SubGameType.OneDigitOpen;
             if (/^[xX]\d$/i.test(token)) return SubGameType.OneDigitClose;
             return null;
         };
+
         const aggregatedGroups: Map<string, { subGameType: SubGameType; numbers: Set<string>; amountPerNumber: number }> = new Map();
         
         for (const lineText of allLines) {
@@ -627,9 +635,16 @@ const BettingTerminalView: React.FC<{
             }
 
             isComboLine = !!localStakeMatch?.[2];
+
+            if (isAkcGame && isComboLine) {
+                parsedLine.error = "Combo 'k' bets are not allowed for AKC game.";
+                result.lines.push(parsedLine);
+                continue; // Go to next line
+            }
+
             const effectiveStake = lineStake;
             betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
-            const tokens = betPart.replace(/,{1,2}|\.{2,}/g, ' ').split(/\s+/).filter(Boolean);
+            const tokens = betPart.replace(/,{1,2}|\.{2,}/g, ' ').split(/[\s,.-]+/).filter(Boolean);
             if (tokens.length === 0) { if (betPart !== '') { parsedLine.error = "No numbers found."; result.lines.push(parsedLine); } continue; }
             if (!effectiveStake || effectiveStake <= 0) { parsedLine.error = "Stake not found (e.g., '... r10')"; result.lines.push(parsedLine); continue; }
             parsedLine.stake = effectiveStake;
@@ -647,7 +662,11 @@ const BettingTerminalView: React.FC<{
             } else {
                 for (const token of tokens) {
                     const tokenType = determineType(token);
-                    if (!tokenType) { parsedLine.error = `Invalid token: '${token}'`; lineHasError = true; break; }
+                    if (!tokenType) { 
+                        parsedLine.error = `Invalid token for ${isAkcGame ? 'AKC' : 'this game'}: '${token}'`;
+                        lineHasError = true; 
+                        break; 
+                    }
                     let numberValue = '';
                     if (tokenType === SubGameType.TwoDigit) numberValue = token.padStart(2, '0');
                     else if (tokenType === SubGameType.OneDigitOpen) numberValue = token[0];
@@ -673,7 +692,7 @@ const BettingTerminalView: React.FC<{
         result.totalCost = result.betGroups.reduce((sum, group) => sum + (group.numbers.length * group.amountPerNumber), 0);
         if (result.lines.some(l => l.error)) result.error = 'Please review invalid lines.';
         return result;
-    }, [bulkInput]);
+    }, [bulkInput, selectedGameName]);
     
     const canPlaceBet = selectedUserId && selectedGameId && parsedBulkBet.totalCost > 0 && !parsedBulkBet.error && selectedUser && selectedUser.wallet >= parsedBulkBet.totalCost;
 
@@ -695,11 +714,9 @@ const BettingTerminalView: React.FC<{
                 gameId: selectedGameId,
                 betGroups: parsedBulkBet.betGroups,
             });
-            // Reset form on success
+            // Reset form on success, but keep user and game selected
             setSuccessMessage(`Successfully placed ${parsedBulkBet.totalNumbers} bets for ${selectedUser?.name}. Total cost: ${parsedBulkBet.totalCost.toFixed(2)} PKR.`);
             setBulkInput('');
-            setSelectedGameId('');
-            setSelectedUserId('');
         } catch (e: any) {
             setError(e.message || 'An unknown error occurred while placing bets.');
         } finally {
