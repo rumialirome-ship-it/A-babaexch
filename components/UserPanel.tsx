@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
@@ -327,6 +328,11 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         if (game.name === 'AKC') return [SubGameType.OneDigitClose, SubGameType.Bulk];
         return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
     }, [game]);
+
+    useEffect(() => {
+        setManualNumbersInput('');
+        setManualAmountInput('');
+    }, [subGameType]);
 
     const handleManualNumberChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const rawValue = e.target.value;
