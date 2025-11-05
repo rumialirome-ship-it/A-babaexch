@@ -325,7 +325,10 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     const availableSubGameTabs = useMemo(() => {
         if (!game) return [];
         if (game.name === 'AK') return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.Bulk];
-        if (game.name === 'AKC') return [SubGameType.OneDigitClose, SubGameType.Bulk];
+        // For AKC, only 1 Digit Close is allowed. This hides Bulk Bet and other irrelevant options.
+        if (game.name === 'AKC') {
+            return [SubGameType.OneDigitClose];
+        }
         return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
     }, [game]);
 
