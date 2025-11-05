@@ -1,43 +1,93 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
 import { useCountdown } from '../hooks/useCountdown';
 
-const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
-    <div className="mt-12">
-        <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">My Ledger</h3>
-        <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-            <div className="overflow-x-auto max-h-[30rem] mobile-scroll-x">
-                <table className="w-full text-left min-w-[600px]">
-                    <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
-                        <tr>
-                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
-                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
-                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Debit</th>
-                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Credit</th>
-                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                        {[...entries].reverse().map(entry => (
-                            <tr key={entry.id} className="hover:bg-sky-500/10 transition-colors">
-                                <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
-                                <td className="p-4 text-white">{entry.description}</td>
-                                <td className="p-4 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
-                                <td className="p-4 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
-                                <td className="p-4 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
+const getTodayDateString = () => new Date().toISOString().split('T')[0];
+
+const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
+
+    const filteredEntries = useMemo(() => {
+        if (!startDate && !endDate) return entries;
+        return entries.filter(entry => {
+            const entryDateStr = entry.timestamp.toISOString().split('T')[0];
+            if (startDate && entryDateStr < startDate) return false;
+            if (endDate && entryDateStr > endDate) return false;
+            return true;
+        });
+    }, [entries, startDate, endDate]);
+
+    const handleClearFilters = () => {
+        setStartDate('');
+        setEndDate('');
+    };
+
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white";
+
+    return (
+        <div className="mt-12">
+            <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">My Ledger</h3>
+
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div className="flex items-center">
+                        <button onClick={handleClearFilters} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Show All History</button>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="overflow-x-auto max-h-[30rem] mobile-scroll-x">
+                    <table className="w-full text-left min-w-[600px]">
+                        <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
+                            <tr>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Debit</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Credit</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {[...filteredEntries].reverse().map(entry => (
+                                <tr key={entry.id} className="hover:bg-sky-500/10 transition-colors">
+                                    <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
+                                    <td className="p-4 text-white">{entry.description}</td>
+                                    <td className="p-4 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
+                                    <td className="p-4 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
+                                    <td className="p-4 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                            {filteredEntries.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="p-8 text-center text-slate-500">
+                                        No ledger entries found for the selected date range.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
+
 
 const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ bets, games, user }) => {
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
 
     const getBetOutcome = (bet: Bet) => {
@@ -236,12 +286,20 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
 
 interface BettingModalProps {
     game: Game | null;
+    games: Game[];
     user: User;
     onClose: () => void;
-    onPlaceBet: (details: { subGameType: SubGameType; numbers?: string[]; amountPerNumber?: number; betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }) => void;
+    onPlaceBet: (details: {
+        gameId: string;
+        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
+    } | {
+        isMultiGame: true;
+        multiGameBets: Map<string, { gameName: string, betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>;
+    }) => void;
     apiError: string | null;
     clearApiError: () => void;
 }
+
 
 // Type for the new Combo Game UI state
 interface ComboLine {
@@ -250,7 +308,7 @@ interface ComboLine {
     selected: boolean;
 }
 
-const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlaceBet, apiError, clearApiError }) => {
+const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose, onPlaceBet, apiError, clearApiError }) => {
     const [subGameType, setSubGameType] = useState<SubGameType>(SubGameType.TwoDigit);
     const [manualNumbersInput, setManualNumbersInput] = useState('');
     const [manualAmountInput, setManualAmountInput] = useState('');
@@ -265,9 +323,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
 
     const availableSubGameTabs = useMemo(() => {
         if (!game) return [];
-        if (game.name === 'AK') return [SubGameType.TwoDigit, SubGameType.OneDigitOpen];
-        if (game.name === 'AKC') return [SubGameType.OneDigitClose];
-        // For other games, enable all types including the new Combo Game
+        if (game.name === 'AK') return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.Bulk];
+        if (game.name === 'AKC') return [SubGameType.OneDigitClose, SubGameType.Bulk];
         return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
     }, [game]);
 
@@ -313,96 +370,104 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     if (!game) return null;
 
      const parsedBulkBet = useMemo(() => {
-        interface ParsedLine { originalText: string; numbers: string[]; stake: number; cost: number; subGameType: string; error?: string; }
-        const result = { lines: [] as ParsedLine[], totalCost: 0, totalNumbers: 0, error: null as string | null, betGroups: [] as { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] };
-        
+        type BetGroupMap = Map<string, { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }>;
+        interface ParsedResult {
+            betsByGame: Map<string, { gameName: string; totalCost: number; totalNumbers: number; betGroups: BetGroupMap }>;
+            grandTotalCost: number;
+            grandTotalNumbers: number;
+            errors: string[];
+        }
+        const result: ParsedResult = { betsByGame: new Map(), grandTotalCost: 0, grandTotalNumbers: 0, errors: [] };
         const input = bulkInput.trim();
         if (!input) return result;
 
-        const allLines = input.split('\n').filter(line => line.trim() !== '');
-        if (allLines.length === 0) return result;
-        
-        const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*(combo|k)?\s*$/i;
-        const linesWithStakes = allLines.map(line => line.match(stakeRegex)).filter(Boolean);
-        let globalStake: number | null = null;
-        if (linesWithStakes.length === 1) {
-            const match = linesWithStakes[0];
-            const parsedStake = parseFloat(match[1]);
-            if (!isNaN(parsedStake) && parsedStake > 0) { globalStake = parsedStake; }
-        }
+        const gameNameMap = new Map<string, string>();
+        games.forEach(g => gameNameMap.set(g.name.toLowerCase().replace(/\s+/g, ''), g.id));
+        const gameNameRegex = new RegExp(`\\b(${Array.from(gameNameMap.keys()).join('|')})\\b`, 'i');
+        const delimiterRegex = /[-.,_*\/+<>=%#;'xX\s]+/;
 
-        const determineType = (token: string): SubGameType | null => {
-            if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
-            if (/^\d[xX]$/i.test(token)) return SubGameType.OneDigitOpen;
-            if (/^[xX]\d$/i.test(token)) return SubGameType.OneDigitClose;
-            return null;
-        };
-        const aggregatedGroups: Map<string, { subGameType: SubGameType; numbers: Set<string>; amountPerNumber: number }> = new Map();
+        let currentGameId: string | null = game.id;
         
-        for (const lineText of allLines) {
-            const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit, error: undefined };
-            let betPart = lineText.trim();
-            let lineStake: number | null = null;
-            let isComboLine = false;
-            const localStakeMatch = lineText.match(stakeRegex);
+        for (const line of input.split('\n')) {
+            let currentLine = line.trim();
+            if (!currentLine) continue;
 
-            if (globalStake) {
-                lineStake = globalStake;
-                if (localStakeMatch) { betPart = betPart.substring(0, localStakeMatch.index).trim(); }
-            } else if (localStakeMatch) {
-                const parsedStake = parseFloat(localStakeMatch[1]);
-                if (!isNaN(parsedStake) && parsedStake > 0) { lineStake = parsedStake; }
-                betPart = betPart.substring(0, localStakeMatch.index).trim();
+            let gameNameOnLine: string | null = null;
+            const gameMatch = currentLine.toLowerCase().replace(/\s+/g, '').match(gameNameRegex);
+            if (gameMatch) {
+                const matchedGameKey = gameMatch[0];
+                currentGameId = gameNameMap.get(matchedGameKey) || null;
+                // Remove the game name from the line for further processing
+                const originalGameNameRegex = new RegExp(`\\b(${games.find(g => g.id === currentGameId)?.name})\\b`, 'i');
+                currentLine = currentLine.replace(originalGameNameRegex, '').trim();
             }
 
-            isComboLine = !!localStakeMatch?.[2];
-            const effectiveStake = lineStake;
+            if (!currentGameId) {
+                result.errors.push(`Line "${line}" has no valid game specified.`);
+                continue;
+            }
+            gameNameOnLine = games.find(g => g.id === currentGameId)?.name || 'Unknown Game';
+
+            const stakeMatch = currentLine.match(/(?:rs|r)\s*(\d+\.?\d*)/i);
+            const stake = stakeMatch ? parseFloat(stakeMatch[1]) : 0;
+            if (stake <= 0) {
+                result.errors.push(`Line "${line}" has no valid stake (e.g., 'r10' or 'rs10').`);
+                continue;
+            }
+            let betPart = stakeMatch ? currentLine.substring(0, stakeMatch.index).trim() : currentLine;
+
+            const isCombo = /\b(k|combo)\b/i.test(betPart);
             betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
-            const tokens = betPart.replace(/,{1,2}|\.{2,}/g, ' ').split(/\s+/).filter(Boolean);
-            if (tokens.length === 0) { if (betPart !== '') { parsedLine.error = "No numbers found."; result.lines.push(parsedLine); } continue; }
-            if (!effectiveStake || effectiveStake <= 0) { parsedLine.error = "Stake not found (e.g., '... r10')"; result.lines.push(parsedLine); continue; }
-            parsedLine.stake = effectiveStake;
-            const lineItems: { type: SubGameType, value: string }[] = [];
-            let lineHasError = false;
-            if (isComboLine) {
-                const digits = tokens.join('').replace(/[^0-9]/g, '');
-                const uniqueDigits = [...new Set(digits.split(''))].sort();
-                if (uniqueDigits.length < 2) { parsedLine.error = `Combo needs at least 2 unique digits.`; lineHasError = true; } 
-                else {
-                    for (let i = 0; i < uniqueDigits.length; i++) {
-                        for (let j = i + 1; j < uniqueDigits.length; j++) { lineItems.push({ type: SubGameType.TwoDigit, value: uniqueDigits[i] + uniqueDigits[j] }); }
+
+            const tokens = betPart.split(delimiterRegex).filter(Boolean);
+            let betItems: { number: string; subGameType: SubGameType }[] = [];
+
+            if (isCombo) {
+                const digits = tokens.join('');
+                const uniqueDigits = [...new Set(digits.split(''))].filter(d => /\d/.test(d));
+                if (uniqueDigits.length < 2) {
+                    result.errors.push(`Line "${line}": Combo 'k' requires at least 2 unique digits.`);
+                    continue;
+                }
+                for (let i = 0; i < uniqueDigits.length; i++) {
+                    for (let j = 0; j < uniqueDigits.length; j++) {
+                        if (i !== j) {
+                            betItems.push({ number: uniqueDigits[i] + uniqueDigits[j], subGameType: SubGameType.TwoDigit });
+                        }
                     }
                 }
             } else {
-                for (const token of tokens) {
-                    const tokenType = determineType(token);
-                    if (!tokenType) { parsedLine.error = `Invalid token: '${token}'`; lineHasError = true; break; }
-                    let numberValue = '';
-                    if (tokenType === SubGameType.TwoDigit) numberValue = token.padStart(2, '0');
-                    else if (tokenType === SubGameType.OneDigitOpen) numberValue = token[0];
-                    else if (tokenType === SubGameType.OneDigitClose) numberValue = token[1];
-                    lineItems.push({ type: tokenType, value: numberValue });
-                }
+                tokens.forEach(token => {
+                    if (/^\d{1,2}$/.test(token)) {
+                        betItems.push({ number: token.padStart(2, '0'), subGameType: SubGameType.TwoDigit });
+                    }
+                });
             }
-            if (lineHasError) { result.lines.push(parsedLine); continue; }
-            const typesOnLine = new Set<SubGameType>();
-            lineItems.forEach(item => {
-                typesOnLine.add(item.type);
-                const groupKey = `${item.type}-${effectiveStake}`;
-                if (!aggregatedGroups.has(groupKey)) { aggregatedGroups.set(groupKey, { subGameType: item.type, numbers: new Set(), amountPerNumber: effectiveStake }); }
-                aggregatedGroups.get(groupKey)!.numbers.add(item.value);
-            });
-            parsedLine.numbers = lineItems.map(item => item.value);
-            parsedLine.cost = lineItems.length * effectiveStake;
-            parsedLine.subGameType = isComboLine ? 'Combo' : (typesOnLine.size > 1 ? 'Mixed' : typesOnLine.values().next().value);
-            result.lines.push(parsedLine);
+
+            if (betItems.length === 0) continue;
+
+            if (!result.betsByGame.has(currentGameId)) {
+                result.betsByGame.set(currentGameId, { gameName: gameNameOnLine, totalCost: 0, totalNumbers: 0, betGroups: new Map() });
+            }
+            const gameData = result.betsByGame.get(currentGameId)!;
+
+            for (const item of betItems) {
+                const groupKey = `${item.subGameType}__${stake}`;
+                if (!gameData.betGroups.has(groupKey)) {
+                    gameData.betGroups.set(groupKey, { subGameType: item.subGameType, numbers: [], amountPerNumber: stake });
+                }
+                const group = gameData.betGroups.get(groupKey)!;
+                group.numbers.push(item.number);
+                gameData.totalNumbers++;
+                gameData.totalCost += stake;
+            }
         }
-        result.betGroups = Array.from(aggregatedGroups.values()).map(g => ({ ...g, numbers: Array.from(g.numbers) }));
-        result.totalNumbers = result.betGroups.reduce((sum, group) => sum + group.numbers.length, 0);
-        result.totalCost = result.betGroups.reduce((sum, group) => sum + (group.numbers.length * group.amountPerNumber), 0);
-        if (result.lines.some(l => l.error)) result.error = 'Please review invalid lines.';
+
+        result.grandTotalCost = Array.from(result.betsByGame.values()).reduce((sum, g) => sum + g.totalCost, 0);
+        result.grandTotalNumbers = Array.from(result.betsByGame.values()).reduce((sum, g) => sum + g.totalNumbers, 0);
+        
         return result;
-    }, [bulkInput]);
+    }, [bulkInput, games, game]);
 
     // --- New Combo Game Logic ---
     const handleGenerateCombos = () => {
@@ -480,8 +545,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                     break;
             }
         }
-        result.numbers = numbers;
-        result.numberCount = numbers.length;
+        result.numbers = [...new Set(numbers)]; // Unique numbers only for manual entry
+        result.numberCount = result.numbers.length;
         if (result.stake > 0) { result.totalCost = result.numberCount * result.stake; }
         return result;
     }, [manualNumbersInput, manualAmountInput, subGameType]);
@@ -496,33 +561,36 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
             const totalCost = validBets.reduce((sum, c) => sum + parseFloat(c.stake), 0);
             if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
 
-            // Group by stake amount to create efficient bet groups
             const groups = new Map<number, string[]>();
             validBets.forEach(bet => {
                 const stake = parseFloat(bet.stake);
-                if (!groups.has(stake)) {
-                    groups.set(stake, []);
-                }
+                if (!groups.has(stake)) groups.set(stake, []);
                 groups.get(stake)!.push(bet.number);
             });
             const betGroups = Array.from(groups.entries()).map(([amount, numbers]) => ({
-                subGameType: SubGameType.TwoDigit, // All combo permutations are 2-digit bets
+                subGameType: SubGameType.TwoDigit,
                 numbers,
                 amountPerNumber: amount,
             }));
             
-            onPlaceBet({ subGameType: SubGameType.Bulk, betGroups }); // Submit as a bulk bet for backend processing
+            onPlaceBet({ gameId: game.id, betGroups });
             setComboDigitsInput(''); setGeneratedCombos([]); setComboGlobalStake('');
             return;
         }
 
         if (subGameType === SubGameType.Bulk) {
-            const { totalCost, betGroups, error: parseError } = parsedBulkBet;
-            if (parseError) { setError(parseError); return; }
-            if (betGroups.length === 0) { setError("No valid bets entered."); return; }
-            if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-            onPlaceBet({ subGameType: SubGameType.Bulk, betGroups });
-            setBulkInput('');
+            const { betsByGame, grandTotalCost, errors } = parsedBulkBet;
+            if (errors.length > 0) { setError(errors.join(' ')); return; }
+            if (betsByGame.size === 0) { setError("No valid bets entered."); return; }
+            if (grandTotalCost > user.wallet) { setError(`Insufficient balance. Required: ${grandTotalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
+
+            const multiGameBets = new Map<string, { gameName: string; betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>();
+            betsByGame.forEach((gameData, gameId) => {
+                const betGroups = Array.from(gameData.betGroups.values());
+                multiGameBets.set(gameId, { gameName: gameData.gameName, betGroups });
+            });
+
+            onPlaceBet({ isMultiGame: true, multiGameBets });
             return;
         }
         
@@ -531,7 +599,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
         if (parseError) { setError(parseError); return; }
         if (numbers.length === 0) { setError("Please enter at least one number."); return; }
         if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-        onPlaceBet({ subGameType, numbers, amountPerNumber: stake });
+        
+        onPlaceBet({ gameId: game.id, betGroups: [{ subGameType, numbers, amountPerNumber: stake }] });
         setManualNumbersInput(''); setManualAmountInput('');
     };
 
@@ -551,7 +620,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
     };
 
     const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono";
-    const displayedError = apiError || error || parsedBulkBet.error || parsedManualBet.error;
+    const displayedError = apiError || error || (parsedBulkBet.errors.length > 0 ? parsedBulkBet.errors.join(' ') : null) || parsedManualBet.error;
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
@@ -572,25 +641,21 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                     {subGameType === SubGameType.Bulk ? (
                         <>
                            <div className="mb-2">
-                                <label className="block text-slate-400 mb-1 text-sm font-medium">Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"45..75,96 65\n4x..x4,x7,5x\n75,,85,x8,,x9 r50"} className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Use spaces, `,`, `,,`, or `..`. A single stake (e.g., 'r50') applies to all numbers in the box.</p>
+                                <label className="block text-slate-400 mb-1 text-sm font-medium">Super Bulk Entry</label>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"Example:\n43-44-41-42-49 Rs200\nLS2_01_58_93_83_rs50\nK 32807 r5"} className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Paste bets with any symbol. Add game names (e.g., LS2) or 'K' for combo.</p>
                             </div>
                             
-                             {parsedBulkBet.lines.length > 0 && (
+                             {parsedBulkBet.betsByGame.size > 0 && (
                                 <div className="mb-4 bg-slate-800 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto space-y-2">
-                                    {parsedBulkBet.lines.map((line, index) => (
-                                        <div key={index} className={`p-2 rounded-md text-sm ${line.error ? 'bg-red-500/10 border-l-4 border-red-500' : 'bg-green-500/10 border-l-4 border-green-500'}`}>
-                                            <div className="flex justify-between items-center font-mono">
-                                                <span className="truncate mr-4 text-slate-400" title={line.originalText}>"{line.originalText}"</span>
-                                                {line.error ? (
-                                                    <span className="text-red-400 font-semibold text-right">{line.error}</span>
-                                                ) : (
-                                                    <div className="flex items-center gap-4 text-xs">
-                                                        <span className="text-slate-300">{line.subGameType}: <span className="font-bold text-white">{line.numbers.length}</span></span>
-                                                        <span className="text-slate-300">Cost: <span className="font-bold text-white">{line.cost.toFixed(2)}</span></span>
-                                                    </div>
-                                                )}
+                                    {Array.from(parsedBulkBet.betsByGame.entries()).map(([gameId, gameData]) => (
+                                        <div key={gameId} className="p-2 rounded-md bg-green-500/10 border-l-4 border-green-500">
+                                            <div className="flex justify-between items-center font-mono text-sm">
+                                                <span className="font-bold text-white">{gameData.gameName}</span>
+                                                <div className="flex items-center gap-4 text-xs">
+                                                    <span className="text-slate-300">Bets: <span className="font-bold text-white">{gameData.totalNumbers}</span></span>
+                                                    <span className="text-slate-300">Cost: <span className="font-bold text-white">{gameData.totalCost.toFixed(2)}</span></span>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -598,8 +663,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                             )}
                             
                             <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-2 gap-2 text-center border border-slate-700">
-                                <div><p className="text-slate-400 text-xs uppercase">Total Bets</p><p className="font-bold text-white text-lg">{parsedBulkBet.totalNumbers}</p></div>
-                                <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedBulkBet.totalCost.toFixed(2)}</p></div>
+                                <div><p className="text-slate-400 text-xs uppercase">Total Bets</p><p className="font-bold text-white text-lg">{parsedBulkBet.grandTotalNumbers}</p></div>
+                                <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedBulkBet.grandTotalCost.toFixed(2)}</p></div>
                             </div>
                         </>
                     ) : subGameType === SubGameType.Combo ? (
@@ -649,7 +714,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
                     ) : (
                         <>
                             <div className="mb-4">
-                                <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Number(s)</label>
+                                <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Number(s) (comma-separated)</label>
                                 <textarea value={manualNumbersInput} onChange={handleManualNumberChange} rows={3} placeholder={getPlaceholder()} className={inputClass} />
                             </div>
                             <div className="mb-4">
@@ -685,16 +750,26 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, user, onClose, onPlac
 };
 
 interface BetConfirmationDetails {
-    gameId: string;
-    gameName: string;
-    subGameType: SubGameType; // 'Bulk Game' for bulk bets
-    totalAmount: number;
-    totalNumbers: number;
-    // For single type bets (manual, combo)
+    isMultiGame: boolean;
+    grandTotalAmount: number;
+    grandTotalNumbers: number;
+
+    multiGameSummary?: { 
+        gameId: string;
+        gameName: string; 
+        totalAmount: number;
+        totalNumbers: number;
+        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
+    }[];
+    
+    gameId?: string;
+    gameName?: string;
+    subGameType?: SubGameType;
+    totalAmount?: number;
+    totalNumbers?: number;
     numbers?: string[];
     amountPerNumber?: number;
     potentialWinnings?: number;
-    // For bulk bets
     betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
     totalPotentialWinnings?: number;
 }
@@ -708,36 +783,41 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
                     <h3 className="text-2xl font-bold text-white mb-4 uppercase tracking-wider">Confirm Bet</h3>
                     <p className="text-slate-400 mb-6">Review details before confirming.</p>
 
-                    <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm">
-                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName}</span></div>
-                        
-                        {details.subGameType === SubGameType.Bulk ? (
-                             <>
-                                <div className="flex justify-between items-center border-b border-slate-800 pb-2 mb-2">
-                                  <span className="font-medium text-slate-400">Total Bets:</span>
-                                  <span className="font-mono text-cyan-300">{details.totalNumbers}</span>
-                                </div>
-                                {details.betGroups?.map((group, index) => (
-                                    <div key={index} className="text-xs">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-slate-400">{group.subGameType}:</span>
-                                            <span className="font-mono text-white">{group.numbers.length} numbers @ {group.amountPerNumber.toFixed(2)} PKR</span>
-                                        </div>
-                                    </div>
+                    <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm max-h-64 overflow-y-auto">
+                        {details.isMultiGame && details.multiGameSummary ? (
+                            <>
+                                {details.multiGameSummary.map(game => (
+                                     <div key={game.gameName} className="border-b border-slate-800 pb-2 mb-2">
+                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{game.gameName}</span></div>
+                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Bets:</span><span className="font-mono text-cyan-300">{game.totalNumbers}</span></div>
+                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Cost:</span><span className="font-mono text-red-400">{game.totalAmount.toFixed(2)} PKR</span></div>
+                                     </div>
                                 ))}
-                                <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Max Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center border-t-2 border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Grand Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.grandTotalAmount.toFixed(2)} PKR</span></div>
+
                             </>
                         ) : (
-                            <>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Type:</span><span className="font-bold text-white">{details.subGameType}</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Numbers:</span><span className="font-mono text-cyan-300 w-full sm:max-w-[60%] truncate text-right" title={details.numbers?.join(', ')}>{details.numbers?.join(', ')}</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Amount/Number:</span><span className="font-mono text-white">{details.amountPerNumber?.toFixed(2)} PKR</span></div>
-                                <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Potential Win:</span><span className="font-mono text-emerald-400">{details.potentialWinnings?.toFixed(2)} PKR</span></div>
+                             <>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName}</span></div>
+                                {details.subGameType === SubGameType.Bulk ? (
+                                    <>
+                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Bets:</span><span className="font-mono text-cyan-300">{details.totalNumbers}</span></div>
+                                        <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount?.toFixed(2)} PKR</span></div>
+                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Max Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Type:</span><span className="font-bold text-white">{details.subGameType}</span></div>
+                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Numbers:</span><span className="font-mono text-cyan-300 w-full sm:max-w-[60%] truncate text-right" title={details.numbers?.join(', ')}>{details.numbers?.join(', ')}</span></div>
+                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Amount/Number:</span><span className="font-mono text-white">{details.amountPerNumber?.toFixed(2)} PKR</span></div>
+                                        <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount?.toFixed(2)} PKR</span></div>
+                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Potential Win:</span><span className="font-mono text-emerald-400">{details.potentialWinnings?.toFixed(2)} PKR</span></div>
+                                    </>
+                                )}
                             </>
                         )}
                     </div>
+
 
                     <div className="flex justify-end space-x-4 pt-2">
                         <button onClick={onClose} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 px-6 rounded-md transition-colors">Cancel</button>
@@ -773,18 +853,16 @@ const BetConfirmationModal: React.FC<{ details: BetConfirmationDetails; onClose:
                     <h3 className="text-3xl font-bold text-white mb-2 uppercase tracking-wider">Bet Placed!</h3>
                     <p className="text-slate-300 mb-8">Your bet has been recorded. Good luck!</p>
                      <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm">
-                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName}</span></div>
-                        
-                        {details.subGameType === SubGameType.Bulk ? (
+                        {details.isMultiGame ? (
                             <>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Bets:</span><span className="font-mono text-cyan-300">{details.totalNumbers}</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Max Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Bets Placed:</span><span className="font-mono text-cyan-300">{details.grandTotalNumbers}</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.grandTotalAmount.toFixed(2)} PKR</span></div>
                             </>
                         ) : (
                              <>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName}</span></div>
                                 <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Your Numbers:</span><span className="font-mono text-cyan-300 text-right w-full sm:max-w-[60%] truncate">{details.numbers?.join(', ')}</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.totalAmount.toFixed(2)} PKR</span></div>
+                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.totalAmount?.toFixed(2)} PKR</span></div>
                                 <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Potential Win:</span><span className="font-mono text-emerald-400">{details.potentialWinnings?.toFixed(2)} PKR</span></div>
                             </>
                         )}
@@ -889,68 +967,75 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
   const userBets = bets.filter(b => b.userId === user.id);
 
   const handleReviewBet = (details: {
-    subGameType: SubGameType;
-    numbers?: string[];
-    amountPerNumber?: number;
-    betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-}) => {
-    if (!selectedGame) return;
-
+        gameId: string,
+        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[],
+    } | {
+        isMultiGame: true,
+        multiGameBets: Map<string, { gameName: string, betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>
+    }) => {
     setBettingError(null);
     let confirmationDetails: BetConfirmationDetails;
 
-    if (details.subGameType === SubGameType.Bulk && details.betGroups) {
+    if ('isMultiGame' in details) {
+        let grandTotalAmount = 0;
+        let grandTotalNumbers = 0;
+        const multiGameSummary = Array.from(details.multiGameBets.entries()).map(([gameId, data]) => {
+            let totalAmount = 0;
+            let totalNumbers = 0;
+            data.betGroups.forEach(group => {
+                totalAmount += group.numbers.length * group.amountPerNumber;
+                totalNumbers += group.numbers.length;
+            });
+            grandTotalAmount += totalAmount;
+            grandTotalNumbers += totalNumbers;
+            return { gameName: data.gameName, totalAmount, totalNumbers, betGroups: data.betGroups, gameId };
+        });
+
+        confirmationDetails = {
+            isMultiGame: true,
+            grandTotalAmount,
+            grandTotalNumbers,
+            multiGameSummary
+        };
+    } else {
+        const game = games.find(g => g.id === details.gameId);
+        if (!game) return;
+
         let totalAmount = 0;
         let totalNumbers = 0;
-        let maxPotentialWin = 0;
-        
+        let totalPotentialWinnings = 0;
+
         details.betGroups.forEach(group => {
-            const groupCost = group.numbers.length * group.amountPerNumber;
-            totalAmount += groupCost;
+            totalAmount += group.numbers.length * group.amountPerNumber;
             totalNumbers += group.numbers.length;
             const prizeRate = getPrizeRateForBet(group.subGameType, user.prizeRates);
-            const potentialWin = group.amountPerNumber * prizeRate;
-            if (potentialWin > maxPotentialWin) {
-                maxPotentialWin = potentialWin;
+            const potentialWinForGroup = group.amountPerNumber * prizeRate;
+            if (potentialWinForGroup > totalPotentialWinnings) {
+                totalPotentialWinnings = potentialWinForGroup;
             }
         });
 
         confirmationDetails = {
-            gameId: selectedGame.id,
-            gameName: selectedGame.name,
-            subGameType: details.subGameType,
-            betGroups: details.betGroups,
+            isMultiGame: false,
+            grandTotalAmount: totalAmount,
+            grandTotalNumbers: totalNumbers,
+            gameId: game.id,
+            gameName: game.name,
             totalAmount,
             totalNumbers,
-            totalPotentialWinnings: maxPotentialWin
+            betGroups: details.betGroups,
+            totalPotentialWinnings,
+            // Add single bet details for simple confirmation view
+            subGameType: details.betGroups[0]?.subGameType,
+            numbers: details.betGroups[0]?.numbers,
+            amountPerNumber: details.betGroups[0]?.amountPerNumber,
+            potentialWinnings: totalPotentialWinnings,
         };
-    } else if (details.numbers && typeof details.amountPerNumber === 'number') {
-        const { numbers, amountPerNumber, subGameType } = details;
-        if(numbers.length === 0 || amountPerNumber <= 0) {
-            setBettingError("Invalid bet details provided.");
-            return;
-        }
-        const totalAmount = numbers.length * amountPerNumber;
-        const prizeRate = getPrizeRateForBet(subGameType, user.prizeRates);
-        
-        confirmationDetails = {
-            gameId: selectedGame.id,
-            gameName: selectedGame.name,
-            subGameType,
-            numbers,
-            amountPerNumber,
-            totalAmount,
-            totalNumbers: numbers.length, 
-            potentialWinnings: amountPerNumber * prizeRate // Prize for a single winning number
-        };
-    } else {
-        console.error("handleReviewBet received invalid details object:", details);
-        setBettingError("An internal error occurred while preparing your bet.");
-        return;
     }
     
     setBetToConfirm(confirmationDetails);
 };
+
   
   const handleConfirmBet = async () => {
     if (!betToConfirm) return;
@@ -958,25 +1043,22 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
     setIsLoading(true);
     setBettingError(null);
     let isSuccess = false;
+    
+    const betsToPlace: { gameId: string, betGroups: any[] }[] = [];
+    if (betToConfirm.isMultiGame && betToConfirm.multiGameSummary) {
+        betToConfirm.multiGameSummary.forEach(gameData => {
+            betsToPlace.push({ gameId: gameData.gameId, betGroups: gameData.betGroups });
+        });
+    } else if (betToConfirm.gameId && betToConfirm.betGroups) {
+        betsToPlace.push({ gameId: betToConfirm.gameId, betGroups: betToConfirm.betGroups });
+    }
 
     try {
-        let betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] = [];
-
-        if (betToConfirm.subGameType === SubGameType.Bulk && betToConfirm.betGroups) {
-            betGroups = betToConfirm.betGroups;
-        } else if (betToConfirm.numbers && betToConfirm.amountPerNumber !== undefined) {
-            betGroups = [{
-                subGameType: betToConfirm.subGameType,
-                numbers: betToConfirm.numbers,
-                amountPerNumber: betToConfirm.amountPerNumber,
-            }];
-        }
-        
-        await placeBet({
+        await Promise.all(betsToPlace.map(bet => placeBet({
             userId: user.id,
-            gameId: betToConfirm.gameId,
-            betGroups: betGroups,
-        });
+            gameId: bet.gameId,
+            betGroups: bet.betGroups,
+        })));
         
         isSuccess = true;
     } catch (error: any) {
@@ -985,16 +1067,12 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
         isSuccess = false;
     } finally {
         setIsLoading(false);
-        // Always close the confirmation prompt
         setBetToConfirm(null);
 
         if (isSuccess) {
-            // Only show success modal and close betting modal on success
             setBetConfirmation(betToConfirm);
             setSelectedGame(null); 
         }
-        // If !isSuccess, the betting modal remains open (selectedGame is not cleared)
-        // and will display the error message set in the catch block.
     }
   };
 
@@ -1039,7 +1117,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
       <BetHistoryView bets={userBets} games={games} user={user} />
       <LedgerView entries={user.ledger} />
       
-      {selectedGame && <BettingModal game={selectedGame} user={user} onClose={() => { setSelectedGame(null); setBettingError(null); }} onPlaceBet={handleReviewBet} apiError={bettingError} clearApiError={() => setBettingError(null)} />}
+      {selectedGame && <BettingModal game={selectedGame} games={games} user={user} onClose={() => { setSelectedGame(null); setBettingError(null); }} onPlaceBet={handleReviewBet} apiError={bettingError} clearApiError={() => setBettingError(null)} />}
       {betToConfirm && <BetConfirmationPromptModal details={betToConfirm} onConfirm={handleConfirmBet} onClose={() => setBetToConfirm(null)} isLoading={isLoading} />}
       {betConfirmation && <BetConfirmationModal details={betConfirmation} onClose={() => setBetConfirmation(null)} />}
     </div>

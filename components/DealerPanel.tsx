@@ -5,6 +5,8 @@ import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameTyp
 import { Icons } from '../constants';
 import { useCountdown } from '../hooks/useCountdown';
 
+const getTodayDateString = () => new Date().toISOString().split('T')[0];
+
 // Internal components
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'emerald' }) => {
     if (!isOpen) return null;
@@ -45,6 +47,13 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
                             <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
                         </tr>
                     ))}
+                    {entries.length === 0 && (
+                        <tr>
+                            <td colSpan={5} className="p-8 text-center text-slate-500">
+                                No ledger entries found for the selected date range.
+                            </td>
+                        </tr>
+                    )}
                 </tbody>
             </table>
         </div>
@@ -297,8 +306,8 @@ const UserTransactionForm: React.FC<{
 };
 
 const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = ({ bets, games, users }) => {
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
 
     const getBetOutcome = (bet: Bet) => {
@@ -436,8 +445,8 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
 
 // --- NEW WALLET VIEW ---
 const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
     const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
@@ -837,6 +846,40 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
       setSelectedUser(undefined);
   };
   
+  const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
+
+    const filteredEntries = useMemo(() => {
+        if (!startDate && !endDate) return entries;
+        return entries.filter(entry => {
+            const entryDateStr = entry.timestamp.toISOString().split('T')[0];
+            if (startDate && entryDateStr < startDate) return false;
+            if (endDate && entryDateStr > endDate) return false;
+            return true;
+        });
+    }, [entries, startDate, endDate]);
+
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white font-sans";
+
+    return (
+        <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass} />
+                </div>
+                <button onClick={() => { setStartDate(''); setEndDate(''); }} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Show All History</button>
+            </div>
+            <LedgerTable entries={filteredEntries} />
+        </div>
+    );
+  };
+  
   const tabs = [
     { id: 'users', label: 'Users', icon: Icons.userGroup },
     { id: 'bettingTerminal', label: 'Betting Terminal', icon: Icons.clipboardList },
@@ -1035,8 +1078,8 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users: myUsers, onSav
       </Modal>
 
       {viewingLedgerFor && (
-        <Modal isOpen={!!viewingLedgerFor} onClose={() => setViewingLedgerFor(null)} title={`Ledger for ${viewingLedgerFor.name}`} size="lg">
-            <LedgerTable entries={viewingLedgerFor.ledger} />
+        <Modal isOpen={!!viewingLedgerFor} onClose={() => setViewingLedgerFor(null)} title={`Ledger for ${viewingLedgerFor.name}`} size="xl">
+            <StatefulLedgerTableWrapper entries={viewingLedgerFor.ledger} />
         </Modal>
       )}
     </div>
