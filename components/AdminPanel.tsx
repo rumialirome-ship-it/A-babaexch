@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
 import { Icons } from '../constants';
@@ -69,11 +71,63 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
                             <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
                         </tr>
                     ))}
+                     {entries.length === 0 && (
+                        <tr><td colSpan={5} className="p-8 text-center text-slate-500">No transactions found for the selected filters.</td></tr>
+                    )}
                 </tbody>
             </table>
         </div>
     </div>
 );
+
+const FilteredLedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const filteredEntries = useMemo(() => {
+        return entries.filter(entry => {
+            const entryDateStr = entry.timestamp.toISOString().split('T')[0];
+            if (startDate && entryDateStr < startDate) return false;
+            if (endDate && entryDateStr > endDate) return false;
+            if (searchTerm.trim() && !entry.description.toLowerCase().includes(searchTerm.trim().toLowerCase())) return false;
+            return true;
+        });
+    }, [entries, startDate, endDate, searchTerm]);
+
+    const handleClearFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setSearchTerm('');
+    };
+    
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
+
+    return (
+        <div>
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div className="md:col-span-2 lg:col-span-1">
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Search Description</label>
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="e.g., Top-Up, Commission" className={inputClass} />
+                    </div>
+                    <div className="flex items-center">
+                        <button onClick={handleClearFilters} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Clear</button>
+                    </div>
+                </div>
+            </div>
+            <LedgerTable entries={filteredEntries} />
+        </div>
+    );
+};
 
 
 const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => Promise<void>; onCancel: () => void; adminPrizeRates: PrizeRates }> = ({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
@@ -1402,14 +1456,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </Modal>
 
       {viewingLedgerFor && (
-        <Modal isOpen={!!viewingLedgerFor} onClose={() => setViewingLedgerFor(null)} title={`Ledger for ${viewingLedgerFor.name}`} size="lg">
-            <LedgerTable entries={viewingLedgerFor.ledger} />
+        <Modal isOpen={!!viewingLedgerFor} onClose={() => setViewingLedgerFor(null)} title={`Ledger for ${viewingLedgerFor.name}`} size="xl">
+            <FilteredLedgerView entries={viewingLedgerFor.ledger} />
         </Modal>
       )}
 
       {viewingUserLedgerFor && (
-        <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger for ${viewingUserLedgerFor.name}`} size="lg">
-            <LedgerTable entries={viewingUserLedgerFor.ledger} />
+        <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger for ${viewingUserLedgerFor.name}`} size="xl">
+            <FilteredLedgerView entries={viewingUserLedgerFor.ledger} />
         </Modal>
       )}
 
