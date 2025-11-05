@@ -409,7 +409,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             if (gameMatch) {
                 const matchedGameKey = gameMatch[0];
                 currentGameId = gameNameMap.get(matchedGameKey) || null;
-                // Remove the game name from the line for further processing
                 const originalGameNameRegex = new RegExp(`\\b(${games.find(g => g.id === currentGameId)?.name})\\b`, 'i');
                 currentLine = currentLine.replace(originalGameNameRegex, '').trim();
             }
@@ -435,10 +434,10 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             let betItems: { number: string; subGameType: SubGameType }[] = [];
 
             if (isCombo) {
-                const digits = tokens.join('');
-                const uniqueDigits = [...new Set(digits.split(''))].filter(d => /\d/.test(d));
-                if (uniqueDigits.length < 2) {
-                    result.errors.push(`Line "${line}": Combo 'k' requires at least 2 unique digits.`);
+                const digits = betPart.replace(/\D/g, '');
+                const uniqueDigits = [...new Set(digits.split(''))];
+                if (uniqueDigits.length < 3 || uniqueDigits.length > 6) {
+                    result.errors.push(`Line "${line}": Combo must have 3 to 6 unique digits.`);
                     continue;
                 }
                 for (let i = 0; i < uniqueDigits.length; i++) {
