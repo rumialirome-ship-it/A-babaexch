@@ -6,31 +6,42 @@ const DB_PATH = path.join(__dirname, 'database.sqlite');
 let db;
 
 // --- CENTRALIZED GAME TIMING LOGIC ---
-const OPEN_HOUR = 16; // 4:00 PM
+const OPEN_HOUR_UTC = 11; // 4:00 PM PKT is 11:00 AM UTC
+const PKT_OFFSET_HOURS = 5;
 
 /**
- * Calculates the current or next valid betting window (open time to close time) for a game.
- * @param {string} drawTime - The game's draw time in "HH:MM" format.
+ * Calculates the current or next valid betting window (open time to close time) for a game, in UTC.
+ * @param {string} drawTime - The game's draw time in "HH:MM" PKT format.
  * @returns {{openTime: Date, closeTime: Date}}
  */
 function getGameCycle(drawTime) {
-    const now = new Date();
-    const [drawHours, drawMinutes] = drawTime.split(':').map(Number);
+    const now = new Date(); // now is UTC
+    const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
+    const drawHoursUTC = (drawHoursPKT - PKT_OFFSET_HOURS + 24) % 24;
 
-    let openTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), OPEN_HOUR, 0, 0);
-    let closeTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), drawHours, drawMinutes, 0, 0);
-
-    // This handles overnight games. If a game's draw is in the early morning (e.g., 02:10),
-    // its market must have opened the previous day at 16:00.
-    if (drawHours < OPEN_HOUR) {
-        openTime.setDate(openTime.getDate() - 1);
+    // Determine the timestamp for the most recent 11:00 UTC
+    let openTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), OPEN_HOUR_UTC, 0, 0));
+    if (now.getTime() < openTime.getTime()) {
+        // If it's before 11am UTC today, the relevant cycle started yesterday
+        openTime.setUTCDate(openTime.getUTCDate() - 1);
+    }
+    
+    // Calculate the close time relative to this open time's date
+    let closeTime = new Date(Date.UTC(openTime.getUTCFullYear(), openTime.getUTCMonth(), openTime.getUTCDate(), drawHoursUTC, drawMinutesPKT, 0));
+    
+    // If the draw time in UTC is "earlier" in the day than the open time, it means the draw happens on the next calendar day in UTC.
+    if (drawHoursUTC < OPEN_HOUR_UTC) {
+        closeTime.setUTCDate(closeTime.getUTCDate() + 1);
     }
 
-    // If the current time is already past this cycle's closing time,
-    // we need to calculate the *next* cycle.
-    if (now >= closeTime) {
-        openTime.setDate(openTime.getDate() + 1);
-        closeTime.setDate(closeTime.getDate() + 1);
+    // If we are already past this calculated cycle, advance to the next cycle.
+    if (now.getTime() >= closeTime.getTime()) {
+        openTime.setUTCDate(openTime.getUTCDate() + 1);
+        
+        closeTime = new Date(Date.UTC(openTime.getUTCFullYear(), openTime.getUTCMonth(), openTime.getUTCDate(), drawHoursUTC, drawMinutesPKT, 0));
+        if (drawHoursUTC < OPEN_HOUR_UTC) {
+            closeTime.setUTCDate(closeTime.getUTCDate() + 1);
+        }
     }
     
     return { openTime, closeTime };
@@ -44,7 +55,7 @@ function getGameCycle(drawTime) {
 function isGameOpen(drawTime) {
     const now = new Date();
     const { openTime, closeTime } = getGameCycle(drawTime);
-    return now >= openTime && now < closeTime;
+    return now.getTime() >= openTime.getTime() && now.getTime() < closeTime.getTime();
 }
 
 
