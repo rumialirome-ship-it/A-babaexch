@@ -1,36 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
 
 export const useCountdown = (drawTime: string) => {
-    const OPEN_HOUR_UTC = 11; // 4:00 PM PKT is 11:00 AM UTC
-    const PKT_OFFSET_HOURS = 5;
+    const OPEN_HOUR = 16; // 4:00 PM
 
     const [display, setDisplay] = useState<{status: 'LOADING' | 'SOON' | 'OPEN' | 'CLOSED', text: string}>({ status: 'LOADING', text: '...' });
 
     const getCycle = useCallback(() => {
-        const now = new Date(); // local time from browser
-        const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
-        const drawHoursUTC = (drawHoursPKT - PKT_OFFSET_HOURS + 24) % 24;
+        const now = new Date();
+        const [drawHours, drawMinutes] = drawTime.split(':').map(Number);
+        
+        let openTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), OPEN_HOUR, 0, 0);
+        let closeTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), drawHours, drawMinutes, 0, 0);
 
-        // Determine the timestamp for the most recent 11:00 UTC
-        let openTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), OPEN_HOUR_UTC, 0, 0));
-        if (now.getTime() < openTime.getTime()) {
-            openTime.setUTCDate(openTime.getUTCDate() - 1);
-        }
-        
-        // Calculate the close time relative to this open time's date
-        let closeTime = new Date(Date.UTC(openTime.getUTCFullYear(), openTime.getUTCMonth(), openTime.getUTCDate(), drawHoursUTC, drawMinutesPKT, 0));
-        
-        if (drawHoursUTC < OPEN_HOUR_UTC) {
-            closeTime.setUTCDate(closeTime.getUTCDate() + 1);
+        if (drawHours < OPEN_HOUR) {
+            // Draw time is "before" open time (e.g., 14:10 vs 16:00, or 00:55 vs 16:00)
+            // This means the cycle's open time was *yesterday* relative to its close time.
+             openTime.setDate(openTime.getDate() - 1);
         }
 
-        if (now.getTime() >= closeTime.getTime()) {
-            openTime.setUTCDate(openTime.getUTCDate() + 1);
-            
-            closeTime = new Date(Date.UTC(openTime.getUTCFullYear(), openTime.getUTCMonth(), openTime.getUTCDate(), drawHoursUTC, drawMinutesPKT, 0));
-            if (drawHoursUTC < OPEN_HOUR_UTC) {
-                closeTime.setUTCDate(closeTime.getUTCDate() + 1);
-            }
+        // If 'now' is already past the end of this cycle, calculate the next cycle.
+        if (now >= closeTime) {
+            openTime.setDate(openTime.getDate() + 1);
+            closeTime.setDate(closeTime.getDate() + 1);
         }
         
         return { openTime, closeTime };
@@ -38,33 +29,57 @@ export const useCountdown = (drawTime: string) => {
 
     useEffect(() => {
         const formatTime12h = (date: Date) => {
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            let hours = date.getHours();
+            const minutes = date.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours || 12;
+            const minutesStr = String(minutes).padStart(2, '0');
+            return `${String(hours).padStart(2, '0')}:${minutesStr} ${ampm}`;
         };
 
-        const updateDisplay = () => {
+        // Set initial state
+        const initialCycle = getCycle();
+        const now = new Date();
+        if (now < initialCycle.openTime) setDisplay({ status: 'SOON', text: formatTime12h(initialCycle.openTime) });
+        else if (now >= initialCycle.openTime && now < initialCycle.closeTime) setDisplay({ status: 'OPEN', text: '...' });
+        else setDisplay({ status: 'CLOSED', text: 'CLOSED' });
+
+
+        const timer = setInterval(() => {
             const now = new Date();
             const { openTime, closeTime } = getCycle();
             
+            let newDisplay;
+
             if (now < openTime) {
-                setDisplay({ status: 'SOON', text: `at ${formatTime12h(openTime)}` });
+                // Not yet open
+                newDisplay = {
+                    status: 'SOON',
+                    text: formatTime12h(openTime)
+                };
             } else if (now >= openTime && now < closeTime) {
+                // Open
                 const distance = closeTime.getTime() - now.getTime();
-                const hours = Math.floor(distance / (1000 * 60 * 60));
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
                 const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-                setDisplay({
+                newDisplay = {
                     status: 'OPEN',
                     text: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-                });
+                };
             } else {
-                setDisplay({ status: 'CLOSED', text: 'CLOSED' });
+                // This case should be handled by `getCycle` recalculating for the next day,
+                // but as a fallback, we show closed. `getCycle` will fix it on the next tick.
+                newDisplay = { status: 'CLOSED', text: 'CLOSED' };
             }
-        };
-        
-        updateDisplay(); // Initial call
-        const timer = setInterval(updateDisplay, 1000);
+
+            setDisplay(newDisplay);
+
+        }, 1000);
+
         return () => clearInterval(timer);
-    }, [drawTime, getCycle]);
+    }, [getCycle]);
 
     return display;
 };
