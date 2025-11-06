@@ -17,20 +17,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- Daily Market Reset Check ---
-// This runs on API requests to ensure the market state is current.
-// It's a very fast check if no reset is needed.
-app.use('/api', (req, res, next) => {
-    try {
-        database.performDailyResetIfNeeded();
-    } catch (error) {
-        // Log the error but don't block the request. The reset is not a critical failure for the ongoing request.
-        console.error("[CRITICAL] Daily market reset check failed:", error);
-    }
-    next();
-});
-
-
 // --- API BROWSER ACCESS GUARD ---
 // This middleware prevents browsers from directly navigating to API endpoints,
 // which can cause them to try and download the JSON response as a file.

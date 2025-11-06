@@ -28,7 +28,30 @@ interface FinancialSummary {
   totalBets: number;
 }
 
+type SortKey = 'name' | 'wallet' | 'status';
+type SortDirection = 'asc' | 'desc';
+
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
+
+const SortableHeader: React.FC<{
+    label: string;
+    sortKey: SortKey;
+    currentSortKey: SortKey;
+    sortDirection: SortDirection;
+    onSort: (key: SortKey) => void;
+    className?: string;
+}> = ({ label, sortKey, currentSortKey, sortDirection, onSort, className }) => {
+    const isActive = sortKey === currentSortKey;
+    const icon = isActive ? (sortDirection === 'asc' ? '▲' : '▼') : '';
+    return (
+        <th className={`p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors ${className}`} onClick={() => onSort(sortKey)}>
+            <div className="flex items-center gap-2">
+                <span>{label}</span>
+                <span className="text-cyan-400">{icon}</span>
+            </div>
+        </th>
+    );
+};
 
 // --- INTERNAL COMPONENTS (UNCHANGED) ---
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'cyan' }) => {
@@ -958,6 +981,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
   const { fetchWithAuth } = useAuth();
+
+  // State for Dealers tab
+  const [dealerSortKey, setDealerSortKey] = useState<SortKey>('name');
+  const [dealerSortDirection, setDealerSortDirection] = useState<SortDirection>('asc');
+
+  // State for Users tab
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userSortKey, setUserSortKey] = useState<SortKey>('name');
+  const [userSortDirection, setUserSortDirection] = useState<SortDirection>('asc');
+
   
   const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
@@ -1064,7 +1097,63 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     }
   };
 
-  const filteredDealers = dealers.filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()) || (d.area || '').toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase()));
+  // --- Dealers Filtering & Sorting ---
+  const handleDealerSort = (key: SortKey) => {
+        if (dealerSortKey === key) {
+            setDealerSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setDealerSortKey(key);
+            setDealerSortDirection('asc');
+        }
+    };
+
+    const sortedDealers = useMemo(() => {
+        const filtered = dealers.filter(d => 
+            d.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            (d.area || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+            d.id.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+        
+        return [...filtered].sort((a, b) => {
+            const dir = dealerSortDirection === 'asc' ? 1 : -1;
+            switch (dealerSortKey) {
+                case 'name': return a.name.localeCompare(b.name) * dir;
+                case 'wallet': return (a.wallet - b.wallet) * dir;
+                case 'status': return (a.isRestricted === b.isRestricted ? 0 : a.isRestricted ? 1 : -1) * dir;
+                default: return 0;
+            }
+        });
+    }, [dealers, searchQuery, dealerSortKey, dealerSortDirection]);
+
+    // --- Users Filtering & Sorting ---
+    const handleUserSort = (key: SortKey) => {
+        if (userSortKey === key) {
+            setUserSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setUserSortKey(key);
+            setUserSortDirection('asc');
+        }
+    };
+
+    const sortedUsers = useMemo(() => {
+        const lowerQuery = userSearchQuery.toLowerCase();
+        const filtered = userSearchQuery.trim() === '' ? users : users.filter(u => 
+            u.name.toLowerCase().includes(lowerQuery) ||
+            u.id.toLowerCase().includes(lowerQuery) ||
+            (u.area || '').toLowerCase().includes(lowerQuery) ||
+            (dealers.find(d => d.id === u.dealerId)?.name || '').toLowerCase().includes(lowerQuery)
+        );
+
+        return [...filtered].sort((a, b) => {
+            const dir = userSortDirection === 'asc' ? 1 : -1;
+            switch (userSortKey) {
+                case 'name': return a.name.localeCompare(b.name) * dir;
+                case 'wallet': return (a.wallet - b.wallet) * dir;
+                case 'status': return (a.isRestricted === b.isRestricted ? 0 : a.isRestricted ? 1 : -1) * dir;
+                default: return 0;
+            }
+        });
+    }, [users, dealers, userSearchQuery, userSortKey, userSortDirection]);
 
   const flatBets = useMemo(() => bets.flatMap(bet => {
         const user = users.find(u => u.id === bet.userId);
@@ -1083,12 +1172,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
     { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
+    { id: 'users', label: 'Users', icon: Icons.clipboardList },
     { id: 'games', label: 'Games', icon: Icons.gamepad },
     { id: 'liveBooking', label: 'Live Booking', icon: Icons.sparkles },
     { id: 'numberSummary', label: 'Number Summary', icon: Icons.chartBar },
     { id: 'limits', label: 'Limits', icon: Icons.clipboardList }, 
     { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search }, 
-    { id: 'users', label: 'Users', icon: Icons.clipboardList },
     { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
   ];
 
@@ -1111,7 +1200,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       {activeTab === 'dealers' && (
         <div>
           <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-            <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">Dealers ({filteredDealers.length})</h3>
+            <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">Dealers ({sortedDealers.length})</h3>
             <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
                  <div className="relative w-full sm:w-64">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
@@ -1128,23 +1217,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                      <thead className="bg-slate-800/50">
                          <tr>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Login ID</th>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Area</th>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wallet (PKR)</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID / Area</th>
+                              <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Commission</th>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                             <SortableHeader label="Status" sortKey="status" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
                          </tr>
                      </thead>
                      <tbody className="divide-y divide-slate-800">
-                         {filteredDealers.map(dealer => (
+                         {sortedDealers.map(dealer => (
                              <tr key={dealer.id} className="hover:bg-cyan-500/10 transition-colors">
                                  <td className="p-4 font-medium"><div className="flex items-center gap-3">
                                      {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
                                      <span className="font-semibold text-white">{dealer.name}</span>
                                  </div></td>
-                                 <td className="p-4 text-slate-400 font-mono">{dealer.id}</td>
-                                 <td className="p-4 text-slate-400">{dealer.area}</td>
+                                 <td className="p-4 text-slate-400"><div className="font-mono">{dealer.id}</div><div className="text-xs">{dealer.area}</div></td>
                                  <td className="p-4 font-mono text-white">{dealer.wallet.toLocaleString()}</td>
                                  <td className="p-4 text-slate-300">{dealer.commissionRate}%</td>
                                  <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${dealer.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{dealer.isRestricted ? 'Restricted' : 'Active'}</span></td>
@@ -1347,23 +1434,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 
        {activeTab === 'users' && (
         <div>
-          <h3 className="text-xl font-semibold mb-4 text-white">All Users ({users.length})</h3>
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+            <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">All Users ({sortedUsers.length})</h3>
+             <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
+                 <div className="relative w-full sm:w-64">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                    <input type="text" placeholder="Search by name, ID, area, dealer..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full"/>
+                </div>
+            </div>
+          </div>
            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
                <div className="overflow-x-auto mobile-scroll-x">
                    <table className="w-full text-left min-w-[700px]">
                        <thead className="bg-slate-800/50">
                            <tr>
-                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
+                               <SortableHeader label="Name" sortKey="name" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wallet (PKR)</th>
-                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                               <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
+                               <SortableHeader label="Status" sortKey="status" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
                            </tr>
                        </thead>
                        <tbody className="divide-y divide-slate-800">
-                           {users.map(user => (
+                           {sortedUsers.map(user => (
                                <tr key={user.id} className="hover:bg-cyan-500/10 transition-colors">
-                                   <td className="p-4 font-semibold text-white">{user.name}</td>
+                                   <td className="p-4 font-medium"><div className="flex items-center gap-3">
+                                     {user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
+                                     <div>
+                                        <div className="font-semibold text-white">{user.name}</div>
+                                        <div className="text-xs text-slate-400 font-mono">{user.id}</div>
+                                     </div>
+                                   </div></td>
                                    <td className="p-4 text-slate-400">{dealers.find(d => d.id === user.dealerId)?.name || 'N/A'}</td>
                                    <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>

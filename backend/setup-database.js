@@ -64,8 +64,7 @@ function main() {
                 name TEXT NOT NULL,
                 drawTime TEXT NOT NULL,
                 winningNumber TEXT,
-                payoutsApproved INTEGER DEFAULT 0,
-                isMarketOpen INTEGER NOT NULL DEFAULT 1
+                payoutsApproved INTEGER DEFAULT 0
             );
             CREATE TABLE bets (
                 id TEXT PRIMARY KEY,
@@ -98,10 +97,6 @@ function main() {
                 limitAmount REAL NOT NULL,
                 UNIQUE(gameType, numberValue)
             );
-            CREATE TABLE system_state (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
             CREATE INDEX idx_ledgers_accountId ON ledgers(accountId);
             CREATE INDEX idx_bets_userId ON bets(userId);
             CREATE INDEX idx_users_dealerId ON users(dealerId);
@@ -113,7 +108,7 @@ function main() {
         const insertAdmin = db.prepare('INSERT INTO admins (id, name, password, wallet, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?)');
         const insertDealer = db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, isRestricted, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const insertUser = db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        const insertGame = db.prepare('INSERT INTO games (id, name, drawTime, winningNumber, payoutsApproved, isMarketOpen) VALUES (?, ?, ?, ?, ?, ?)');
+        const insertGame = db.prepare('INSERT INTO games (id, name, drawTime, winningNumber, payoutsApproved) VALUES (?, ?, ?, ?, ?)');
         const insertBet = db.prepare('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const insertLedger = db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
 
@@ -137,18 +132,13 @@ function main() {
 
             // Games
             jsonData.games.forEach(game => {
-                insertGame.run(game.id, game.name, game.drawTime, game.winningNumber || null, game.payoutsApproved ? 1 : 0, 1);
+                insertGame.run(game.id, game.name, game.drawTime, game.winningNumber || null, game.payoutsApproved ? 1 : 0);
             });
 
             // Bets
             jsonData.bets.forEach(bet => {
                 insertBet.run(bet.id, bet.userId, bet.dealerId, bet.gameId, bet.subGameType, JSON.stringify(bet.numbers), bet.amountPerNumber, bet.totalAmount, new Date(bet.timestamp).toISOString());
             });
-
-            // System State
-            const initialResetTimestamp = new Date(0).toISOString();
-            db.prepare(`INSERT INTO system_state (key, value) VALUES ('lastResetTimestamp', ?)`).run(initialResetTimestamp);
-            console.error('System state initialized.');
             
             console.error('Data migration complete.');
         })();

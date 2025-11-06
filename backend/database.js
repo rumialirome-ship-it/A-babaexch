@@ -100,6 +100,9 @@ const findAccountById = (id, table) => {
         if (table !== 'games') {
             const ledgerStmt = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC');
             account.ledger = ledgerStmt.all(id);
+        } else {
+            // Dynamically determine if the game market is open based on time.
+            account.isMarketOpen = isGameOpen(account.drawTime);
         }
 
         // Parse JSON fields safely
@@ -113,9 +116,6 @@ const findAccountById = (id, table) => {
         // Convert boolean
         if ('isRestricted' in account) {
             account.isRestricted = !!account.isRestricted;
-        }
-        if ('isMarketOpen' in account) {
-            account.isMarketOpen = !!account.isMarketOpen;
         }
     } catch (e) {
         console.error(`Failed to parse data for account in table ${table} with id ${id}`, e);
@@ -169,6 +169,9 @@ const getAllFromTable = (table, withLedger = false) => {
             if (withLedger && acc.id) {
                 acc.ledger = getLedgerForAccount(acc.id);
             }
+            if (table === 'games' && acc.drawTime) {
+                acc.isMarketOpen = isGameOpen(acc.drawTime);
+            }
             if (acc.prizeRates && typeof acc.prizeRates === 'string') {
                 acc.prizeRates = JSON.parse(acc.prizeRates);
             }
@@ -180,9 +183,6 @@ const getAllFromTable = (table, withLedger = false) => {
             }
             if ('isRestricted' in acc) {
                 acc.isRestricted = !!acc.isRestricted;
-            }
-            if ('isMarketOpen' in acc) {
-                acc.isMarketOpen = !!acc.isMarketOpen;
             }
         } catch (e) {
             console.error(`Failed to parse data for item in table ${table} with id ${acc.id}`, e);
@@ -231,13 +231,13 @@ const declareWinnerForGame = (gameId, winningNumber) => {
                 throw { status: 400, message: 'AK open winner must be a single digit.' };
             }
             const partialWinner = `${winningNumber}_`;
-            db.prepare('UPDATE games SET winningNumber = ?, isMarketOpen = 0 WHERE id = ?').run(partialWinner, gameId);
+            db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(partialWinner, gameId);
         } else if (game.name === 'AKC') {
             if (!/^\d$/.test(winningNumber)) {
                 throw { status: 400, message: 'AKC winner must be a single digit.' };
             }
             // Update AKC itself
-            db.prepare('UPDATE games SET winningNumber = ?, isMarketOpen = 0 WHERE id = ?').run(winningNumber, gameId);
+            db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
 
             // Now, find the AK game and update it if it's pending
             const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get();
@@ -250,7 +250,7 @@ const declareWinnerForGame = (gameId, winningNumber) => {
             if (!/^\d{2}$/.test(winningNumber)) {
                 throw { status: 400, message: 'Winning number must be a 2-digit number.' };
             }
-            db.prepare('UPDATE games SET winningNumber = ?, isMarketOpen = 0 WHERE id = ?').run(winningNumber, gameId);
+            db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
         }
         finalGame = findAccountById(gameId, 'games');
     });
@@ -738,7 +738,7 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         if (!Array.isArray(betGroups) || betGroups.length === 0) throw { status: 400, message: 'Invalid bet format.' };
         
         // 2. Centralized Game Open/Close Check
-        if (!game.isMarketOpen || !isGameOpen(game.drawTime)) {
+        if (!game.isMarketOpen) {
             throw { status: 400, message: `Betting is currently closed for ${game.name}.` };
         }
 
@@ -865,47 +865,6 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
     return finalResult;
 };
 
-const performDailyResetIfNeeded = () => {
-    const RESET_HOUR_PKT = 16; // 4:00 PM in Pakistan
-    const PKT_OFFSET_HOURS = 5; // PKT is UTC+5
-    const RESET_HOUR_UTC = RESET_HOUR_PKT - PKT_OFFSET_HOURS; // This will be 11 (11:00 UTC)
-
-    const stmt = db.prepare(`SELECT value FROM system_state WHERE key = 'lastResetTimestamp'`);
-    const lastResetRow = stmt.get();
-    if (!lastResetRow) {
-        db.prepare(`INSERT INTO system_state (key, value) VALUES ('lastResetTimestamp', ?)`).run(new Date(0).toISOString());
-        console.warn("Initialized missing 'lastResetTimestamp' in system_state.");
-        return;
-    }
-
-    const lastResetTimestamp = new Date(lastResetRow.value);
-    const now = new Date(); // Current time in UTC
-
-    // Calculate the most recent 4 PM PKT (11:00 UTC) boundary
-    let lastResetBoundary = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), RESET_HOUR_UTC, 0, 0, 0));
-
-    if (now < lastResetBoundary) {
-        // If it's currently before 11:00 UTC today, the last valid reset point was *yesterday* at 11:00 UTC.
-        lastResetBoundary.setUTCDate(lastResetBoundary.getUTCDate() - 1);
-    }
-
-    if (lastResetTimestamp < lastResetBoundary) {
-        console.error(`--> TIMEZONE-AWARE DAILY RESET TRIGGERED <--`);
-        console.error(`Current UTC Time: ${now.toISOString()}`);
-        console.error(`Last Reset Time:  ${lastResetTimestamp.toISOString()}`);
-        console.error(`Reset Boundary:   ${lastResetBoundary.toISOString()} (This is the most recent 4PM PKT)`);
-        
-        runInTransaction(() => {
-            const resetStmt = db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0, isMarketOpen = 1');
-            const info = resetStmt.run();
-            console.error(`Market reset successful. ${info.changes} games updated.`);
-
-            const updateStmt = db.prepare(`UPDATE system_state SET value = ? WHERE key = 'lastResetTimestamp'`);
-            updateStmt.run(now.toISOString());
-        });
-    }
-};
-
 const updateGameDrawTime = (gameId, newDrawTime) => {
     let updatedGame;
     if (!/^\d{2}:\d{2}$/.test(newDrawTime)) {
@@ -919,7 +878,7 @@ const updateGameDrawTime = (gameId, newDrawTime) => {
             throw { status: 400, message: 'Cannot change draw time after a winner has been declared. Please use "Edit Winner" if you need to make corrections.' };
         }
         
-        db.prepare('UPDATE games SET drawTime = ?, isMarketOpen = 1 WHERE id = ?')
+        db.prepare('UPDATE games SET drawTime = ? WHERE id = ?')
           .run(newDrawTime, gameId);
         
         updatedGame = findAccountById(gameId, 'games');
@@ -960,6 +919,5 @@ module.exports = {
     findBetsByGameId,
     getNumberStakeSummary,
     placeBulkBets,
-    performDailyResetIfNeeded,
     updateGameDrawTime,
 };
