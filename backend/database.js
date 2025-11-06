@@ -5,44 +5,70 @@ const { v4: uuidv4 } = require('uuid');
 const DB_PATH = path.join(__dirname, 'database.sqlite');
 let db;
 
-// --- CENTRALIZED GAME TIMING LOGIC ---
-const OPEN_HOUR = 16; // 4:00 PM
+// --- CENTRALIZED GAME TIMING LOGIC (TIMEZONE-AWARE) ---
+const PKT_OFFSET_HOURS = 5;
+const OPEN_HOUR_PKT = 16; // 4:00 PM in Pakistan
 
 /**
- * Calculates the current or next valid betting window (open time to close time) for a game.
- * @param {string} drawTime - The game's draw time in "HH:MM" format.
- * @returns {{openTime: Date, closeTime: Date}}
+ * Calculates the current or next valid betting window (open time to close time) for a game,
+ * with all calculations done in UTC to ensure timezone correctness.
+ * @param {string} drawTime - The game's draw time in "HH:MM" format, assumed to be in PKT.
+ * @returns {{openTime: Date, closeTime: Date}} Date objects representing absolute UTC time.
  */
 function getGameCycle(drawTime) {
-    const now = new Date();
-    const [drawHours, drawMinutes] = drawTime.split(':').map(Number);
+    const now = new Date(); // Current server time is UTC
+    const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
 
-    let openTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), OPEN_HOUR, 0, 0);
-    let closeTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), drawHours, drawMinutes, 0, 0);
-
-    // This handles overnight games. If a game's draw is in the early morning (e.g., 02:10),
-    // its market must have opened the previous day at 16:00.
-    if (drawHours < OPEN_HOUR) {
-        openTime.setDate(openTime.getDate() - 1);
-    }
-
-    // If the current time is already past this cycle's closing time,
-    // we need to calculate the *next* cycle.
-    if (now >= closeTime) {
-        openTime.setDate(openTime.getDate() + 1);
-        closeTime.setDate(closeTime.getDate() + 1);
-    }
+    // Get "today's" date parts in UTC
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    const day = now.getUTCDate();
     
-    return { openTime, closeTime };
+    // Calculate the market opening hour in UTC (16:00 PKT is 11:00 UTC)
+    const openHourUTC = OPEN_HOUR_PKT - PKT_OFFSET_HOURS;
+
+    // Define the opening time for the cycle that could have started "today" or "yesterday" in UTC
+    const todayOpen = new Date(Date.UTC(year, month, day, openHourUTC, 0, 0));
+    const yesterdayOpen = new Date(todayOpen.getTime() - (24 * 60 * 60 * 1000));
+
+    // A helper function to calculate the closing time based on a given opening time
+    const calculateCloseTime = (openDate) => {
+        const closeDate = new Date(openDate.getTime());
+        
+        // Calculate draw hour in UTC. setUTCHours handles negative values correctly (e.g., 2 - 5 = -3 -> 21:00 on prev day).
+        const drawHourUTC = drawHoursPKT - PKT_OFFSET_HOURS;
+        closeDate.setUTCHours(drawHourUTC, drawMinutesPKT, 0, 0);
+
+        // If a game's draw time in PKT (e.g., 02:10) is earlier than the market open time (16:00),
+        // it means its draw happens on the next calendar day relative to when it opened.
+        if (drawHoursPKT < OPEN_HOUR_PKT) {
+            closeDate.setUTCDate(closeDate.getUTCDate() + 1);
+        }
+        return closeDate;
+    };
+
+    // Calculate the closing time for the cycle that would have started yesterday
+    const yesterdayCycleClose = calculateCloseTime(yesterdayOpen);
+    
+    // Check if the current time falls inside the cycle that started yesterday
+    if (now >= yesterdayOpen && now < yesterdayCycleClose) {
+        return { openTime: yesterdayOpen, closeTime: yesterdayCycleClose };
+    }
+
+    // If not, we must be in (or waiting for) the cycle that starts today.
+    const todayCycleClose = calculateCloseTime(todayOpen);
+    return { openTime: todayOpen, closeTime: todayCycleClose };
 }
+
 
 /**
  * Checks if a game is currently within its valid betting window.
- * @param {string} drawTime - The game's draw time in "HH:MM" format.
+ * This is the public function that uses the cycle calculator.
+ * @param {string} drawTime - The game's draw time in "HH:MM" format (PKT).
  * @returns {boolean}
  */
 function isGameOpen(drawTime) {
-    const now = new Date();
+    const now = new Date(); // Current server time (UTC)
     const { openTime, closeTime } = getGameCycle(drawTime);
     return now >= openTime && now < closeTime;
 }
