@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
@@ -92,41 +93,27 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
 
     const getBetOutcome = (bet: Bet) => {
         const game = games.find(g => g.id === bet.gameId);
-        if (!game || !game.winningNumber || game.winningNumber.includes('_')) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
-        
+        if (!game || !user || !game.winningNumber || game.winningNumber.includes('_')) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
+
         const winningNumber = game.winningNumber;
         let winningNumbersCount = 0;
-        const isAKGame = game.name === 'AK';
-        let prizeSubGameType = bet.subGameType;
 
-        if (isAKGame && (bet.subGameType === SubGameType.TwoDigit || bet.subGameType === SubGameType.Bulk || bet.subGameType === SubGameType.Combo)) {
-            // For AK 2-digit type bets, the win condition is matching the first digit, and the prize rate is for 1-digit-open.
-            bet.numbers.forEach(num => {
-                if (num.length === 2 && num[0] === winningNumber[0]) {
-                    winningNumbersCount++;
-                }
-            });
-            if (winningNumbersCount > 0) {
-                prizeSubGameType = SubGameType.OneDigitOpen;
+        bet.numbers.forEach(num => {
+            let isWin = false;
+            switch (bet.subGameType) {
+                case SubGameType.OneDigitOpen:
+                    if (winningNumber.length === 2) { isWin = num === winningNumber[0]; }
+                    break;
+                case SubGameType.OneDigitClose:
+                    if (game.name === 'AKC') { isWin = num === winningNumber; } 
+                    else if (winningNumber.length === 2) { isWin = num === winningNumber[1]; }
+                    break;
+                default: // Covers TwoDigit, Bulk, Combo
+                    isWin = num === winningNumber;
+                    break;
             }
-        } else {
-            // Standard logic for all other cases
-            bet.numbers.forEach(num => {
-                let isWin = false;
-                switch (bet.subGameType) {
-                    case SubGameType.OneDigitOpen: 
-                        isWin = num === winningNumber[0]; 
-                        break;
-                    case SubGameType.OneDigitClose: 
-                        isWin = game.name === 'AKC' ? num === winningNumber : num === winningNumber[1];
-                        break;
-                    default: 
-                        isWin = num === winningNumber; 
-                        break;
-                }
-                if (isWin) winningNumbersCount++;
-            });
-        }
+            if (isWin) winningNumbersCount++;
+        });
 
         if (winningNumbersCount > 0) {
             const getPrizeMultiplier = (rates: PrizeRates, subGameType: SubGameType) => {
@@ -136,7 +123,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
                     default: return rates.twoDigit;
                 }
             };
-            const payout = winningNumbersCount * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, prizeSubGameType);
+            const payout = winningNumbersCount * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
             return { status: 'Win', payout, color: 'text-green-400' };
         }
         return { status: 'Lost', payout: 0, color: 'text-red-400' };

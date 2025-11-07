@@ -1,4 +1,5 @@
 
+
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -359,35 +360,30 @@ const approvePayoutsForGame = (gameId) => {
         };
 
         winningBets.forEach(bet => {
-            const isAKGame = game.name === 'AK';
-            let winningNumbersInBet = [];
-            let prizeSubGameType = bet.subGameType;
-
-            if (isAKGame && (bet.subGameType === "2 Digit" || bet.subGameType === "Bulk Game" || bet.subGameType === "Combo Game")) {
-                winningNumbersInBet = bet.numbers.filter(num => num.length === 2 && num[0] === winningNumber[0]);
-                if (winningNumbersInBet.length > 0) {
-                    prizeSubGameType = "1 Digit Open";
+            const winningNumbersInBet = bet.numbers.filter(num => {
+                let isWin = false;
+                switch (bet.subGameType) {
+                    case "1 Digit Open":
+                        if (winningNumber.length === 2) { isWin = num === winningNumber[0]; }
+                        break;
+                    case "1 Digit Close":
+                        if (game.name === 'AKC') { isWin = num === winningNumber; } 
+                        else if (winningNumber.length === 2) { isWin = num === winningNumber[1]; }
+                        break;
+                    default: // 2 Digit, Bulk Game, Combo Game
+                        isWin = num === winningNumber;
+                        break;
                 }
-            } else {
-                winningNumbersInBet = bet.numbers.filter(num => {
-                    switch (bet.subGameType) {
-                        case "1 Digit Open":
-                            return game.name !== 'AKC' && num === winningNumber[0];
-                        case "1 Digit Close":
-                            return game.name === 'AKC' ? num === winningNumber : num === winningNumber[1];
-                        default: // 2 Digit, Bulk, Combo for non-AK games
-                            return game.name !== 'AKC' && num === winningNumber;
-                    }
-                });
-            }
+                return isWin;
+            });
 
             if (winningNumbersInBet.length > 0) {
                 const user = allUsers[bet.userId];
                 const dealer = allDealers[bet.dealerId];
                 if (!user || !dealer) return;
 
-                const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, prizeSubGameType);
-                const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, prizeSubGameType) - getPrizeMultiplier(user.prizeRates, prizeSubGameType));
+                const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
+                const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
                 
                 // Payout to user
                 addLedgerEntry(user.id, 'USER', `Prize money for ${game.name}`, 0, userPrize);
@@ -427,35 +423,30 @@ const getFinancialSummary = () => {
 
         if (!game.winningNumber.endsWith('_')) { // Only calculate payouts for finalized games
             gameBets.forEach(bet => {
-                const isAKGame = game.name === 'AK';
-                let winningNumbersInBet = [];
-                let prizeSubGameType = bet.subGameType;
-
-                if (isAKGame && (bet.subGameType === '2 Digit' || bet.subGameType === 'Bulk Game' || bet.subGameType === 'Combo Game')) {
-                    winningNumbersInBet = bet.numbers.filter(num => num.length === 2 && num[0] === game.winningNumber[0]);
-                    if (winningNumbersInBet.length > 0) {
-                        prizeSubGameType = '1 Digit Open';
+                const winningNumbersInBet = bet.numbers.filter(num => {
+                    let isWin = false;
+                    switch (bet.subGameType) {
+                        case "1 Digit Open":
+                            if (game.winningNumber.length === 2) { isWin = num === game.winningNumber[0]; }
+                            break;
+                        case "1 Digit Close":
+                            if (game.name === 'AKC') { isWin = num === game.winningNumber; } 
+                            else if (game.winningNumber.length === 2) { isWin = num === game.winningNumber[1]; }
+                            break;
+                        default: // 2 Digit, Bulk Game, Combo Game
+                            isWin = num === game.winningNumber;
+                            break;
                     }
-                } else {
-                    winningNumbersInBet = bet.numbers.filter(num => {
-                        switch (bet.subGameType) {
-                            case "1 Digit Open": 
-                                return num === game.winningNumber[0];
-                            case "1 Digit Close":
-                                return game.name === 'AKC' ? num === game.winningNumber : num === game.winningNumber[1];
-                            default: 
-                                return num === game.winningNumber;
-                        }
-                    });
-                }
+                    return isWin;
+                });
 
                 if (winningNumbersInBet.length > 0) {
                     const user = allUsers[bet.userId];
                     const dealer = allDealers[bet.dealerId];
                     if (!user || !dealer) return;
 
-                    const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, prizeSubGameType);
-                    const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, prizeSubGameType) - getPrizeMultiplier(user.prizeRates, prizeSubGameType));
+                    const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
+                    const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
                     
                     totalPayouts += userPrize;
                     totalDealerProfit += dealerProfit;
