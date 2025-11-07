@@ -398,7 +398,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         const gameNameMap = new Map<string, string>();
         games.forEach(g => gameNameMap.set(g.name.toLowerCase().replace(/\s+/g, ''), g.id));
         const gameNameRegex = new RegExp(`\\b(${Array.from(gameNameMap.keys()).join('|')})\\b`, 'i');
-        const delimiterRegex = /[-.,_*\/+<>=%#;'xX\s]+/;
+        const delimiterRegex = /[-.,_*\/+<>=%;'\s]+/; // Removed 'x' and 'X' from delimiters
 
         let currentGameId: string | null = game.id;
         
@@ -434,6 +434,18 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
 
             const tokens = betPart.split(delimiterRegex).filter(Boolean);
             let betItems: { number: string; subGameType: SubGameType }[] = [];
+            
+            const isAkcGame = gameNameOnLine === 'AKC';
+            const determineType = (token: string): SubGameType | null => {
+                if (isAkcGame) {
+                    if (/^[xX]\d$/.test(token)) return SubGameType.OneDigitClose;
+                    return null;
+                }
+                if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
+                if (/^\d[xX]$/i.test(token)) return SubGameType.OneDigitOpen;
+                if (/^[xX]\d$/i.test(token)) return SubGameType.OneDigitClose;
+                return null;
+            };
 
             if (isCombo) {
                 const digits = betPart.replace(/\D/g, '');
@@ -450,11 +462,22 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                     }
                 }
             } else {
-                tokens.forEach(token => {
-                    if (/^\d{1,2}$/.test(token)) {
-                        betItems.push({ number: token.padStart(2, '0'), subGameType: SubGameType.TwoDigit });
+                let lineHasError = false;
+                for (const token of tokens) {
+                    const tokenType = determineType(token);
+                    if (!tokenType) {
+                        result.errors.push(`Invalid token '${token}' in line "${line}".`);
+                        lineHasError = true;
+                        break;
                     }
-                });
+                    let numberValue = '';
+                    if (tokenType === SubGameType.TwoDigit) numberValue = token.padStart(2, '0');
+                    else if (tokenType === SubGameType.OneDigitOpen) numberValue = token[0];
+                    else if (tokenType === SubGameType.OneDigitClose) numberValue = token[1];
+                    
+                    betItems.push({ number: numberValue, subGameType: tokenType });
+                }
+                if (lineHasError) continue;
             }
 
             if (betItems.length === 0) continue;
@@ -655,8 +678,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                         <>
                            <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Super Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"Example:\n43-44-41-42-49 Rs200\nLS2_01_58_93_83_rs50\nK 32807 r5"} className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Paste bets with any symbol. Add game names (e.g., LS2) or 'K' for combo.</p>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"Example:\n43,9x,x2 rs20\nLS2 01,58 rs50\nK 32807 r5"} className={inputClass} />
+                                <p className="text-xs text-slate-500 mt-1">Mix 2-digit, open (e.g. 5x), close (e.g. x8), and combos (K).</p>
                             </div>
                             
                              {parsedBulkBet.betsByGame.size > 0 && (
