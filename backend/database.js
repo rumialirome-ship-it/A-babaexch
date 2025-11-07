@@ -1,3 +1,4 @@
+
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -418,9 +419,13 @@ const getFinancialSummary = () => {
             gameBets.forEach(bet => {
                 const winningNumbersInBet = bet.numbers.filter(num => {
                     switch (bet.subGameType) {
-                        case "1 Digit Open": return num === game.winningNumber[0];
-                        case "1 Digit Close": return num === game.winningNumber[1];
-                        default: return num === game.winningNumber;
+                        case "1 Digit Open": 
+                            return num === game.winningNumber[0];
+                        case "1 Digit Close":
+                            // For AKC, the winner is a single digit. For others, it's the second digit.
+                            return game.name === 'AKC' ? num === game.winningNumber : num === game.winningNumber[1];
+                        default: 
+                            return num === game.winningNumber;
                     }
                 });
 

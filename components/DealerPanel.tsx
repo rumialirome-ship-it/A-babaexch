@@ -321,9 +321,16 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
         bet.numbers.forEach(num => {
             let isWin = false;
             switch (bet.subGameType) {
-                case "1 Digit Open": isWin = num === winningNumber[0]; break;
-                case "1 Digit Close": isWin = num === winningNumber[1]; break;
-                default: isWin = num === winningNumber; break;
+                case "1 Digit Open": 
+                    isWin = num === winningNumber[0]; 
+                    break;
+                case "1 Digit Close": 
+                    // For AKC, the winner is a single digit. For others, it's the second digit.
+                    isWin = game.name === 'AKC' ? num === winningNumber : num === winningNumber[1];
+                    break;
+                default: 
+                    isWin = num === winningNumber; 
+                    break;
             }
             if (isWin) winningNumbersCount++;
         });
