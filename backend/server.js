@@ -17,6 +17,39 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// --- AUTOMATIC GAME RESET SCHEDULER ---
+const PKT_OFFSET_HOURS = 5;
+const RESET_HOUR_PKT = 16; // 4:00 PM PKT
+
+function scheduleNextGameReset() {
+    const now = new Date();
+    const resetHourUTC = RESET_HOUR_PKT - PKT_OFFSET_HOURS;
+
+    // Set the target reset time to today in UTC
+    let resetTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), resetHourUTC, 0, 5, 0)); // 16:00:05 PKT for a small buffer
+
+    if (now >= resetTime) {
+        // If it's already past today's reset time, schedule for tomorrow
+        resetTime.setUTCDate(resetTime.getUTCDate() + 1);
+    }
+
+    const delay = resetTime.getTime() - now.getTime();
+    
+    console.log(`--- Scheduling next game reset for ${resetTime.toUTCString()} (in approx ${Math.round(delay / 1000 / 60)} minutes) ---`);
+
+    setTimeout(() => {
+        console.log('--- [TIMER] Running scheduled daily game reset... ---');
+        try {
+            database.resetAllGames();
+        } catch (e) {
+            console.error('--- [TIMER] Error during scheduled game reset:', e);
+        }
+        // Recursively schedule the next run for the following day
+        scheduleNextGameReset();
+    }, delay);
+}
+
+
 // --- API BROWSER ACCESS GUARD ---
 // This middleware prevents browsers from directly navigating to API endpoints,
 // which can cause them to try and download the JSON response as a file.
@@ -494,6 +527,18 @@ app.delete('/api/admin/number-limits/:id', authMiddleware, (req, res) => {
 const startServer = () => {
   database.connect();
   database.verifySchema();
+  
+  // Run reset once on startup to catch any stale games if the server restarted after 4 PM
+  console.log('--- [STARTUP] Running initial check for stale games... ---');
+  try {
+    database.resetAllGames();
+  } catch (e) {
+    console.error('--- [STARTUP] Error during initial game reset:', e);
+  }
+  
+  // Schedule the recurring daily reset
+  scheduleNextGameReset();
+
   // The port is hardcoded here to ensure it matches the Nginx config and deployment guide.
   // This avoids conflicts from environment variables.
   app.listen(3001, () => {

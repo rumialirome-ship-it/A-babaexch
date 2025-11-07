@@ -360,9 +360,13 @@ const approvePayoutsForGame = (gameId) => {
         winningBets.forEach(bet => {
             const winningNumbersInBet = bet.numbers.filter(num => {
                 switch (bet.subGameType) {
-                    case "1 Digit Open": return num === winningNumber[0];
-                    case "1 Digit Close": return num === winningNumber[1];
-                    default: return num === winningNumber;
+                    case "1 Digit Open":
+                        return game.name !== 'AKC' && num === winningNumber[0];
+                    case "1 Digit Close":
+                        // For AKC, the winner is a single digit. For others, it's the second digit.
+                        return game.name === 'AKC' ? num === winningNumber : num === winningNumber[1];
+                    default: // 2 Digit, Bulk, Combo
+                        return game.name !== 'AKC' && num === winningNumber;
                 }
             });
 
@@ -764,6 +768,12 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         if (!Array.isArray(betGroups) || betGroups.length === 0) throw { status: 400, message: 'Invalid bet format.' };
         
         // 2. Centralized Game Open/Close Check
+        if (game.name === 'AKC') {
+            const invalidGroup = betGroups.find(g => g.subGameType !== '1 Digit Close');
+            if (invalidGroup) {
+                throw { status: 400, message: 'Only 1 Digit Close bets are allowed for the AKC game.' };
+            }
+        }
         if (!game.isMarketOpen) {
             throw { status: 400, message: `Betting is currently closed for ${game.name}.` };
         }
@@ -912,6 +922,37 @@ const updateGameDrawTime = (gameId, newDrawTime) => {
     return updatedGame;
 };
 
+function resetAllGames() {
+    // This function is designed to be idempotent. It can be run at any time.
+    // It finds all games that have a winner and checks if their market should be open *now*.
+    // If a market is open, it means a new cycle has begun, so the old winner is cleared.
+    const gamesToReset = db.prepare('SELECT id, drawTime, winningNumber FROM games WHERE winningNumber IS NOT NULL').all();
+    
+    if (gamesToReset.length === 0) {
+        console.log('Game Reset Check: No games with winning numbers to check.');
+        return;
+    }
+
+    let resetCount = 0;
+    const resetStmt = db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0 WHERE id = ?');
+    
+    runInTransaction(() => {
+        for (const game of gamesToReset) {
+            if (isGameOpen(game.drawTime)) {
+                resetStmt.run(game.id);
+                resetCount++;
+                console.log(`Resetting stale winner for game ID: ${game.id}`);
+            }
+        }
+    });
+
+    if (resetCount > 0) {
+        console.log(`Game Reset: Successfully reset ${resetCount} game(s).`);
+    } else {
+        console.log('Game Reset Check: No stale games found that required a reset.');
+    }
+}
+
 
 module.exports = {
     connect,
@@ -946,4 +987,5 @@ module.exports = {
     getNumberStakeSummary,
     placeBulkBets,
     updateGameDrawTime,
+    resetAllGames,
 };
