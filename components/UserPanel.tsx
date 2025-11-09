@@ -334,7 +334,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         const allSubGameTypes = [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
         
         if (game.name === 'AKC') {
-            return [SubGameType.OneDigitClose, SubGameType.Bulk];
+            return [SubGameType.OneDigitClose];
         }
         
         if (game.name === 'AK') {
