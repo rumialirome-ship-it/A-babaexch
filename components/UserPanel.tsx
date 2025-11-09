@@ -1,7 +1,4 @@
 
-
-
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
@@ -333,11 +330,14 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
 
     const availableSubGameTabs = useMemo(() => {
         if (!game) return [];
-        if (game.name === 'AK') return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.Bulk, SubGameType.Combo];
+        const twoDigitGames = [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
+        if (game.name.includes('AK')) {
+            return twoDigitGames;
+        }
         if (game.name === 'AKC') {
             return [SubGameType.OneDigitClose];
         }
-        return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
+        return twoDigitGames;
     }, [game]);
 
     useEffect(() => {
@@ -466,7 +466,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                 for (let i = 0; i < uniqueDigits.length; i++) {
                     for (let j = 0; j < uniqueDigits.length; j++) {
                         if (i !== j) {
-                            betItems.push({ number: uniqueDigits[i] + uniqueDigits[j], subGameType: SubGameType.TwoDigit });
+                            betItems.push({ number: uniqueDigits[i] + uniqueDigits[j], subGameType: SubGameType.Combo });
                         }
                     }
                 }
