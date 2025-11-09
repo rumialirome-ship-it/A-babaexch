@@ -939,18 +939,12 @@ const updateGameDrawTime = (gameId, newDrawTime) => {
 };
 
 function resetAllGames() {
-    // This function runs daily to prepare for a new day of games.
-    // A previous version of this function incorrectly cleared all 'winningNumber'
-    // and 'payoutsApproved' fields, which erased historical data and caused
-    // past bets to incorrectly show as "Pending".
-    
-    // THE CORRECT BEHAVIOR is to *preserve* all historical game data permanently.
-    // The open/closed status of a game for betting is determined dynamically
-    // by time-based checks (isGameOpen), not by a flag that needs resetting.
-    
-    // Therefore, this function performs no destructive actions on the games table.
-    // It remains in the scheduler to accommodate any future non-destructive daily tasks.
-    console.log('Daily game reset check: No destructive actions performed. Historical winning numbers are preserved.');
+    // This function is scheduled to run daily.
+    // Previously, it incorrectly cleared historical winning numbers, causing old bets to show as "Pending".
+    // The correct logic is to *never* delete historical game results. The market open/closed status
+    // is determined dynamically based on time, so no daily reset of game data is needed.
+    // This function is now intentionally left empty to ensure game history is always preserved.
+    console.log('Daily reset check: OK. Historical game data preserved.');
 }
 
 
