@@ -717,7 +717,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                             <div className="mb-4">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Digits (3-6)</label>
                                 <div className="flex gap-2">
-                                    <input type="text" value={comboDigitsInput} onChange={e => setComboDigitsInput(e.target.value)} placeholder="e.g., 324" className={inputClass} maxLength={10}/>
+                                    <input type="text" value={comboDigitsInput} onChange={e => setComboDigitsInput(e.target.value)} placeholder="e.g., 324" className={inputClass} maxLength={6}/>
                                     <button onClick={handleGenerateCombos} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap">Generate</button>
                                 </div>
                             </div>
