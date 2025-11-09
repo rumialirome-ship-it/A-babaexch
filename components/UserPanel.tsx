@@ -253,7 +253,7 @@ const formatTime12h = (time24: string) => {
 const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }> = ({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const isPlayable = !!game.isMarketOpen && !isRestricted && status === 'OPEN';
-    const isMarketClosedForDisplay = !game.isMarketOpen || status === 'CLOSED';
+    const isMarketClosedForDisplay = !game.isMarketOpen;
 
     return (
         <div className={`bg-slate-800/50 rounded-lg shadow-lg p-4 flex flex-col justify-between transition-all duration-300 border border-slate-700 ${!isPlayable ? 'opacity-60' : 'hover:shadow-cyan-500/20 hover:-translate-y-1 hover:border-cyan-500/50'}`}>
@@ -284,7 +284,7 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
                     )}
                 </div>
             </div>
-             {game.winningNumber && <div className="text-center font-bold text-lg text-emerald-400 mt-2">Winner: {game.winningNumber}</div>}
+             {game.winningNumber && isMarketClosedForDisplay && <div className="text-center font-bold text-lg text-emerald-400 mt-2">Previous Winner: {game.winningNumber}</div>}
             <button onClick={() => onPlay(game)} disabled={!isPlayable} className="w-full mt-2 bg-sky-600 text-white font-bold py-2.5 px-4 rounded-md transition-all duration-300 enabled:hover:bg-sky-500 enabled:hover:shadow-lg enabled:hover:shadow-sky-500/30 disabled:bg-slate-700 disabled:cursor-not-allowed">
                 PLAY NOW
             </button>
@@ -331,7 +331,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
 
     const availableSubGameTabs = useMemo(() => {
         if (!game) return [];
-        if (game.name === 'AK') return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.Bulk];
+        if (game.name === 'AK') return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.Bulk, SubGameType.Combo];
         if (game.name === 'AKC') {
             return [SubGameType.OneDigitClose];
         }

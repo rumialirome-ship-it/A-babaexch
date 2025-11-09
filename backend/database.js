@@ -939,34 +939,18 @@ const updateGameDrawTime = (gameId, newDrawTime) => {
 };
 
 function resetAllGames() {
-    // This function is designed to be idempotent. It can be run at any time.
-    // It finds all games that have a winner and checks if their market should be open *now*.
-    // If a market is open, it means a new cycle has begun, so the old winner is cleared.
-    const gamesToReset = db.prepare('SELECT id, drawTime, winningNumber FROM games WHERE winningNumber IS NOT NULL').all();
+    // This function runs daily to prepare for a new day of games.
+    // A previous version of this function incorrectly cleared all 'winningNumber'
+    // and 'payoutsApproved' fields, which erased historical data and caused
+    // past bets to incorrectly show as "Pending".
     
-    if (gamesToReset.length === 0) {
-        console.log('Game Reset Check: No games with winning numbers to check.');
-        return;
-    }
-
-    let resetCount = 0;
-    const resetStmt = db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0 WHERE id = ?');
+    // THE CORRECT BEHAVIOR is to *preserve* all historical game data permanently.
+    // The open/closed status of a game for betting is determined dynamically
+    // by time-based checks (isGameOpen), not by a flag that needs resetting.
     
-    runInTransaction(() => {
-        for (const game of gamesToReset) {
-            if (isGameOpen(game.drawTime)) {
-                resetStmt.run(game.id);
-                resetCount++;
-                console.log(`Resetting stale winner for game ID: ${game.id}`);
-            }
-        }
-    });
-
-    if (resetCount > 0) {
-        console.log(`Game Reset: Successfully reset ${resetCount} game(s).`);
-    } else {
-        console.log('Game Reset Check: No stale games found that required a reset.');
-    }
+    // Therefore, this function performs no destructive actions on the games table.
+    // It remains in the scheduler to accommodate any future non-destructive daily tasks.
+    console.log('Daily game reset check: No destructive actions performed. Historical winning numbers are preserved.');
 }
 
 

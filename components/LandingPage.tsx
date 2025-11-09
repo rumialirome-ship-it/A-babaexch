@@ -15,14 +15,13 @@ const formatTime12h = (time24: string) => {
 const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, onClick }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasWinner = !!game.winningNumber;
-    const isMarketClosedForDisplay = !game.isMarketOpen || status === 'CLOSED';
-    const themeColor = hasWinner ? 'emerald' : 'cyan';
+    const isMarketClosedForDisplay = !game.isMarketOpen;
+    const themeColor = hasWinner && isMarketClosedForDisplay ? 'emerald' : 'cyan';
     const logo = GAME_LOGOS[game.name] || '';
 
     return (
         <button
             onClick={onClick}
-            disabled={hasWinner}
             className={`relative group bg-slate-800/50 p-6 flex flex-col items-center justify-between text-center transition-all duration-300 ease-in-out border border-slate-700 w-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-${themeColor}-500`}
             style={{
                 clipPath: 'polygon(0 15px, 15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%)',
@@ -38,9 +37,9 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
                     <p className="text-slate-400 text-sm">Draw @ {formatTime12h(game.drawTime)}</p>
                 </div>
                 <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor}-400/20`}>
-                    {hasWinner ? (
+                    {hasWinner && isMarketClosedForDisplay ? (
                         <>
-                            <div className="text-xs uppercase tracking-widest text-slate-400">WINNING NUMBER</div>
+                            <div className="text-xs uppercase tracking-widest text-slate-400">PREVIOUS WINNER</div>
                             <div className="text-4xl font-mono font-bold text-emerald-300 flex items-center justify-center gap-2">
                                 {React.cloneElement(Icons.star, { className: 'h-6 w-6 text-amber-300' })}
                                 <span>{game.winningNumber}</span>
