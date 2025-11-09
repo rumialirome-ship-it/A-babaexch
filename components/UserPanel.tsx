@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
@@ -330,14 +331,18 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
 
     const availableSubGameTabs = useMemo(() => {
         if (!game) return [];
-        const twoDigitGames = [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
-        if (game.name.includes('AK')) {
-            return twoDigitGames;
-        }
+        const allSubGameTypes = [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
+        
         if (game.name === 'AKC') {
             return [SubGameType.OneDigitClose];
         }
-        return twoDigitGames;
+        
+        if (game.name === 'AK') {
+            return allSubGameTypes.filter(type => type !== SubGameType.OneDigitClose);
+        }
+        
+        return allSubGameTypes;
+
     }, [game]);
 
     useEffect(() => {
