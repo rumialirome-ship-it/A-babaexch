@@ -13,53 +13,34 @@ const OPEN_HOUR_PKT = 16; // 4:00 PM in Pakistan
 
 /**
  * Calculates the current or next valid betting window (open time to close time) for a game,
- * with all calculations done in UTC to ensure timezone correctness.
+ * with all calculations done in UTC to ensure timezone correctness. This is the single source of truth for game state.
  * @param {string} drawTime - The game's draw time in "HH:MM" format, assumed to be in PKT.
  * @returns {{openTime: Date, closeTime: Date}} Date objects representing absolute UTC time.
  */
 function getGameCycle(drawTime) {
     const now = new Date(); // Current server time is UTC
     const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
-
-    // Get "today's" date parts in UTC
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth();
-    const day = now.getUTCDate();
-    
-    // Calculate the market opening hour in UTC (16:00 PKT is 11:00 UTC)
     const openHourUTC = OPEN_HOUR_PKT - PKT_OFFSET_HOURS;
 
-    // Define the opening time for the cycle that could have started "today" or "yesterday" in UTC
-    const todayOpen = new Date(Date.UTC(year, month, day, openHourUTC, 0, 0));
-    const yesterdayOpen = new Date(todayOpen.getTime() - (24 * 60 * 60 * 1000));
-
-    // A helper function to calculate the closing time based on a given opening time
-    const calculateCloseTime = (openDate) => {
-        const closeDate = new Date(openDate.getTime());
-        
-        // Calculate draw hour in UTC. setUTCHours handles negative values correctly (e.g., 2 - 5 = -3 -> 21:00 on prev day).
-        const drawHourUTC = drawHoursPKT - PKT_OFFSET_HOURS;
-        closeDate.setUTCHours(drawHourUTC, drawMinutesPKT, 0, 0);
-
-        // If a game's draw time in PKT (e.g., 02:10) is earlier than the market open time (16:00),
-        // it means its draw happens on the next calendar day relative to when it opened.
-        if (drawHoursPKT < OPEN_HOUR_PKT) {
-            closeDate.setUTCDate(closeDate.getUTCDate() + 1);
-        }
-        return closeDate;
-    };
-
-    // Calculate the closing time for the cycle that would have started yesterday
-    const yesterdayCycleClose = calculateCloseTime(yesterdayOpen);
-    
-    // Check if the current time falls inside the cycle that started yesterday
-    if (now >= yesterdayOpen && now < yesterdayCycleClose) {
-        return { openTime: yesterdayOpen, closeTime: yesterdayCycleClose };
+    // 1. Find the most recent market open time (11:00 UTC) that has already passed.
+    let lastOpenTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), openHourUTC, 0, 0));
+    if (now.getTime() < lastOpenTime.getTime()) {
+        // If current time is before today's open time, the last open time was yesterday's.
+        lastOpenTime.setUTCDate(lastOpenTime.getUTCDate() - 1);
     }
 
-    // If not, we must be in (or waiting for) the cycle that starts today.
-    const todayCycleClose = calculateCloseTime(todayOpen);
-    return { openTime: todayOpen, closeTime: todayCycleClose };
+    // 2. Calculate the corresponding closing time for that cycle.
+    let closeTime = new Date(lastOpenTime.getTime());
+    const drawHourUTC = drawHoursPKT - PKT_OFFSET_HOURS;
+    closeTime.setUTCHours(drawHourUTC, drawMinutesPKT, 0, 0);
+
+    // 3. If the game's draw time is on the "next day" (e.g., opens at 16:00, draws at 02:10),
+    //    we need to advance the close date by one day.
+    if (drawHoursPKT < OPEN_HOUR_PKT) {
+        closeTime.setUTCDate(closeTime.getUTCDate() + 1);
+    }
+
+    return { openTime: lastOpenTime, closeTime: closeTime };
 }
 
 
@@ -931,12 +912,21 @@ const updateGameDrawTime = (gameId, newDrawTime) => {
 };
 
 function resetAllGames() {
-    // This function is scheduled to run daily.
-    // Previously, it incorrectly cleared historical winning numbers, causing old bets to show as "Pending".
-    // The correct logic is to *never* delete historical game results. The market open/closed status
-    // is determined dynamically based on time, so no daily reset of game data is needed.
-    // This function is now intentionally left empty to ensure game history is always preserved.
-    console.log('Daily reset check: OK. Historical game data preserved.');
+    // This function is scheduled to run daily at 4:00 PM PKT.
+    // It resets the winning numbers and approval status for all games,
+    // allowing a new betting cycle to begin.
+    // Historical bets remain unaffected as they are timestamped.
+    try {
+        const stmt = db.prepare(`
+            UPDATE games 
+            SET winningNumber = NULL, payoutsApproved = 0
+        `);
+        const result = stmt.run();
+        console.log(`Daily game reset complete. ${result.changes} games have been reset for the new cycle.`);
+    } catch (error) {
+        console.error('Error during daily game reset:', error);
+        // We shouldn't throw here as it might crash the timer loop in server.js
+    }
 }
 
 
