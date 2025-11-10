@@ -1,9 +1,28 @@
 
 
+
 import { useState, useEffect, useCallback } from 'react';
 
 const OPEN_HOUR_PKT = 16;
 const PKT_OFFSET_HOURS = 5;
+const RESET_HOUR_UTC = OPEN_HOUR_PKT - PKT_OFFSET_HOURS; // 11
+
+/**
+ * Determines the "market day" for a given bet timestamp, factoring in the daily reset time.
+ * All calculations are in UTC to ensure consistency with the backend.
+ * @param betTimestamp The Date object of the bet.
+ * @returns A string in 'YYYY-MM-DD' format representing the market day in UTC.
+ */
+export const getMarketDateForBet = (betTimestamp: Date): string => {
+    const d = new Date(betTimestamp.getTime());
+    // The market day is based on the 11:00 UTC (4 PM PKT) reset time.
+    // If a bet is placed before 11:00 UTC on a given day, it belongs to the *previous* day's market cycle.
+    if (d.getUTCHours() < RESET_HOUR_UTC) {
+        d.setUTCDate(d.getUTCDate() - 1);
+    }
+    return d.toISOString().split('T')[0];
+};
+
 
 export const useCountdown = (drawTime: string) => {
     const [display, setDisplay] = useState<{status: 'LOADING' | 'SOON' | 'OPEN' | 'CLOSED', text: string}>({ status: 'LOADING', text: '...' });

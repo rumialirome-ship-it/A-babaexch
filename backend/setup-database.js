@@ -97,9 +97,18 @@ function main() {
                 limitAmount REAL NOT NULL,
                 UNIQUE(gameType, numberValue)
             );
+            CREATE TABLE daily_results (
+                id TEXT PRIMARY KEY,
+                gameId TEXT NOT NULL,
+                date TEXT NOT NULL, -- YYYY-MM-DD in UTC
+                winningNumber TEXT NOT NULL,
+                FOREIGN KEY (gameId) REFERENCES games(id),
+                UNIQUE(gameId, date)
+            );
             CREATE INDEX idx_ledgers_accountId ON ledgers(accountId);
             CREATE INDEX idx_bets_userId ON bets(userId);
             CREATE INDEX idx_users_dealerId ON users(dealerId);
+            CREATE INDEX idx_daily_results_gameId_date ON daily_results(gameId, date);
         `);
         console.error('Database schema created.');
     };

@@ -97,3 +97,10 @@ export interface NumberLimit {
   numberValue: string;
   limitAmount: number;
 }
+
+export interface DailyResult {
+  id: string;
+  gameId: string;
+  date: string; // YYYY-MM-DD
+  winningNumber: string;
+}

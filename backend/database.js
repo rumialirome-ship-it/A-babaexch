@@ -1,5 +1,6 @@
 
 
+
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -10,6 +11,24 @@ let db;
 // --- CENTRALIZED GAME TIMING LOGIC (TIMEZONE-AWARE) ---
 const PKT_OFFSET_HOURS = 5;
 const OPEN_HOUR_PKT = 16; // 4:00 PM in Pakistan
+const RESET_HOUR_UTC = OPEN_HOUR_PKT - PKT_OFFSET_HOURS; // 11:00 UTC
+
+/**
+ * Determines the "market day" for a given date, factoring in the daily reset time.
+ * All calculations are in UTC to ensure consistency.
+ * @param {Date} dateObj The date object.
+ * @returns {string} A string in 'YYYY-MM-DD' format representing the market day in UTC.
+ */
+const getMarketDateString = (dateObj) => {
+    const d = new Date(dateObj.getTime());
+    // The market day is based on the 11:00 UTC (4 PM PKT) reset time.
+    // If a bet is placed before 11:00 UTC on a given day, it belongs to the *previous* day's market cycle.
+    if (d.getUTCHours() < RESET_HOUR_UTC) {
+        d.setUTCDate(d.getUTCDate() - 1);
+    }
+    return d.toISOString().split('T')[0];
+};
+
 
 /**
  * Calculates the current or next valid betting window (open time to close time) for a game,
@@ -106,10 +125,10 @@ const findAccountById = (id, table) => {
 
     try {
         // Attach ledger for non-game tables
-        if (table !== 'games') {
+        if (table !== 'games' && table !== 'daily_results') {
             const ledgerStmt = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC');
             account.ledger = ledgerStmt.all(id);
-        } else {
+        } else if (table === 'games') {
             // Dynamically determine if the game market is open based on time.
             account.isMarketOpen = isGameOpen(account.drawTime);
         }
@@ -173,6 +192,7 @@ const getLedgerForAccount = (accountId) => {
 
 const getAllFromTable = (table, withLedger = false) => {
     let accounts = db.prepare(`SELECT * FROM ${table}`).all();
+    if (table === 'daily_results') return accounts;
     return accounts.map(acc => {
         try {
             if (withLedger && acc.id) {
@@ -235,6 +255,9 @@ const declareWinnerForGame = (gameId, winningNumber) => {
         if (!game) throw { status: 404, message: 'Game not found.' };
         if (game.winningNumber) throw { status: 400, message: 'Winner has already been declared for this game.' };
 
+        const marketDate = getMarketDateString(new Date());
+        const upsertResultStmt = db.prepare('INSERT INTO daily_results (id, gameId, date, winningNumber) VALUES (?, ?, ?, ?) ON CONFLICT(gameId, date) DO UPDATE SET winningNumber = excluded.winningNumber');
+
         if (game.name === 'AK') {
             if (!/^\d$/.test(winningNumber)) {
                 throw { status: 400, message: 'AK open winner must be a single digit.' };
@@ -245,21 +268,22 @@ const declareWinnerForGame = (gameId, winningNumber) => {
             if (!/^\d$/.test(winningNumber)) {
                 throw { status: 400, message: 'AKC winner must be a single digit.' };
             }
-            // Update AKC itself
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
+            upsertResultStmt.run(uuidv4(), gameId, marketDate, winningNumber);
 
-            // Now, find the AK game and update it if it's pending
             const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get();
             if (akGame && akGame.winningNumber && akGame.winningNumber.endsWith('_')) {
                 const openDigit = akGame.winningNumber.slice(0, 1);
                 const fullNumber = openDigit + winningNumber;
                 db.prepare("UPDATE games SET winningNumber = ? WHERE name = 'AK'").run(fullNumber);
+                upsertResultStmt.run(uuidv4(), akGame.id, marketDate, fullNumber);
             }
         } else {
             if (!/^\d{2}$/.test(winningNumber)) {
                 throw { status: 400, message: 'Winning number must be a 2-digit number.' };
             }
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
+            upsertResultStmt.run(uuidv4(), gameId, marketDate, winningNumber);
         }
         finalGame = findAccountById(gameId, 'games');
     });
@@ -277,6 +301,9 @@ const updateWinningNumber = (gameId, newWinningNumber) => {
             throw { status: 400, message: 'Cannot update: Payouts have already been approved.' };
         }
 
+        const marketDate = getMarketDateString(new Date());
+        const upsertResultStmt = db.prepare('INSERT INTO daily_results (id, gameId, date, winningNumber) VALUES (?, ?, ?, ?) ON CONFLICT(gameId, date) DO UPDATE SET winningNumber = excluded.winningNumber');
+
         if (game.name === 'AK') {
             if (!/^\d$/.test(newWinningNumber)) {
                 throw { status: 400, message: 'New AK open winner must be a single digit.' };
@@ -284,26 +311,29 @@ const updateWinningNumber = (gameId, newWinningNumber) => {
             const closeDigit = game.winningNumber.endsWith('_') ? '_' : game.winningNumber.slice(1, 2);
             const updatedNumber = newWinningNumber + closeDigit;
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(updatedNumber, gameId);
-        
+            if (!updatedNumber.endsWith('_')) {
+                upsertResultStmt.run(uuidv4(), gameId, marketDate, updatedNumber);
+            }
         } else if (game.name === 'AKC') {
             if (!/^\d$/.test(newWinningNumber)) {
                 throw { status: 400, message: 'New AKC winner must be a single digit.' };
             }
-            // Update AKC
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(newWinningNumber, gameId);
+            upsertResultStmt.run(uuidv4(), gameId, marketDate, newWinningNumber);
             
-            // Re-trigger AK update
             const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get();
             if (akGame && akGame.winningNumber && !akGame.winningNumber.endsWith('_')) {
                 const openDigit = akGame.winningNumber.slice(0, 1);
                 const fullNumber = openDigit + newWinningNumber;
                 db.prepare("UPDATE games SET winningNumber = ? WHERE name = 'AK'").run(fullNumber);
+                upsertResultStmt.run(uuidv4(), akGame.id, marketDate, fullNumber);
             }
         } else {
             if (!/^\d{2}$/.test(newWinningNumber)) {
                 throw { status: 400, message: 'New winning number must be a 2-digit number.' };
             }
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(newWinningNumber, gameId);
+            upsertResultStmt.run(uuidv4(), gameId, marketDate, newWinningNumber);
         }
         updatedGame = findAccountById(gameId, 'games');
     });

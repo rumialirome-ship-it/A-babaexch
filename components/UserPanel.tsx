@@ -1,9 +1,11 @@
 
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
+// FIX: Import DailyResult and getMarketDateForBet to handle historical bet outcomes correctly.
+import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits, DailyResult } from '../types';
 import { Icons } from '../constants';
-import { useCountdown } from '../hooks/useCountdown';
+import { useCountdown, getMarketDateForBet } from '../hooks/useCountdown';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
@@ -86,16 +88,24 @@ const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
 };
 
 
-const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ bets, games, user }) => {
+const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User, dailyResults: DailyResult[] }> = ({ bets, games, user, dailyResults }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
 
     const getBetOutcome = (bet: Bet) => {
         const game = games.find(g => g.id === bet.gameId);
-        if (!game || !user || !game.winningNumber || game.winningNumber.includes('_')) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
+        if (!game || !user) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
 
-        const winningNumber = game.winningNumber;
+        const betMarketDate = getMarketDateForBet(new Date(bet.timestamp));
+        const historicalResult = dailyResults.find(r => r.gameId === bet.gameId && r.date === betMarketDate);
+        
+        const winningNumber = historicalResult?.winningNumber;
+
+        if (!winningNumber || winningNumber.includes('_')) {
+            return { status: 'Pending', payout: 0, color: 'text-amber-400' };
+        }
+
         let winningNumbersCount = 0;
 
         bet.numbers.forEach(num => {
@@ -991,6 +1001,7 @@ interface UserPanelProps {
   user: User;
   games: Game[];
   bets: Bet[];
+  dailyResults: DailyResult[];
   placeBet: (details: {
     userId: string;
     gameId: string;
@@ -1007,7 +1018,7 @@ const getPrizeRateForBet = (subGameType: SubGameType, prizeRates: PrizeRates) =>
     }
 };
 
-const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) => {
+const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet, dailyResults }) => {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [betConfirmation, setBetConfirmation] = useState<BetConfirmationDetails | null>(null);
   const [betToConfirm, setBetToConfirm] = useState<BetConfirmationDetails | null>(null);
@@ -1164,7 +1175,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
       </div>
       
       <WalletSummaryView entries={user.ledger} />
-      <BetHistoryView bets={userBets} games={games} user={user} />
+      <BetHistoryView bets={userBets} games={games} user={user} dailyResults={dailyResults} />
       <LedgerView entries={user.ledger} />
       
       {selectedGame && <BettingModal game={selectedGame} games={games} user={user} onClose={() => { setSelectedGame(null); setBettingError(null); }} onPlaceBet={handleReviewBet} apiError={bettingError} clearApiError={() => setBettingError(null)} />}

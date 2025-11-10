@@ -1,7 +1,8 @@
 
 
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates } from './types';
+import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
 import LandingPage from './components/LandingPage';
 import AdminPanel from './components/AdminPanel';
@@ -58,6 +59,7 @@ const AppContent: React.FC = () => {
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
+    const [dailyResults, setDailyResults] = useState<DailyResult[]>([]);
 
     const parseAllDates = (data: any) => {
         const parseLedger = (ledger: LedgerEntry[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
@@ -80,6 +82,7 @@ const AppContent: React.FC = () => {
                 setDealers(parsedData.dealers);
                 setGames(parsedData.games);
                 setBets(parsedData.bets);
+                setDailyResults(parsedData.daily_results || []);
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
                 if (!response.ok) throw new Error('Failed to fetch dealer data');
@@ -87,6 +90,7 @@ const AppContent: React.FC = () => {
                 const parsedData = parseAllDates(data);
                 setUsers(parsedData.users);
                 setBets(parsedData.bets);
+                setDailyResults(parsedData.daily_results || []);
                 const gamesResponse = await fetchWithAuth('/api/games');
                 const gamesData = await gamesResponse.json();
                 setGames(gamesData);
@@ -97,6 +101,7 @@ const AppContent: React.FC = () => {
                 const parsedData = parseAllDates(data);
                 setGames(parsedData.games);
                 setBets(parsedData.bets);
+                setDailyResults(parsedData.daily_results || []);
             }
         } catch (error) {
             console.error("Failed to fetch data:", error);
@@ -118,6 +123,7 @@ const AppContent: React.FC = () => {
             setDealers([]);
             setGames([]);
             setBets([]);
+            setDailyResults([]);
         }
     
         // Cleanup interval on component unmount or when dependencies change
@@ -314,8 +320,8 @@ const AppContent: React.FC = () => {
         <div className="min-h-screen flex flex-col">
             <Header />
             <main className="flex-grow">
-                {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
-                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} />}
+                {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} dailyResults={dailyResults} placeBet={placeBet} />}
+                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} dailyResults={dailyResults} placeBetAsDealer={placeBetAsDealer} />}
                 {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} onPlaceAdminBets={onPlaceAdminBets} updateGameDrawTime={updateGameDrawTime} />}
             </main>
         </div>
