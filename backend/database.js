@@ -45,12 +45,14 @@ function getGameCycle(drawTime) {
     }
     
     let closeTime = new Date(lastOpenTime.getTime());
-    const drawHourUTC_raw = drawHoursPKT - PKT_OFFSET_HOURS;
+    const drawHourUTC = (drawHoursPKT - PKT_OFFSET_HOURS + 24) % 24;
 
-    if (drawHoursPKT < OPEN_HOUR_PKT) {
+    closeTime.setUTCHours(drawHourUTC, drawMinutesPKT, 0, 0);
+
+    // If setting the time made it earlier than or equal to the open time, it must be for the next day.
+    if (closeTime.getTime() <= lastOpenTime.getTime()) {
         closeTime.setUTCDate(closeTime.getUTCDate() + 1);
     }
-    closeTime.setUTCHours((drawHourUTC_raw + 24) % 24, drawMinutesPKT, 0, 0);
     
     return { openTime: lastOpenTime, closeTime: closeTime };
 }
@@ -241,6 +243,27 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
     updateWalletStmt.run(newBalance, accountId);
 };
 
+// Helper to determine the market date for a result being declared NOW.
+const getMarketDateForDeclaration = (drawTime) => {
+    const { openTime } = getGameCycle(drawTime);
+    const now = new Date();
+    let marketDate;
+
+    if (now.getTime() < openTime.getTime()) {
+        // `now` is before today's market has opened.
+        // Therefore, the result being declared must be for the *previous* market day.
+        const previousMarketOpenTime = new Date(openTime.getTime());
+        previousMarketOpenTime.setUTCDate(previousMarketOpenTime.getUTCDate() - 1);
+        marketDate = previousMarketOpenTime.toISOString().split('T')[0];
+    } else {
+        // `now` is during or after today's market open time.
+        // The result is for the current market day.
+        marketDate = openTime.toISOString().split('T')[0];
+    }
+    return marketDate;
+};
+
+
 const declareWinnerForGame = (gameId, winningNumber) => {
     let finalGame;
     runInTransaction(() => {
@@ -248,8 +271,7 @@ const declareWinnerForGame = (gameId, winningNumber) => {
         if (!game) throw { status: 404, message: 'Game not found.' };
         if (game.winningNumber) throw { status: 400, message: 'Winner has already been declared for this game.' };
 
-        const { openTime } = getGameCycle(game.drawTime);
-        const marketDate = openTime.toISOString().split('T')[0];
+        const marketDateForDb = getMarketDateForDeclaration(game.drawTime);
         
         const upsertResultStmt = db.prepare('INSERT INTO daily_results (id, gameId, date, winningNumber) VALUES (?, ?, ?, ?) ON CONFLICT(gameId, date) DO UPDATE SET winningNumber = excluded.winningNumber');
 
@@ -264,7 +286,7 @@ const declareWinnerForGame = (gameId, winningNumber) => {
                 throw { status: 400, message: 'AKC winner must be a single digit.' };
             }
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
-            upsertResultStmt.run(uuidv4(), gameId, marketDate, winningNumber);
+            upsertResultStmt.run(uuidv4(), gameId, marketDateForDb, winningNumber);
 
             const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get();
             if (akGame && akGame.winningNumber && akGame.winningNumber.endsWith('_')) {
@@ -272,8 +294,7 @@ const declareWinnerForGame = (gameId, winningNumber) => {
                 const fullNumber = openDigit + winningNumber;
                 db.prepare("UPDATE games SET winningNumber = ? WHERE name = 'AK'").run(fullNumber);
                 
-                const { openTime: akOpenTime } = getGameCycle(akGame.drawTime);
-                const akMarketDate = akOpenTime.toISOString().split('T')[0];
+                const akMarketDate = getMarketDateForDeclaration(akGame.drawTime);
                 upsertResultStmt.run(uuidv4(), akGame.id, akMarketDate, fullNumber);
             }
         } else {
@@ -281,7 +302,7 @@ const declareWinnerForGame = (gameId, winningNumber) => {
                 throw { status: 400, message: 'Winning number must be a 2-digit number.' };
             }
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
-            upsertResultStmt.run(uuidv4(), gameId, marketDate, winningNumber);
+            upsertResultStmt.run(uuidv4(), gameId, marketDateForDb, winningNumber);
         }
         finalGame = findAccountById(gameId, 'games');
     });
@@ -299,8 +320,7 @@ const updateWinningNumber = (gameId, newWinningNumber) => {
             throw { status: 400, message: 'Cannot update: Payouts have already been approved.' };
         }
 
-        const { openTime } = getGameCycle(game.drawTime);
-        const marketDate = openTime.toISOString().split('T')[0];
+        const marketDateForDb = getMarketDateForDeclaration(game.drawTime);
         
         const upsertResultStmt = db.prepare('INSERT INTO daily_results (id, gameId, date, winningNumber) VALUES (?, ?, ?, ?) ON CONFLICT(gameId, date) DO UPDATE SET winningNumber = excluded.winningNumber');
 
@@ -312,14 +332,14 @@ const updateWinningNumber = (gameId, newWinningNumber) => {
             const updatedNumber = newWinningNumber + closeDigit;
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(updatedNumber, gameId);
             if (!updatedNumber.endsWith('_')) {
-                upsertResultStmt.run(uuidv4(), gameId, marketDate, updatedNumber);
+                upsertResultStmt.run(uuidv4(), gameId, marketDateForDb, updatedNumber);
             }
         } else if (game.name === 'AKC') {
             if (!/^\d$/.test(newWinningNumber)) {
                 throw { status: 400, message: 'New AKC winner must be a single digit.' };
             }
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(newWinningNumber, gameId);
-            upsertResultStmt.run(uuidv4(), gameId, marketDate, newWinningNumber);
+            upsertResultStmt.run(uuidv4(), gameId, marketDateForDb, newWinningNumber);
             
             const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get();
             if (akGame && akGame.winningNumber && !akGame.winningNumber.endsWith('_')) {
@@ -327,8 +347,7 @@ const updateWinningNumber = (gameId, newWinningNumber) => {
                 const fullNumber = openDigit + newWinningNumber;
                 db.prepare("UPDATE games SET winningNumber = ? WHERE name = 'AK'").run(fullNumber);
                 
-                const { openTime: akOpenTime } = getGameCycle(akGame.drawTime);
-                const akMarketDate = akOpenTime.toISOString().split('T')[0];
+                const akMarketDate = getMarketDateForDeclaration(akGame.drawTime);
                 upsertResultStmt.run(uuidv4(), akGame.id, akMarketDate, fullNumber);
             }
         } else {
@@ -336,7 +355,7 @@ const updateWinningNumber = (gameId, newWinningNumber) => {
                 throw { status: 400, message: 'New winning number must be a 2-digit number.' };
             }
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(newWinningNumber, gameId);
-            upsertResultStmt.run(uuidv4(), gameId, marketDate, newWinningNumber);
+            upsertResultStmt.run(uuidv4(), gameId, marketDateForDb, newWinningNumber);
         }
         updatedGame = findAccountById(gameId, 'games');
     });

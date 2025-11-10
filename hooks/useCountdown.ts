@@ -36,12 +36,14 @@ export const useCountdown = (drawTime: string) => {
         }
 
         let closeTime = new Date(lastOpenTime.getTime());
-        const drawHourUTC_raw = drawHoursPKT - PKT_OFFSET_HOURS;
+        const drawHourUTC = (drawHoursPKT - PKT_OFFSET_HOURS + 24) % 24;
 
-        if (drawHoursPKT < OPEN_HOUR_PKT) {
+        closeTime.setUTCHours(drawHourUTC, drawMinutesPKT, 0, 0);
+
+        // If setting the time made it earlier than or equal to the open time, it must be for the next day.
+        if (closeTime.getTime() <= lastOpenTime.getTime()) {
             closeTime.setUTCDate(closeTime.getUTCDate() + 1);
         }
-        closeTime.setUTCHours((drawHourUTC_raw + 24) % 24, drawMinutesPKT, 0, 0);
 
         return { openTime: lastOpenTime, closeTime: closeTime };
     }, [drawTime]);
