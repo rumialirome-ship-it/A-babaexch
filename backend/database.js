@@ -1,4 +1,5 @@
 
+
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -982,6 +983,79 @@ function resetAllGames() {
     }
 }
 
+const reprocessPayoutsForMarketDay = (gameId, date) => {
+    let resultSummary = {};
+    runInTransaction(() => {
+        const game = findAccountById(gameId, 'games');
+        if (!game) throw { status: 404, message: "Game not found." };
+
+        const result = db.prepare('SELECT winningNumber FROM daily_results WHERE gameId = ? AND date = ?').get(gameId, date);
+        if (!result || !result.winningNumber || result.winningNumber.endsWith('_')) {
+            throw { status: 404, message: `A valid, finalized winning number for ${game.name} on ${date} was not found.` };
+        }
+        const winningNumber = result.winningNumber;
+
+        const allBetsForGame = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(gameId);
+        const betsForMarketDay = allBetsForGame.filter(bet => {
+            const marketDate = getMarketDateString(new Date(bet.timestamp));
+            return marketDate === date;
+        });
+
+        if (betsForMarketDay.length === 0) {
+            resultSummary = { processedBets: 0, totalPayout: 0, totalProfit: 0 };
+            return;
+        }
+        
+        const allUsers = Object.fromEntries(getAllFromTable('users', true).map(u => [u.id, u]));
+        const allDealers = Object.fromEntries(getAllFromTable('dealers', true).map(d => [d.id, d]));
+        const admin = findAccountById('Guru', 'admins');
+
+        let totalPayout = 0;
+        let totalProfit = 0;
+
+        const getPrizeMultiplier = (rates, subGameType) => {
+            if (!rates) return 0;
+            if (subGameType === "1 Digit Open") return rates.oneDigitOpen;
+            if (subGameType === "1 Digit Close") return rates.oneDigitClose;
+            return rates.twoDigit;
+        };
+
+        betsForMarketDay.forEach(bet => {
+            const betNumbers = JSON.parse(bet.numbers);
+            
+            const winningNumbersInBet = betNumbers.filter(num => {
+                let isWin = false;
+                switch (bet.subGameType) {
+                    case "1 Digit Open": if (winningNumber.length === 2) isWin = num === winningNumber[0]; break;
+                    case "1 Digit Close": if (game.name === 'AKC') isWin = num === winningNumber; else if (winningNumber.length === 2) isWin = num === winningNumber[1]; break;
+                    default: isWin = num === winningNumber; break;
+                }
+                return isWin;
+            });
+
+            if (winningNumbersInBet.length > 0) {
+                const user = allUsers[bet.userId];
+                const dealer = allDealers[bet.dealerId];
+                if (!user || !dealer) return;
+
+                const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
+                const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
+                
+                totalPayout += userPrize;
+                totalProfit += dealerProfit;
+                
+                addLedgerEntry(user.id, 'USER', `Prize (re-processed) for ${game.name} on ${date}`, 0, userPrize);
+                addLedgerEntry(admin.id, 'ADMIN', `Prize payout (re-processed) to ${user.name}`, userPrize, 0);
+                addLedgerEntry(dealer.id, 'DEALER', `Profit (re-processed) for ${game.name} on ${date}`, 0, dealerProfit);
+                addLedgerEntry(admin.id, 'ADMIN', `Dealer profit (re-processed) to ${dealer.name}`, dealerProfit, 0);
+            }
+        });
+
+        resultSummary = { processedBets: betsForMarketDay.length, totalPayout, totalProfit };
+    });
+    return resultSummary;
+};
+
 
 module.exports = {
     connect,
@@ -1003,6 +1077,7 @@ module.exports = {
     declareWinnerForGame,
     updateWinningNumber,
     approvePayoutsForGame,
+    reprocessPayoutsForMarketDay,
     createBet,
     getFinancialSummary,
     getUserStakesForGame,

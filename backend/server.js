@@ -1,4 +1,5 @@
 
+
 console.error('############################################################');
 console.error('--- EXECUTING LATEST SERVER.JS VERSION 3 ---');
 console.error('--- INTENDED PORT IS HARDCODED TO: 3001 ---');
@@ -490,6 +491,17 @@ app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
     try {
         const updatedGame = database.approvePayoutsForGame(req.params.id);
         res.json(updatedGame);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
+    }
+});
+
+app.post('/api/admin/reprocess-payouts', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    const { gameId, date } = req.body;
+    try {
+        const result = database.reprocessPayoutsForMarketDay(gameId, date);
+        res.json({ message: 'Reprocessing complete.', ...result });
     } catch (error) {
         res.status(error.status || 500).json({ message: error.message || 'An internal error occurred.' });
     }

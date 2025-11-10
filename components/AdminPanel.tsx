@@ -964,9 +964,10 @@ interface AdminPanelProps {
     betGroups: any[];
   }) => Promise<void>;
   updateGameDrawTime: (gameId: string, newDrawTime: string) => Promise<void>;
+  fetchData: () => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, fetchData }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -981,6 +982,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
   const { fetchWithAuth } = useAuth();
+  
+  const [reprocessState, setReprocessState] = useState({
+      gameId: '',
+      date: getTodayDateString(),
+      isLoading: false,
+      error: null as string | null,
+      success: null as string | null,
+  });
 
   // State for Dealers tab
   const [dealerSortKey, setDealerSortKey] = useState<SortKey>('name');
@@ -1096,6 +1105,50 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         }
     }
   };
+  
+  const handleReprocessChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+      setReprocessState(prev => ({ ...prev, [e.target.name]: e.target.value, error: null, success: null }));
+  };
+
+  const handleReprocessSubmit = async () => {
+      const { gameId, date } = reprocessState;
+      if (!gameId || !date) {
+          setReprocessState(prev => ({ ...prev, error: 'Please select a game and a date.' }));
+          return;
+      }
+
+      const warningMessage = `
+          DANGER: This action will re-calculate wins and losses for ALL bets on the selected game and market day.
+          
+          - It should ONLY be used to fix old bets that are stuck in "Pending".
+          - Running this on an already paid-out day will result in DOUBLE PAYMENTS.
+          
+          Are you absolutely sure you want to proceed?
+      `;
+
+      if (!window.confirm(warningMessage)) {
+          return;
+      }
+
+      setReprocessState(prev => ({ ...prev, isLoading: true, error: null, success: null }));
+      try {
+          const response = await fetchWithAuth('/api/admin/reprocess-payouts', {
+              method: 'POST',
+              body: JSON.stringify({ gameId, date }),
+          });
+          const result = await response.json();
+          if (!response.ok) {
+              throw new Error(result.message || 'An unknown error occurred.');
+          }
+          const successMsg = `Successfully re-processed ${result.processedBets} bets. Total Payout: ${result.totalPayout.toFixed(2)}, Total Dealer Profit: ${result.totalProfit.toFixed(2)}.`;
+          setReprocessState(prev => ({ ...prev, isLoading: false, success: successMsg }));
+          // Re-fetch data to update wallets shown in UI
+          await fetchData();
+      } catch (err: any) {
+          setReprocessState(prev => ({ ...prev, isLoading: false, error: err.message }));
+      }
+  };
+
 
   // --- Dealers Filtering & Sorting ---
   const handleDealerSort = (key: SortKey) => {
@@ -1179,6 +1232,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     { id: 'limits', label: 'Limits', icon: Icons.clipboardList }, 
     { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search }, 
     { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
+    { id: 'utilities', label: 'Utilities', icon: Icons.sparkles },
   ];
 
   return (
@@ -1196,6 +1250,38 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} />}
       {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
       {activeTab === 'limits' && <NumberLimitsView />}
+
+      {activeTab === 'utilities' && (
+        <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Fix Historical Bets</h3>
+            <div className="bg-red-900/50 border border-red-700 p-4 rounded-lg mb-6 text-red-300 space-y-2">
+                <p className="font-bold text-lg">⚠️ WARNING: HIGHLY DESTRUCTIVE ACTION</p>
+                <p>This tool is designed to fix old bets that are stuck in a "Pending" state due to historical data errors. It re-runs the entire payout process for a selected game on a specific market day.</p>
+                <p className="font-bold">Do NOT run this for a day that has already been correctly paid out, as it will cause DUPLICATE PAYMENTS and incorrect wallet balances. Use with extreme caution.</p>
+            </div>
+
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Select Game</label>
+                        <select name="gameId" value={reprocessState.gameId} onChange={handleReprocessChange} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white">
+                            <option value="">-- Choose a game --</option>
+                            {games.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Select Market Date</label>
+                        <input type="date" name="date" value={reprocessState.date} onChange={handleReprocessChange} className="w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white font-sans" />
+                    </div>
+                    <button onClick={handleReprocessSubmit} disabled={reprocessState.isLoading} className="bg-rose-600 hover:bg-rose-500 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit disabled:bg-slate-600 disabled:cursor-not-allowed">
+                        {reprocessState.isLoading ? 'Processing...' : 'Re-process Payouts'}
+                    </button>
+                </div>
+                {reprocessState.error && <div className="bg-red-500/20 text-red-300 p-3 rounded-md text-sm mt-2">{reprocessState.error}</div>}
+                {reprocessState.success && <div className="bg-green-500/20 text-green-300 p-3 rounded-md text-sm mt-2">{reprocessState.success}</div>}
+            </div>
+        </div>
+      )}
 
       {activeTab === 'dealers' && (
         <div>
