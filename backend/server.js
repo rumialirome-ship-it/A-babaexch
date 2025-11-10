@@ -315,7 +315,8 @@ app.get('/api/admin/data', authMiddleware, (req, res) => {
         dealers: database.getAllFromTable('dealers', true),
         users: database.getAllFromTable('users', true),
         games: database.getAllFromTable('games'),
-        bets: database.getAllFromTable('bets')
+        bets: database.getAllFromTable('bets'),
+        daily_results: database.getAllFromTable('daily_results')
     });
 });
 
