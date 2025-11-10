@@ -1,6 +1,4 @@
 
-
-
 import { useState, useEffect, useCallback } from 'react';
 
 const OPEN_HOUR_PKT = 16;
@@ -32,23 +30,18 @@ export const useCountdown = (drawTime: string) => {
         const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
         const openHourUTC = OPEN_HOUR_PKT - PKT_OFFSET_HOURS;
 
-        // Find the most recent market open time (11:00 UTC) that has already passed.
         let lastOpenTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), openHourUTC, 0, 0));
         if (now.getTime() < lastOpenTime.getTime()) {
-            // If current time is before today's open time, the last open time was yesterday's.
             lastOpenTime.setUTCDate(lastOpenTime.getUTCDate() - 1);
         }
 
-        // Calculate the corresponding closing time for that cycle.
         let closeTime = new Date(lastOpenTime.getTime());
-        const drawHourUTC = drawHoursPKT - PKT_OFFSET_HOURS;
-        closeTime.setUTCHours(drawHourUTC, drawMinutesPKT, 0, 0);
+        const drawHourUTC_raw = drawHoursPKT - PKT_OFFSET_HOURS;
 
-        // If the game's draw time is on the "next day" (e.g., opens at 16:00, draws at 02:10),
-        // we need to advance the close date by one day.
         if (drawHoursPKT < OPEN_HOUR_PKT) {
             closeTime.setUTCDate(closeTime.getUTCDate() + 1);
         }
+        closeTime.setUTCHours((drawHourUTC_raw + 24) % 24, drawMinutesPKT, 0, 0);
 
         return { openTime: lastOpenTime, closeTime: closeTime };
     }, [drawTime]);

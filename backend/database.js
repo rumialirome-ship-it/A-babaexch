@@ -1,6 +1,4 @@
 
-
-
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -41,24 +39,19 @@ function getGameCycle(drawTime) {
     const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
     const openHourUTC = OPEN_HOUR_PKT - PKT_OFFSET_HOURS;
 
-    // 1. Find the most recent market open time (11:00 UTC) that has already passed.
     let lastOpenTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), openHourUTC, 0, 0));
     if (now.getTime() < lastOpenTime.getTime()) {
-        // If current time is before today's open time, the last open time was yesterday's.
         lastOpenTime.setUTCDate(lastOpenTime.getUTCDate() - 1);
     }
-
-    // 2. Calculate the corresponding closing time for that cycle.
+    
     let closeTime = new Date(lastOpenTime.getTime());
-    const drawHourUTC = drawHoursPKT - PKT_OFFSET_HOURS;
-    closeTime.setUTCHours(drawHourUTC, drawMinutesPKT, 0, 0);
+    const drawHourUTC_raw = drawHoursPKT - PKT_OFFSET_HOURS;
 
-    // 3. If the game's draw time is on the "next day" (e.g., opens at 16:00, draws at 02:10),
-    //    we need to advance the close date by one day.
     if (drawHoursPKT < OPEN_HOUR_PKT) {
         closeTime.setUTCDate(closeTime.getUTCDate() + 1);
     }
-
+    closeTime.setUTCHours((drawHourUTC_raw + 24) % 24, drawMinutesPKT, 0, 0);
+    
     return { openTime: lastOpenTime, closeTime: closeTime };
 }
 
@@ -255,7 +248,9 @@ const declareWinnerForGame = (gameId, winningNumber) => {
         if (!game) throw { status: 404, message: 'Game not found.' };
         if (game.winningNumber) throw { status: 400, message: 'Winner has already been declared for this game.' };
 
-        const marketDate = getMarketDateString(new Date());
+        const { openTime } = getGameCycle(game.drawTime);
+        const marketDate = openTime.toISOString().split('T')[0];
+        
         const upsertResultStmt = db.prepare('INSERT INTO daily_results (id, gameId, date, winningNumber) VALUES (?, ?, ?, ?) ON CONFLICT(gameId, date) DO UPDATE SET winningNumber = excluded.winningNumber');
 
         if (game.name === 'AK') {
@@ -276,7 +271,10 @@ const declareWinnerForGame = (gameId, winningNumber) => {
                 const openDigit = akGame.winningNumber.slice(0, 1);
                 const fullNumber = openDigit + winningNumber;
                 db.prepare("UPDATE games SET winningNumber = ? WHERE name = 'AK'").run(fullNumber);
-                upsertResultStmt.run(uuidv4(), akGame.id, marketDate, fullNumber);
+                
+                const { openTime: akOpenTime } = getGameCycle(akGame.drawTime);
+                const akMarketDate = akOpenTime.toISOString().split('T')[0];
+                upsertResultStmt.run(uuidv4(), akGame.id, akMarketDate, fullNumber);
             }
         } else {
             if (!/^\d{2}$/.test(winningNumber)) {
@@ -301,7 +299,9 @@ const updateWinningNumber = (gameId, newWinningNumber) => {
             throw { status: 400, message: 'Cannot update: Payouts have already been approved.' };
         }
 
-        const marketDate = getMarketDateString(new Date());
+        const { openTime } = getGameCycle(game.drawTime);
+        const marketDate = openTime.toISOString().split('T')[0];
+        
         const upsertResultStmt = db.prepare('INSERT INTO daily_results (id, gameId, date, winningNumber) VALUES (?, ?, ?, ?) ON CONFLICT(gameId, date) DO UPDATE SET winningNumber = excluded.winningNumber');
 
         if (game.name === 'AK') {
@@ -326,7 +326,10 @@ const updateWinningNumber = (gameId, newWinningNumber) => {
                 const openDigit = akGame.winningNumber.slice(0, 1);
                 const fullNumber = openDigit + newWinningNumber;
                 db.prepare("UPDATE games SET winningNumber = ? WHERE name = 'AK'").run(fullNumber);
-                upsertResultStmt.run(uuidv4(), akGame.id, marketDate, fullNumber);
+                
+                const { openTime: akOpenTime } = getGameCycle(akGame.drawTime);
+                const akMarketDate = akOpenTime.toISOString().split('T')[0];
+                upsertResultStmt.run(uuidv4(), akGame.id, akMarketDate, fullNumber);
             }
         } else {
             if (!/^\d{2}$/.test(newWinningNumber)) {
@@ -629,7 +632,8 @@ const toggleUserRestrictionByDealer = (userId, dealerId) => {
 };
 
 const createBet = (betData) => {
-    db.prepare('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+    db.prepare('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(
         betData.id, betData.userId, betData.dealerId, betData.gameId, betData.subGameType, betData.numbers, betData.amountPerNumber, betData.totalAmount, betData.timestamp
     );
 };
