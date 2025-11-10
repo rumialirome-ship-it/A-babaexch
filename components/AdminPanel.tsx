@@ -1,9 +1,10 @@
 
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
+import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin, DailyResult } from '../types';
 import { Icons } from '../constants';
 import { useAuth } from '../hooks/useAuth';
+import { getMarketDateForBet } from '../hooks/useCountdown';
 
 // --- TYPE DEFINITIONS FOR NEW DASHBOARD ---
 interface GameSummary {
@@ -944,6 +945,229 @@ const NumberSummaryView: React.FC<{
     );
 };
 
+// --- NEW WINNERS REPORT VIEW ---
+const WinnersReportView: React.FC<{
+    games: Game[];
+    bets: Bet[];
+    users: User[];
+    dealers: Dealer[];
+    dailyResults: DailyResult[];
+}> = ({ games, bets, users, dealers, dailyResults }) => {
+    const [selectedDate, setSelectedDate] = useState(getTodayDateString());
+    const [selectedGameId, setSelectedGameId] = useState<string>('');
+    const [reportData, setReportData] = useState<{
+        gameName: string;
+        winningNumber: string;
+        totalPayout: number;
+        winners: any[];
+    } | null>(null);
+
+    const gamesWithResultsOnDate = useMemo(() => {
+        const gameIdsWithResults = new Set(
+            dailyResults.filter(r => r.date === selectedDate && r.winningNumber && !r.winningNumber.endsWith('_'))
+            .map(r => r.gameId)
+        );
+        return games.filter(g => gameIdsWithResults.has(g.id));
+    }, [selectedDate, dailyResults, games]);
+
+    useEffect(() => {
+        if (selectedGameId && !gamesWithResultsOnDate.some(g => g.id === selectedGameId)) {
+            setSelectedGameId('');
+            setReportData(null);
+        }
+    }, [selectedDate, gamesWithResultsOnDate, selectedGameId]);
+
+    useEffect(() => {
+        if (!selectedGameId || !selectedDate) {
+            setReportData(null);
+            return;
+        }
+
+        const game = games.find(g => g.id === selectedGameId);
+        const result = dailyResults.find(r => r.gameId === selectedGameId && r.date === selectedDate);
+    
+        if (!game || !result || !result.winningNumber) {
+            setReportData(null);
+            return;
+        }
+    
+        const winningNumber = result.winningNumber;
+    
+        const marketDayBets = bets.filter(bet => {
+            return bet.gameId === selectedGameId && getMarketDateForBet(new Date(bet.timestamp)) === selectedDate;
+        });
+    
+        const winners: any[] = [];
+        let totalPayout = 0;
+    
+        marketDayBets.forEach(bet => {
+            const user = users.find(u => u.id === bet.userId);
+            const dealer = dealers.find(d => d.id === bet.dealerId);
+    
+            if (!user || !dealer) return;
+    
+            const winningBetNumbers: string[] = [];
+    
+            bet.numbers.forEach(num => {
+                let isWin = false;
+                switch (bet.subGameType) {
+                    case SubGameType.OneDigitOpen:
+                        if (winningNumber.length === 2) { isWin = num === winningNumber[0]; }
+                        break;
+                    case SubGameType.OneDigitClose:
+                        if (game.name === 'AKC') { isWin = num === winningNumber; } 
+                        else if (winningNumber.length === 2) { isWin = num === winningNumber[1]; }
+                        break;
+                    default: // TwoDigit, Bulk, Combo
+                        isWin = num === winningNumber;
+                        break;
+                }
+                if (isWin) {
+                    winningBetNumbers.push(num);
+                }
+            });
+    
+            if (winningBetNumbers.length > 0) {
+                const getPrizeMultiplier = (rates: PrizeRates, subGameType: SubGameType) => {
+                    switch (subGameType) {
+                        case SubGameType.OneDigitOpen: return rates.oneDigitOpen;
+                        case SubGameType.OneDigitClose: return rates.oneDigitClose;
+                        default: return rates.twoDigit;
+                    }
+                };
+                const payoutForThisBet = winningBetNumbers.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
+                totalPayout += payoutForThisBet;
+    
+                winners.push({
+                    userId: user.id,
+                    userName: user.name,
+                    dealerName: dealer.name,
+                    betId: bet.id,
+                    subGameType: bet.subGameType,
+                    winningNumbers: winningBetNumbers,
+                    amountPerNumber: bet.amountPerNumber,
+                    payout: payoutForThisBet,
+                });
+            }
+        });
+        
+        const winnersByUser = winners.reduce((acc, winner) => {
+            if (!acc[winner.userId]) {
+                acc[winner.userId] = {
+                    userName: winner.userName,
+                    dealerName: winner.dealerName,
+                    totalPayout: 0,
+                    winningBets: []
+                };
+            }
+            acc[winner.userId].totalPayout += winner.payout;
+            acc[winner.userId].winningBets.push({
+                subGameType: winner.subGameType,
+                winningNumbers: winner.winningNumbers,
+                amountPerNumber: winner.amountPerNumber,
+                payout: winner.payout
+            });
+            return acc;
+        }, {});
+    
+        setReportData({
+            gameName: game.name,
+            winningNumber: winningNumber,
+            totalPayout: totalPayout,
+            winners: Object.values(winnersByUser).sort((a: any, b: any) => b.totalPayout - a.totalPayout),
+        });
+
+    }, [selectedGameId, selectedDate, games, dailyResults, bets, users, dealers]);
+
+    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
+
+    return (
+        <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Winners Report</h3>
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Select Market Date</label>
+                        <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Select Game</label>
+                        <select value={selectedGameId} onChange={(e) => setSelectedGameId(e.target.value)} className={inputClass}>
+                            <option value="" disabled>-- Choose a game --</option>
+                            {gamesWithResultsOnDate.length > 0 ? (
+                                gamesWithResultsOnDate.map(g => <option key={g.id} value={g.id}>{g.name}</option>)
+                            ) : (
+                                <option value="" disabled>No results for this date</option>
+                            )}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {reportData ? (
+                <div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                         <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 text-center">
+                            <p className="text-sm text-slate-400 uppercase tracking-wider">Game</p>
+                            <p className="text-3xl font-bold font-mono text-white">{reportData.gameName}</p>
+                        </div>
+                         <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 text-center">
+                            <p className="text-sm text-slate-400 uppercase tracking-wider">Winning Number</p>
+                            <p className="text-4xl font-bold font-mono text-emerald-400">{reportData.winningNumber}</p>
+                        </div>
+                         <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 text-center">
+                            <p className="text-sm text-slate-400 uppercase tracking-wider">Total Payout</p>
+                            <p className="text-3xl font-bold font-mono text-cyan-400">{reportData.totalPayout.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                        <div className="overflow-x-auto mobile-scroll-x">
+                            <table className="w-full text-left min-w-[700px]">
+                                <thead className="bg-slate-800/50">
+                                    <tr>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Winning Bets</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Total Payout (PKR)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {reportData.winners.length > 0 ? reportData.winners.map((winner: any, index) => (
+                                        <tr key={winner.userId + index} className="hover:bg-cyan-500/10 transition-colors">
+                                            <td className="p-4 font-medium text-white">{winner.userName}</td>
+                                            <td className="p-4 text-slate-400">{winner.dealerName}</td>
+                                            <td className="p-4">
+                                                <div className="space-y-1">
+                                                    {winner.winningBets.map((bet: any, i: number) => (
+                                                         <div key={i} className="text-xs">
+                                                            <span className="font-semibold text-slate-300">{bet.subGameType}: </span>
+                                                            <span className="font-mono text-cyan-300">{bet.winningNumbers.join(', ')}</span>
+                                                            <span className="text-slate-400"> @ Rs {bet.amountPerNumber.toFixed(2)}</span>
+                                                            <span className="text-emerald-400"> ({`->`} Rs {bet.payout.toFixed(2)})</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-right font-mono font-bold text-emerald-400 text-lg">{winner.totalPayout.toFixed(2)}</td>
+                                        </tr>
+                                    )) : (
+                                        <tr><td colSpan={4} className="p-8 text-center text-slate-500">No winners found for this game on this date.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700">
+                    <p className="text-slate-400">Please select a date and a game to view the winners report.</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
 interface AdminPanelProps {
   admin: Admin; 
   dealers: Dealer[]; 
@@ -951,7 +1175,8 @@ interface AdminPanelProps {
   users: User[]; 
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   games: Game[]; 
-  bets: Bet[]; 
+  bets: Bet[];
+  dailyResults: DailyResult[];
   declareWinner: (gameId: string, winningNumber: string) => void;
   updateWinner: (gameId: string, newWinningNumber: string) => void;
   approvePayouts: (gameId: string) => void;
@@ -967,7 +1192,7 @@ interface AdminPanelProps {
   fetchData: () => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, fetchData }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, dailyResults, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, fetchData }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -1227,6 +1452,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
     { id: 'users', label: 'Users', icon: Icons.clipboardList },
     { id: 'games', label: 'Games', icon: Icons.gamepad },
+    { id: 'winners', label: 'Winners', icon: Icons.star },
     { id: 'liveBooking', label: 'Live Booking', icon: Icons.sparkles },
     { id: 'numberSummary', label: 'Number Summary', icon: Icons.chartBar },
     { id: 'limits', label: 'Limits', icon: Icons.clipboardList }, 
@@ -1247,6 +1473,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </div>
       
       {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
+      {activeTab === 'winners' && <WinnersReportView games={games} bets={bets} users={users} dealers={dealers} dailyResults={dailyResults} />}
       {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} />}
       {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
       {activeTab === 'limits' && <NumberLimitsView />}
