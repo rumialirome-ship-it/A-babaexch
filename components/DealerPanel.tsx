@@ -253,6 +253,10 @@ const UserTransactionForm: React.FC<{
     const [isLoading, setIsLoading] = useState(false);
     const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
 
+    const selectedUser = useMemo(() => {
+        return users.find(u => u.id === selectedUserId);
+    }, [users, selectedUserId]);
+
     const inputClass = `w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-${themeColor}-500 focus:outline-none text-white`;
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -285,6 +289,11 @@ const UserTransactionForm: React.FC<{
                     <option value="" disabled>-- Choose a user --</option>
                     {users.map(user => <option key={user.id} value={user.id}>{user.name} ({user.id})</option>)}
                 </select>
+                {selectedUser && (
+                    <p className="text-xs text-slate-400 mt-2">
+                        Current Balance: <span className="font-mono font-semibold text-white">{selectedUser.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PKR</span>
+                    </p>
+                )}
             </div>
             <div>
                 <label htmlFor="amount-input" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
@@ -780,6 +789,11 @@ const BettingTerminalView: React.FC<{
                             <option value="" disabled>-- Choose a user to bet for --</option>
                             {activeUsers.map(user => <option key={user.id} value={user.id}>{user.name} ({user.id})</option>)}
                         </select>
+                        {selectedUser && (
+                            <p className="text-xs text-slate-400 mt-2">
+                                Current Balance: <span className="font-mono font-semibold text-white">{selectedUser.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PKR</span>
+                            </p>
+                        )}
                     </div>
                     <div>
                         <label htmlFor="game-select-terminal" className="block text-sm font-medium text-slate-400 mb-1">Select Game</label>

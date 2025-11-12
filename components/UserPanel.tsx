@@ -1,7 +1,4 @@
 
-
-
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // FIX: Import DailyResult and getMarketDateForBet to handle historical bet outcomes correctly.
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits, DailyResult } from '../types';
@@ -338,6 +335,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     const [comboDigitsInput, setComboDigitsInput] = useState('');
     const [generatedCombos, setGeneratedCombos] = useState<ComboLine[]>([]);
     const [comboGlobalStake, setComboGlobalStake] = useState('');
+
+    const { text: countdownText, status } = useCountdown(game?.drawTime || '00:00');
 
 
     const availableSubGameTabs = useMemo(() => {
@@ -687,7 +686,15 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
             <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
+                    <div>
+                        <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
+                        {status === 'OPEN' && (
+                            <div className="flex items-center text-sm mt-1">
+                                {React.cloneElement(Icons.clock, { className: "h-4 w-4 mr-1.5 text-cyan-400" })}
+                                <span className="text-cyan-300 font-mono">{countdownText}</span>
+                            </div>
+                        )}
+                    </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
                 </div>
                 <div className="p-6 overflow-y-auto">
