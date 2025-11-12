@@ -377,10 +377,17 @@ const approvePayoutsForGame = (gameId) => {
             throw { status: 400, message: "Cannot approve payouts for AK until the close number from AKC is declared." };
         }
 
-        const winningBets = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(gameId).map(b => ({
-            ...b,
-            numbers: JSON.parse(b.numbers)
-        }));
+        // Determine the market day for which payouts are being approved.
+        const marketDateForPayouts = getMarketDateForDeclaration(game.drawTime);
+
+        // Fetch all bets for the game and filter them to the correct market day.
+        const allGameBets = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(gameId);
+        const winningBets = allGameBets
+            .filter(bet => getMarketDateString(new Date(bet.timestamp)) === marketDateForPayouts)
+            .map(b => ({
+                ...b,
+                numbers: JSON.parse(b.numbers)
+            }));
         
         const winningNumber = game.winningNumber;
         const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
@@ -585,9 +592,17 @@ const findBetsByDealerId = (dealerId) => {
 };
 
 const findBetsByGameId = (gameId) => {
-    const stmt = db.prepare('SELECT * FROM bets WHERE gameId = ?');
-    const bets = stmt.all(gameId);
-    return bets.map(b => {
+    // This function should return bets for the CURRENTLY ACTIVE market day for a given game.
+    const currentMarketDate = getMarketDateString(new Date());
+
+    const allBetsForGame = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(gameId);
+
+    const liveBets = allBetsForGame.filter(bet => {
+        const betMarketDate = getMarketDateString(new Date(bet.timestamp));
+        return betMarketDate === currentMarketDate;
+    });
+
+    return liveBets.map(b => {
         try {
             if (b.numbers && typeof b.numbers === 'string') {
                 b.numbers = JSON.parse(b.numbers);
