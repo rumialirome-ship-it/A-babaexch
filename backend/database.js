@@ -443,58 +443,65 @@ const approvePayoutsForGame = (gameId) => {
 };
 
 
-const getFinancialSummary = () => {
-    const games = db.prepare('SELECT * FROM games WHERE winningNumber IS NOT NULL').all();
+const getFinancialSummary = (targetDate) => {
+    // If no date is provided, default to the current market date.
+    const date = targetDate || getMarketDateString(new Date());
+
+    // 1. Fetch all necessary data
     const allBets = db.prepare('SELECT * FROM bets').all().map(b => ({...b, numbers: JSON.parse(b.numbers)}));
     const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
     const allDealers = Object.fromEntries(getAllFromTable('dealers').map(d => [d.id, d]));
+    const allGames = getAllFromTable('games'); // Get all game definitions (name, etc.)
+
+    // 2. Filter bets for the target market date
+    const betsForDate = allBets.filter(bet => getMarketDateString(new Date(bet.timestamp)) === date);
+
+    // 3. Get results specifically for the target date
+    const resultsForDate = db.prepare('SELECT gameId, winningNumber FROM daily_results WHERE date = ?').all(date);
+    const winningNumbersMap = new Map(resultsForDate.map(r => [r.gameId, r.winningNumber]));
 
     const getPrizeMultiplier = (rates, subGameType) => {
+        if (!rates) return 0;
         if (subGameType === "1 Digit Open") return rates.oneDigitOpen;
         if (subGameType === "1 Digit Close") return rates.oneDigitClose;
         return rates.twoDigit;
     };
 
-    const summaryByGame = games.map(game => {
-        const gameBets = allBets.filter(b => b.gameId === game.id);
+    // 4. Process each game that has a result on the target date
+    const summaryByGame = Array.from(winningNumbersMap.entries()).map(([gameId, winningNumber]) => {
+        const game = allGames.find(g => g.id === gameId);
+        if (!game || winningNumber.endsWith('_')) return null; // Skip if game def not found or result is partial (like AK_)
+
+        const gameBets = betsForDate.filter(b => b.gameId === game.id);
         const totalStake = gameBets.reduce((sum, b) => sum + b.totalAmount, 0);
 
         let totalPayouts = 0;
         let totalDealerProfit = 0;
 
-        if (!game.winningNumber.endsWith('_')) { // Only calculate payouts for finalized games
-            gameBets.forEach(bet => {
-                const winningNumbersInBet = bet.numbers.filter(num => {
-                    let isWin = false;
-                    switch (bet.subGameType) {
-                        case "1 Digit Open":
-                            if (game.winningNumber.length === 2) { isWin = num === game.winningNumber[0]; }
-                            break;
-                        case "1 Digit Close":
-                            if (game.name === 'AKC') { isWin = num === game.winningNumber; } 
-                            else if (game.winningNumber.length === 2) { isWin = num === game.winningNumber[1]; }
-                            break;
-                        default: // 2 Digit, Bulk Game, Combo Game
-                            isWin = num === game.winningNumber;
-                            break;
-                    }
-                    return isWin;
-                });
-
-                if (winningNumbersInBet.length > 0) {
-                    const user = allUsers[bet.userId];
-                    const dealer = allDealers[bet.dealerId];
-                    if (!user || !dealer) return;
-
-                    const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
-                    const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
-                    
-                    totalPayouts += userPrize;
-                    totalDealerProfit += dealerProfit;
+        gameBets.forEach(bet => {
+            const winningNumbersInBet = bet.numbers.filter(num => {
+                let isWin = false;
+                switch (bet.subGameType) {
+                    case "1 Digit Open": if (winningNumber.length === 2) isWin = num === winningNumber[0]; break;
+                    case "1 Digit Close": if (game.name === 'AKC') isWin = num === winningNumber; else if (winningNumber.length === 2) isWin = num === winningNumber[1]; break;
+                    default: isWin = num === winningNumber; break;
                 }
+                return isWin;
             });
-        }
-        
+
+            if (winningNumbersInBet.length > 0) {
+                const user = allUsers[bet.userId];
+                const dealer = allDealers[bet.dealerId];
+                if (!user || !dealer) return;
+
+                const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
+                const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
+                
+                totalPayouts += userPrize;
+                totalDealerProfit += dealerProfit;
+            }
+        });
+
         const totalCommissions = gameBets.reduce((sum, bet) => {
             const user = allUsers[bet.userId];
             const dealer = allDealers[bet.dealerId];
@@ -504,20 +511,17 @@ const getFinancialSummary = () => {
             const dealerCommission = bet.totalAmount * ((dealer.commissionRate - user.commissionRate) / 100);
             return sum + userCommission + dealerCommission;
         }, 0);
-        
+
         const netProfit = totalStake - totalPayouts - totalDealerProfit - totalCommissions;
 
         return {
             gameName: game.name,
-            winningNumber: game.winningNumber,
-            totalStake,
-            totalPayouts,
-            totalDealerProfit,
-            totalCommissions,
-            netProfit,
+            winningNumber: winningNumber,
+            totalStake, totalPayouts, totalDealerProfit, totalCommissions, netProfit,
         };
-    });
+    }).filter(Boolean); // Filter out nulls
 
+    // 5. Calculate grand total
     const grandTotal = summaryByGame.reduce((totals, game) => {
         totals.totalStake += game.totalStake;
         totals.totalPayouts += game.totalPayouts;
@@ -530,7 +534,7 @@ const getFinancialSummary = () => {
     return {
         games: summaryByGame.sort((a,b) => a.gameName.localeCompare(b.gameName)),
         totals: grandTotal,
-        totalBets: allBets.length,
+        totalBets: betsForDate.length,
     };
 };
 

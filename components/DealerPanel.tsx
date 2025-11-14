@@ -18,7 +18,7 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
                     <h3 className={`text-lg font-bold text-${themeColor}-400 uppercase tracking-widest`}>{title}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
                 </div>
-                <div className="p-6 overflow-y-auto">{children}</div>
+                <div className="p-6 overflow-auto">{children}</div>
             </div>
         </div>
     );
@@ -26,7 +26,7 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
 
 const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     <div className="bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
-        <div className="overflow-y-auto max-h-[60vh] mobile-scroll-x">
+        <div className="overflow-auto max-h-[60vh] mobile-scroll-x">
             <table className="w-full text-left min-w-[600px]">
                 <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                     <tr>
@@ -642,7 +642,7 @@ const BettingTerminalView: React.FC<{
             return null;
         };
 
-        const aggregatedGroups: Map<string, { subGameType: SubGameType; numbers: Set<string>; amountPerNumber: number }> = new Map();
+        const aggregatedGroups: Map<string, { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }> = new Map();
         
         for (const lineText of allLines) {
             const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit, error: undefined };
@@ -727,9 +727,9 @@ const BettingTerminalView: React.FC<{
             lineItems.forEach(item => {
                 const groupKey = `${item.type}__${effectiveStake}`;
                 if (!aggregatedGroups.has(groupKey)) {
-                    aggregatedGroups.set(groupKey, { subGameType: item.type, numbers: new Set(), amountPerNumber: effectiveStake });
+                    aggregatedGroups.set(groupKey, { subGameType: item.type, numbers: [], amountPerNumber: effectiveStake });
                 }
-                aggregatedGroups.get(groupKey)!.numbers.add(item.value);
+                aggregatedGroups.get(groupKey)!.numbers.push(item.value);
             });
         }
         
@@ -737,10 +737,7 @@ const BettingTerminalView: React.FC<{
             result.error = "One or more lines have errors.";
         }
 
-        result.betGroups = Array.from(aggregatedGroups.values()).map(group => ({
-            ...group,
-            numbers: Array.from(group.numbers)
-        }));
+        result.betGroups = Array.from(aggregatedGroups.values());
 
         return result;
     }, [bulkInput, selectedGameName]);

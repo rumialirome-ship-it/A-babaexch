@@ -1,9 +1,5 @@
 
-console.error('############################################################');
-console.error('--- EXECUTING LATEST SERVER.JS VERSION 3 ---');
-console.error('--- INTENDED PORT IS HARDCODED TO: 3001 ---');
-console.error(`--- Checking environment variable PORT: ${process.env.PORT || 'Not Set'} ---`);
-console.error('############################################################');
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -329,9 +325,11 @@ app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
 app.get('/api/admin/summary', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
     try {
-        const summary = database.getFinancialSummary();
+        const { date } = req.query; // e.g., '2024-05-25'
+        const summary = database.getFinancialSummary(date);
         res.json(summary);
     } catch (error) {
+        console.error("Error fetching financial summary:", error);
         res.status(500).json({ message: 'Failed to fetch financial summary.' });
     }
 });

@@ -65,7 +65,7 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
                     <h3 className={`text-lg font-bold text-${themeColor}-400 uppercase tracking-widest`}>{title}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
                 </div>
-                <div className="p-6 overflow-y-auto">{children}</div>
+                <div className="p-6 overflow-auto">{children}</div>
             </div>
         </div>
     );
@@ -73,7 +73,7 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
 
 const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     <div className="bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
-        <div className="overflow-y-auto max-h-[60vh] mobile-scroll-x">
+        <div className="overflow-auto max-h-[60vh] mobile-scroll-x">
             <table className="w-full text-left min-w-[600px]">
                 <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                     <tr>
@@ -286,10 +286,12 @@ const DealerTransactionForm: React.FC<{
 };
 
 // --- NEW DASHBOARD COMPONENT ---
-const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }> = ({ summary, admin }) => {
-    if (!summary) {
-        return <div className="text-center p-8 text-slate-400">Loading financial summary...</div>;
-    }
+const DashboardView: React.FC<{
+    summary: FinancialSummary | null;
+    admin: Admin;
+    selectedDate: string;
+    onDateChange: (date: string) => void;
+}> = ({ summary, admin, selectedDate, onDateChange }) => {
 
     const SummaryCard: React.FC<{ title: string; value: number; color: string }> = ({ title, value, color }) => (
         <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
@@ -300,53 +302,75 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
     
     return (
         <div>
-            <h3 className="text-xl font-semibold text-white mb-4">Financial Dashboard</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <SummaryCard title="System Wallet" value={admin.wallet} color="text-cyan-400" />
-                <SummaryCard title="Total Bets Placed" value={summary.totals.totalStake} color="text-white" />
-                <SummaryCard title="Total Prize Payouts" value={summary.totals.totalPayouts} color="text-amber-400" />
-                <SummaryCard title="Net System Profit" value={summary.totals.netProfit} color={summary.totals.netProfit >= 0 ? "text-green-400" : "text-red-400"} />
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                 <h3 className="text-xl font-semibold text-white">Financial Dashboard</h3>
+                 <div className="w-full md:w-auto">
+                    <label className="block text-sm font-medium text-slate-400 mb-1">Select Market Date</label>
+                    <input 
+                        type="date" 
+                        value={selectedDate} 
+                        onChange={e => onDateChange(e.target.value)} 
+                        className="w-full md:w-auto bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white font-sans"
+                    />
+                 </div>
             </div>
+            
+            {!summary ? (
+                 <div className="text-center p-8 text-slate-400">Loading financial summary...</div>
+            ) : (
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <SummaryCard title="System Wallet" value={admin.wallet} color="text-cyan-400" />
+                        <SummaryCard title="Total Stake" value={summary.totals.totalStake} color="text-white" />
+                        <SummaryCard title="Total Prize Payouts" value={summary.totals.totalPayouts} color="text-amber-400" />
+                        <SummaryCard title="Net System Profit" value={summary.totals.netProfit} color={summary.totals.netProfit >= 0 ? "text-green-400" : "text-red-400"} />
+                    </div>
 
-            <h3 className="text-xl font-semibold text-white mb-4">Game-by-Game Breakdown</h3>
-            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto mobile-scroll-x">
-                    <table className="w-full text-left min-w-[700px]">
-                        <thead className="bg-slate-800/50">
-                            <tr>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Payouts</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Dealer Profit</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Commissions</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Net Profit</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {summary.games.map(game => (
-                                <tr key={game.gameName} className="hover:bg-cyan-500/10 transition-colors">
-                                    <td className="p-4 font-medium text-white">{game.gameName} <span className="text-xs text-slate-400">({game.winningNumber})</span></td>
-                                    <td className="p-4 text-right font-mono text-white">{game.totalStake.toFixed(2)}</td>
-                                    <td className="p-4 text-right font-mono text-amber-400">{game.totalPayouts.toFixed(2)}</td>
-                                    <td className="p-4 text-right font-mono text-emerald-400">{game.totalDealerProfit.toFixed(2)}</td>
-                                    <td className="p-4 text-right font-mono text-sky-400">{game.totalCommissions.toFixed(2)}</td>
-                                    <td className={`p-4 text-right font-mono font-bold ${game.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>{game.netProfit.toFixed(2)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                        <tfoot className="bg-slate-800/50 border-t-2 border-slate-600">
-                            <tr className="font-bold text-white">
-                                <td className="p-4 text-sm uppercase">Grand Total</td>
-                                <td className="p-4 text-right font-mono">{summary.totals.totalStake.toFixed(2)}</td>
-                                <td className="p-4 text-right font-mono text-amber-300">{summary.totals.totalPayouts.toFixed(2)}</td>
-                                <td className="p-4 text-right font-mono text-emerald-300">{summary.totals.totalDealerProfit.toFixed(2)}</td>
-                                <td className="p-4 text-right font-mono text-sky-300">{summary.totals.totalCommissions.toFixed(2)}</td>
-                                <td className={`p-4 text-right font-mono ${summary.totals.netProfit >= 0 ? "text-green-300" : "text-red-300"}`}>{summary.totals.netProfit.toFixed(2)}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
+                    <h3 className="text-xl font-semibold text-white mb-4">Day-wise Breakdown for {selectedDate}</h3>
+                    <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                        {summary.games.length === 0 ? (
+                            <p className="p-8 text-center text-slate-500">No financial data found for the selected date.</p>
+                        ) : (
+                            <div className="overflow-x-auto mobile-scroll-x">
+                                <table className="w-full text-left min-w-[700px]">
+                                    <thead className="bg-slate-800/50">
+                                        <tr>
+                                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
+                                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake</th>
+                                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Payouts</th>
+                                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Dealer Profit</th>
+                                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Commissions</th>
+                                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Net Profit</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800">
+                                        {summary.games.map(game => (
+                                            <tr key={game.gameName} className="hover:bg-cyan-500/10 transition-colors">
+                                                <td className="p-4 font-medium text-white">{game.gameName} <span className="text-xs text-slate-400">({game.winningNumber})</span></td>
+                                                <td className="p-4 text-right font-mono text-white">{game.totalStake.toFixed(2)}</td>
+                                                <td className="p-4 text-right font-mono text-amber-400">{game.totalPayouts.toFixed(2)}</td>
+                                                <td className="p-4 text-right font-mono text-emerald-400">{game.totalDealerProfit.toFixed(2)}</td>
+                                                <td className="p-4 text-right font-mono text-sky-400">{game.totalCommissions.toFixed(2)}</td>
+                                                <td className={`p-4 text-right font-mono font-bold ${game.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>{game.netProfit.toFixed(2)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot className="bg-slate-800/50 border-t-2 border-slate-600">
+                                        <tr className="font-bold text-white">
+                                            <td className="p-4 text-sm uppercase">Grand Total</td>
+                                            <td className="p-4 text-right font-mono">{summary.totals.totalStake.toFixed(2)}</td>
+                                            <td className="p-4 text-right font-mono text-amber-300">{summary.totals.totalPayouts.toFixed(2)}</td>
+                                            <td className="p-4 text-right font-mono text-emerald-300">{summary.totals.totalDealerProfit.toFixed(2)}</td>
+                                            <td className="p-4 text-right font-mono text-sky-300">{summary.totals.totalCommissions.toFixed(2)}</td>
+                                            <td className={`p-4 text-right font-mono ${summary.totals.netProfit >= 0 ? "text-green-300" : "text-red-300"}`}>{summary.totals.netProfit.toFixed(2)}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 };
@@ -1204,6 +1228,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
   const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
+  const [dashboardDate, setDashboardDate] = useState(getTodayDateString());
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
   const { fetchWithAuth } = useAuth();
@@ -1262,20 +1287,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   
   useEffect(() => {
     const fetchSummary = async () => {
+      if (activeTab !== 'dashboard') return;
       try {
-        const response = await fetchWithAuth('/api/admin/summary');
+        setSummaryData(null); // Show loading state
+        const response = await fetchWithAuth(`/api/admin/summary?date=${dashboardDate}`);
         if (!response.ok) throw new Error('Failed to fetch summary');
         const data = await response.json();
         setSummaryData(data);
       } catch (error) {
         console.error("Error fetching financial summary:", error);
+        setSummaryData(null); // Ensure loading state is cleared on error
       }
     };
 
-    if (activeTab === 'dashboard') {
-      fetchSummary();
-    }
-  }, [activeTab, fetchWithAuth]);
+    fetchSummary();
+  }, [activeTab, dashboardDate, fetchWithAuth]);
 
 
   const handleSaveDealer = async (dealerData: Dealer, originalId?: string) => {
@@ -1472,7 +1498,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         ))}
       </div>
       
-      {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
+      {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} selectedDate={dashboardDate} onDateChange={setDashboardDate} />}
       {activeTab === 'winners' && <WinnersReportView games={games} bets={bets} users={users} dealers={dealers} dailyResults={dailyResults} />}
       {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} />}
       {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
