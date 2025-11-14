@@ -937,19 +937,25 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         const createdBets = [];
         const createRecordsForGame = (targetGameId, groups) => {
              groups.forEach(group => {
-                const newBet = {
-                    id: uuidv4(),
-                    userId: user.id,
-                    dealerId: dealer.id,
-                    gameId: targetGameId,
-                    subGameType: group.subGameType,
-                    numbers: JSON.stringify(group.numbers),
-                    amountPerNumber: group.amountPerNumber,
-                    totalAmount: group.numbers.length * group.amountPerNumber,
-                    timestamp: new Date().toISOString()
-                };
-                createBet(newBet);
-                createdBets.push({ ...newBet, numbers: group.numbers });
+                // **MODIFICATION START**
+                // For each number in the group, including duplicates, create a separate bet record.
+                group.numbers.forEach(number => {
+                    const totalAmountForThisBet = group.amountPerNumber; // A single number bet has a totalAmount equal to amountPerNumber
+                    const newBet = {
+                        id: uuidv4(),
+                        userId: user.id,
+                        dealerId: dealer.id,
+                        gameId: targetGameId,
+                        subGameType: group.subGameType,
+                        numbers: JSON.stringify([number]), // Store as an array with a single number
+                        amountPerNumber: group.amountPerNumber,
+                        totalAmount: totalAmountForThisBet,
+                        timestamp: new Date().toISOString()
+                    };
+                    createBet(newBet);
+                    createdBets.push({ ...newBet, numbers: [number] });
+                });
+                // **MODIFICATION END**
             });
         };
         

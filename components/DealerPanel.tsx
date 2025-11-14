@@ -723,7 +723,9 @@ const BettingTerminalView: React.FC<{
             result.totalNumbers += parsedLine.numbers.length;
             result.lines.push(parsedLine);
             
-            // Aggregate for bet submission
+            // FIX: This logic correctly uses an Array to aggregate numbers,
+            // ensuring that duplicate entries like "22 22 Rs20" are counted
+            // and costed as two separate bets.
             lineItems.forEach(item => {
                 const groupKey = `${item.type}__${effectiveStake}`;
                 if (!aggregatedGroups.has(groupKey)) {
