@@ -1,6 +1,9 @@
 
 
 
+
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin, DailyResult } from '../types';
 import { Icons } from '../constants';
@@ -55,7 +58,7 @@ const SortableHeader: React.FC<{
     );
 };
 
-// --- INTERNAL COMPONENTS (UNCHANGED) ---
+// --- STABLE, TOP-LEVEL COMPONENT DEFINITIONS ---
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'cyan' }) => {
     if (!isOpen) return null;
     const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
@@ -107,7 +110,6 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
         </div>
     </div>
 );
-
 
 const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => Promise<void>; onCancel: () => void; adminPrizeRates: PrizeRates }> = ({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
     // For new dealers, password is part of formData. For edits, it's handled separately.
@@ -286,7 +288,6 @@ const DealerTransactionForm: React.FC<{
     );
 };
 
-// --- NEW DASHBOARD COMPONENT ---
 const DashboardView: React.FC<{
     summary: FinancialSummary | null;
     admin: Admin;
@@ -528,7 +529,6 @@ const NumberLimitsView: React.FC = () => {
     );
 };
 
-// --- LIVE BOOKING VIEW ---
 interface BookingData {
     totalBets: number;
     totalStake: number;
@@ -680,7 +680,6 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
     );
 };
 
-// --- NUMBER SUMMARY VIEW ---
 const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: number }[]; color: string; }> = ({ title, data, color }) => {
     const [copyStatus, setCopyStatus] = useState('Copy');
 
@@ -756,7 +755,6 @@ const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: nu
         </div>
     );
 };
-
 
 const NumberSummaryView: React.FC<{
     games: Game[];
@@ -970,7 +968,6 @@ const NumberSummaryView: React.FC<{
     );
 };
 
-// --- NEW WINNERS REPORT VIEW ---
 const WinnersReportView: React.FC<{
     games: Game[];
     bets: Bet[];
@@ -1193,6 +1190,40 @@ const WinnersReportView: React.FC<{
     );
 };
 
+const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
+
+    const filteredEntries = useMemo(() => {
+        if (!startDate && !endDate) return entries;
+        return entries.filter(entry => {
+            const entryDateStr = entry.timestamp.toISOString().split('T')[0];
+            if (startDate && entryDateStr < startDate) return false;
+            if (endDate && entryDateStr > endDate) return false;
+            return true;
+        });
+    }, [entries, startDate, endDate]);
+
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white font-sans";
+
+    return (
+        <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass} />
+                </div>
+                <button onClick={() => { setStartDate(''); setEndDate(''); }} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Show All History</button>
+            </div>
+            <LedgerTable entries={filteredEntries} />
+        </div>
+    );
+};
+
 interface AdminPanelProps {
   admin: Admin; 
   dealers: Dealer[]; 
@@ -1250,40 +1281,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [userSortKey, setUserSortKey] = useState<SortKey>('name');
   const [userSortDirection, setUserSortDirection] = useState<SortDirection>('asc');
 
-  
-  const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
-    const [startDate, setStartDate] = useState(getTodayDateString());
-    const [endDate, setEndDate] = useState(getTodayDateString());
-
-    const filteredEntries = useMemo(() => {
-        if (!startDate && !endDate) return entries;
-        return entries.filter(entry => {
-            const entryDateStr = entry.timestamp.toISOString().split('T')[0];
-            if (startDate && entryDateStr < startDate) return false;
-            if (endDate && entryDateStr > endDate) return false;
-            return true;
-        });
-    }, [entries, startDate, endDate]);
-
-    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white font-sans";
-
-    return (
-        <div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass} />
-                </div>
-                <button onClick={() => { setStartDate(''); setEndDate(''); }} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Show All History</button>
-            </div>
-            <LedgerTable entries={filteredEntries} />
-        </div>
-    );
-  };
   
   useEffect(() => {
     const fetchSummary = async () => {

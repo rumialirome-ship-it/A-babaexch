@@ -1,5 +1,8 @@
 
 
+
+
+
 import React, { useState, useMemo } from 'react';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType, DailyResult } from '../types';
 import { Icons } from '../constants';
@@ -7,7 +10,16 @@ import { useCountdown, getMarketDateForBet } from '../hooks/useCountdown';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
-// Internal components
+const formatTime12h = (time24: string) => {
+    if (!time24 || !time24.includes(':')) return 'N/A';
+    const [hours, minutes] = time24.split(':').map(Number);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+};
+
+// --- STABLE, TOP-LEVEL COMPONENT DEFINITIONS ---
+
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'emerald' }) => {
     if (!isOpen) return null;
      const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
@@ -92,7 +104,7 @@ const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entr
             <LedgerTable entries={filteredEntries} />
         </div>
     );
-  };
+};
 
 const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>; onCancel: () => void; dealerPrizeRates: PrizeRates, dealerId: string }> = ({ user, users, onSave, onCancel, dealerPrizeRates, dealerId }) => {
     const [formData, setFormData] = useState(() => {
@@ -501,7 +513,6 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[], dail
     );
 };
 
-// --- NEW WALLET VIEW ---
 const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
@@ -616,14 +627,6 @@ const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
             </Modal>
         </div>
     );
-};
-
-const formatTime12h = (time24: string) => {
-    if (!time24 || !time24.includes(':')) return 'N/A';
-    const [hours, minutes] = time24.split(':').map(Number);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const hours12 = hours % 12 || 12;
-    return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
 };
 
 const BettingTerminalView: React.FC<{
@@ -891,6 +894,7 @@ const BettingTerminalView: React.FC<{
         </div>
     );
 };
+
 interface DealerPanelProps {
   dealer: Dealer;
   users: User[];
