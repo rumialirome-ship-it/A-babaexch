@@ -60,6 +60,40 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     </div>
 );
 
+const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
+
+    const filteredEntries = useMemo(() => {
+        if (!startDate && !endDate) return entries;
+        return entries.filter(entry => {
+            const entryDateStr = entry.timestamp.toISOString().split('T')[0];
+            if (startDate && entryDateStr < startDate) return false;
+            if (endDate && entryDateStr > endDate) return false;
+            return true;
+        });
+    }, [entries, startDate, endDate]);
+
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white font-sans";
+
+    return (
+        <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass} />
+                </div>
+                <button onClick={() => { setStartDate(''); setEndDate(''); }} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Show All History</button>
+            </div>
+            <LedgerTable entries={filteredEntries} />
+        </div>
+    );
+  };
+
 const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>; onCancel: () => void; dealerPrizeRates: PrizeRates, dealerId: string }> = ({ user, users, onSave, onCancel, dealerPrizeRates, dealerId }) => {
     const [formData, setFormData] = useState(() => {
         const defaults = {
@@ -584,14 +618,14 @@ const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
     );
 };
 
-// --- NEW BETTING TERMINAL VIEW ---
-const OpenGameOption: React.FC<{ game: Game }> = ({ game }) => {
-    const { status, text } = useCountdown(game.drawTime);
-    if (status !== 'OPEN') return null;
-    return <option value={game.id}>{game.name} (Closes in: {text})</option>;
+const formatTime12h = (time24: string) => {
+    if (!time24 || !time24.includes(':')) return 'N/A';
+    const [hours, minutes] = time24.split(':').map(Number);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
 };
 
-// FIX: This component was incomplete. Added full implementation including JSX return and event handlers.
 const BettingTerminalView: React.FC<{
     users: User[];
     games: Game[];
@@ -605,8 +639,7 @@ const BettingTerminalView: React.FC<{
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const activeUsers = useMemo(() => users.filter(u => !u.isRestricted), [users]);
-    // FIX: Corrected dependency array from [users] to [games].
-    const openGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
+    const openGames = useMemo(() => games.filter(g => !g.winningNumber && g.isMarketOpen), [games]);
     const selectedUser = useMemo(() => users.find(u => u.id === selectedUserId), [users, selectedUserId]);
     const selectedGameName = useMemo(() => games.find(g => g.id === selectedGameId)?.name, [games, selectedGameId]);
     
@@ -723,9 +756,6 @@ const BettingTerminalView: React.FC<{
             result.totalNumbers += parsedLine.numbers.length;
             result.lines.push(parsedLine);
             
-            // FIX: This logic correctly uses an Array to aggregate numbers,
-            // ensuring that duplicate entries like "22 22 Rs20" are counted
-            // and costed as two separate bets.
             lineItems.forEach(item => {
                 const groupKey = `${item.type}__${effectiveStake}`;
                 if (!aggregatedGroups.has(groupKey)) {
@@ -798,7 +828,11 @@ const BettingTerminalView: React.FC<{
                         <label htmlFor="game-select-terminal" className="block text-sm font-medium text-slate-400 mb-1">Select Game</label>
                         <select id="game-select-terminal" value={selectedGameId} onChange={(e) => setSelectedGameId(e.target.value)} className={inputClass} required disabled={!selectedUserId}>
                             <option value="" disabled>-- Choose a game --</option>
-                            {openGames.map(game => <OpenGameOption key={game.id} game={game} />)}
+                            {openGames.map(game => (
+                                <option key={game.id} value={game.id}>
+                                    {game.name} (Closes at: {formatTime12h(game.drawTime)})
+                                </option>
+                            ))}
                         </select>
                     </div>
                 </div>
@@ -999,12 +1033,11 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
 
       {viewingUserLedgerFor && (
         <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger for ${viewingUserLedgerFor.name}`} size="xl">
-            <LedgerTable entries={viewingUserLedgerFor.ledger} />
+            <StatefulLedgerTableWrapper entries={viewingUserLedgerFor.ledger} />
         </Modal>
       )}
     </div>
   );
 };
 
-// FIX: Add default export to resolve import error in App.tsx
 export default DealerPanel;

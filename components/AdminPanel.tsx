@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin, DailyResult } from '../types';
 import { Icons } from '../constants';
@@ -1222,11 +1223,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
   const [winningNumbers, setWinningNumbers] = useState<{[key: string]: string}>({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewingLedgerFor, setViewingLedgerFor] = useState<Dealer | Admin | null>(null);
   const [betSearchQuery, setBetSearchQuery] = useState('');
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
-  const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
+  const [ledgerModalData, setLedgerModalData] = useState<{ title: string; entries: LedgerEntry[] } | null>(null);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
   const [dashboardDate, setDashboardDate] = useState(getTodayDateString());
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
@@ -1577,7 +1577,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                  <td className="p-4">
                                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                                         <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
-                                        <button onClick={() => setViewingLedgerFor(dealer)} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
+                                        <button onClick={() => setLedgerModalData({ title: dealer.name, entries: dealer.ledger })} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
                                         <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${dealer.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                             {dealer.isRestricted ? 'Unrestrict' : 'Restrict'}
                                         </button>
@@ -1809,7 +1809,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                    <td className="p-4 text-center">
                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
-                                            <button onClick={() => setViewingUserLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">View Ledger</button>
+                                            <button onClick={() => setLedgerModalData({ title: user.name, entries: user.ledger })} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">View Ledger</button>
                                             <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                                 {user.isRestricted ? 'Unrestrict' : 'Restrict'}
                                             </button>
@@ -1835,7 +1835,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
               <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                 {Icons.minus} Withdraw Funds
               </button>
-               <button onClick={() => setViewingLedgerFor(admin)} className="flex items-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+               <button onClick={() => setLedgerModalData({ title: admin.name, entries: admin.ledger })} className="flex items-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                 {Icons.eye} View Admin Ledger
               </button>
             </div>
@@ -1860,7 +1860,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                       </div></td>
                       <td className="p-4 text-slate-400">{dealer.area}</td>
                       <td className="p-4 font-mono text-white text-right">{dealer.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="p-4 text-center"><button onClick={() => setViewingLedgerFor(dealer)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">View Ledger</button></td>
+                      <td className="p-4 text-center"><button onClick={() => setLedgerModalData({ title: dealer.name, entries: dealer.ledger })} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">View Ledger</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -1882,15 +1882,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
           <DealerTransactionForm type="Withdrawal" dealers={dealers} onTransaction={(dealerId, amount) => { withdrawFromDealerWallet(dealerId, amount); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
       </Modal>
 
-      {viewingLedgerFor && (
-        <Modal isOpen={!!viewingLedgerFor} onClose={() => setViewingLedgerFor(null)} title={`Ledger for ${viewingLedgerFor.name}`} size="xl">
-            <StatefulLedgerTableWrapper entries={viewingLedgerFor.ledger} />
-        </Modal>
-      )}
-
-      {viewingUserLedgerFor && (
-        <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger for ${viewingUserLedgerFor.name}`} size="xl">
-            <StatefulLedgerTableWrapper entries={viewingUserLedgerFor.ledger} />
+      {ledgerModalData && (
+        <Modal isOpen={!!ledgerModalData} onClose={() => setLedgerModalData(null)} title={`Ledger for ${ledgerModalData.title}`} size="xl">
+            <StatefulLedgerTableWrapper entries={ledgerModalData.entries} />
         </Modal>
       )}
 
