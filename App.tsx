@@ -113,11 +113,13 @@ const AppContent: React.FC = () => {
         if (account) {
             fetchData(); // Initial fetch on login/account change
     
-            if (role === Role.User || role === Role.Dealer) {
-                intervalId = setInterval(fetchData, 5000); // Poll every 5 seconds for users/dealers
+            if (role === Role.User) {
+                intervalId = setInterval(fetchData, 7000); // Poll every 7 seconds for users
+            } else if (role === Role.Dealer) {
+                intervalId = setInterval(fetchData, 10000); // Poll every 10 seconds for dealers
             } else if (role === Role.Admin) {
-                // Admin doesn't need real-time countdowns, but needs fresh data for management.
-                intervalId = setInterval(fetchData, 5000); // Poll every 5 seconds for admin
+                // Admin panel has heavy data loads, poll less frequently. Specific views have their own faster polling.
+                intervalId = setInterval(fetchData, 30000); // Poll every 30 seconds for admin
             }
         } else {
             // Clear data on logout

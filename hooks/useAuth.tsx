@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                             console.error("Polling for account update failed:", error);
                             logout(); // Stop polling on error
                         }
-                    }, 1000); // Poll every second
+                    }, 3000); // Poll every 3 seconds
                 }
             } catch (error) {
                 console.error("Session verification failed:", error);
