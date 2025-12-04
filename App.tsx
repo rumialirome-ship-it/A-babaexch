@@ -57,7 +57,6 @@ const AppContent: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
-    const [bets, setBets] = useState<Bet[]>([]);
     const [dailyResults, setDailyResults] = useState<DailyResult[]>([]);
 
     const parseAllDates = (data: any) => {
@@ -80,7 +79,6 @@ const AppContent: React.FC = () => {
                 setUsers(parsedData.users);
                 setDealers(parsedData.dealers);
                 setGames(parsedData.games);
-                setBets(parsedData.bets);
                 setDailyResults(parsedData.daily_results || []);
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
@@ -124,7 +122,6 @@ const AppContent: React.FC = () => {
             setUsers([]);
             setDealers([]);
             setGames([]);
-            setBets([]);
             setDailyResults([]);
         }
     

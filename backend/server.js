@@ -248,9 +248,8 @@ app.get('/api/admin/data', authMiddleware, (req, res) => {
     const dealers = database.getAllFromTable('dealers', true);
     const users = database.getAllFromTable('users', true);
     const games = database.getAllFromTable('games');
-    const bets = database.getAllFromTable('bets');
     const daily_results = database.getAllFromTable('daily_results');
-    res.json({ admin, dealers, users, games, bets, daily_results });
+    res.json({ admin, dealers, users, games, daily_results });
 });
 
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {
