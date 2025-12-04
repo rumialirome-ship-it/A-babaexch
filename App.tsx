@@ -323,7 +323,6 @@ const AppContent: React.FC = () => {
                 users={users}
                 setUsers={setUsers}
                 games={games}
-                bets={bets}
                 dailyResults={dailyResults}
                 declareWinner={declareWinner}
                 updateWinner={updateWinner}

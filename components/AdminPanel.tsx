@@ -1,9 +1,4 @@
 
-
-
-
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin, DailyResult } from '../types';
 import { Icons } from '../constants';
@@ -970,19 +965,13 @@ const NumberSummaryView: React.FC<{
 
 const WinnersReportView: React.FC<{
     games: Game[];
-    bets: Bet[];
-    users: User[];
-    dealers: Dealer[];
     dailyResults: DailyResult[];
-}> = ({ games, bets, users, dealers, dailyResults }) => {
+}> = ({ games, dailyResults }) => {
     const [selectedDate, setSelectedDate] = useState(getTodayDateString());
     const [selectedGameId, setSelectedGameId] = useState<string>('');
-    const [reportData, setReportData] = useState<{
-        gameName: string;
-        winningNumber: string;
-        totalPayout: number;
-        winners: any[];
-    } | null>(null);
+    const [reportData, setReportData] = useState<any | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const { fetchWithAuth } = useAuth();
 
     const gamesWithResultsOnDate = useMemo(() => {
         const gameIdsWithResults = new Set(
@@ -1000,106 +989,28 @@ const WinnersReportView: React.FC<{
     }, [selectedDate, gamesWithResultsOnDate, selectedGameId]);
 
     useEffect(() => {
-        if (!selectedGameId || !selectedDate) {
-            setReportData(null);
-            return;
-        }
-
-        const game = games.find(g => g.id === selectedGameId);
-        const result = dailyResults.find(r => r.gameId === selectedGameId && r.date === selectedDate);
-    
-        if (!game || !result || !result.winningNumber) {
-            setReportData(null);
-            return;
-        }
-    
-        const winningNumber = result.winningNumber;
-    
-        const marketDayBets = bets.filter(bet => {
-            return bet.gameId === selectedGameId && getMarketDateForBet(new Date(bet.timestamp)) === selectedDate;
-        });
-    
-        const winners: any[] = [];
-        let totalPayout = 0;
-    
-        marketDayBets.forEach(bet => {
-            const user = users.find(u => u.id === bet.userId);
-            const dealer = dealers.find(d => d.id === bet.dealerId);
-    
-            if (!user || !dealer) return;
-    
-            const winningBetNumbers: string[] = [];
-    
-            bet.numbers.forEach(num => {
-                let isWin = false;
-                switch (bet.subGameType) {
-                    case SubGameType.OneDigitOpen:
-                        if (winningNumber.length === 2) { isWin = num === winningNumber[0]; }
-                        break;
-                    case SubGameType.OneDigitClose:
-                        if (game.name === 'AKC') { isWin = num === winningNumber; } 
-                        else if (winningNumber.length === 2) { isWin = num === winningNumber[1]; }
-                        break;
-                    default: // TwoDigit, Bulk, Combo
-                        isWin = num === winningNumber;
-                        break;
-                }
-                if (isWin) {
-                    winningBetNumbers.push(num);
-                }
-            });
-    
-            if (winningBetNumbers.length > 0) {
-                const getPrizeMultiplier = (rates: PrizeRates, subGameType: SubGameType) => {
-                    switch (subGameType) {
-                        case SubGameType.OneDigitOpen: return rates.oneDigitOpen;
-                        case SubGameType.OneDigitClose: return rates.oneDigitClose;
-                        default: return rates.twoDigit;
-                    }
-                };
-                const payoutForThisBet = winningBetNumbers.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
-                totalPayout += payoutForThisBet;
-    
-                winners.push({
-                    userId: user.id,
-                    userName: user.name,
-                    dealerName: dealer.name,
-                    betId: bet.id,
-                    subGameType: bet.subGameType,
-                    winningNumbers: winningBetNumbers,
-                    amountPerNumber: bet.amountPerNumber,
-                    payout: payoutForThisBet,
-                });
+        const fetchReport = async () => {
+            if (!selectedGameId || !selectedDate) {
+                setReportData(null);
+                return;
             }
-        });
-        
-        const winnersByUser = winners.reduce((acc, winner) => {
-            if (!acc[winner.userId]) {
-                acc[winner.userId] = {
-                    userName: winner.userName,
-                    dealerName: winner.dealerName,
-                    totalPayout: 0,
-                    winningBets: []
-                };
+            setIsLoading(true);
+            try {
+                const response = await fetchWithAuth(`/api/admin/winners-report?date=${selectedDate}&gameId=${selectedGameId}`);
+                if (!response.ok) throw new Error('Failed to fetch report');
+                const data = await response.json();
+                setReportData(data);
+            } catch (error) {
+                console.error("Error fetching winners report:", error);
+                setReportData(null);
+            } finally {
+                setIsLoading(false);
             }
-            acc[winner.userId].totalPayout += winner.payout;
-            acc[winner.userId].winningBets.push({
-                subGameType: winner.subGameType,
-                winningNumbers: winner.winningNumbers,
-                amountPerNumber: winner.amountPerNumber,
-                payout: winner.payout
-            });
-            return acc;
-        }, {});
-    
-        setReportData({
-            gameName: game.name,
-            winningNumber: winningNumber,
-            totalPayout: totalPayout,
-            winners: Object.values(winnersByUser).sort((a: any, b: any) => b.totalPayout - a.totalPayout),
-        });
+        };
 
-    }, [selectedGameId, selectedDate, games, dailyResults, bets, users, dealers]);
+        fetchReport();
+    }, [selectedGameId, selectedDate, fetchWithAuth]);
+
 
     const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
 
@@ -1126,7 +1037,9 @@ const WinnersReportView: React.FC<{
                 </div>
             </div>
 
-            {reportData ? (
+            {isLoading ? (
+                <div className="text-center p-8 text-slate-400">Loading report...</div>
+            ) : reportData ? (
                 <div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                          <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 text-center">
@@ -1155,7 +1068,7 @@ const WinnersReportView: React.FC<{
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-800">
-                                    {reportData.winners.length > 0 ? reportData.winners.map((winner: any, index) => (
+                                    {reportData.winners.length > 0 ? reportData.winners.map((winner: any, index: number) => (
                                         <tr key={winner.userId + index} className="hover:bg-cyan-500/10 transition-colors">
                                             <td className="p-4 font-medium text-white">{winner.userName}</td>
                                             <td className="p-4 text-slate-400">{winner.dealerName}</td>
@@ -1231,7 +1144,6 @@ interface AdminPanelProps {
   users: User[]; 
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   games: Game[]; 
-  bets: Bet[];
   dailyResults: DailyResult[];
   declareWinner: (gameId: string, winningNumber: string) => void;
   updateWinner: (gameId: string, newWinningNumber: string) => void;
@@ -1248,13 +1160,12 @@ interface AdminPanelProps {
   fetchData: () => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, dailyResults, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, fetchData }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, dailyResults, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, fetchData }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
   const [winningNumbers, setWinningNumbers] = useState<{[key: string]: string}>({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [betSearchQuery, setBetSearchQuery] = useState('');
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
   const [ledgerModalData, setLedgerModalData] = useState<{ title: string; entries: LedgerEntry[] } | null>(null);
@@ -1270,6 +1181,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       isLoading: false,
       error: null as string | null,
       success: null as string | null,
+  });
+
+  const [betSearchState, setBetSearchState] = useState<{
+      query: string;
+      isLoading: boolean;
+      results: any[];
+      summary: { number: string; count: number; totalStake: number } | null;
+  }>({
+      query: '',
+      isLoading: false,
+      results: [],
+      summary: null,
   });
 
   // State for Dealers tab
@@ -1397,6 +1320,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       }
   };
 
+    const handleBetSearch = async () => {
+        if (!betSearchState.query.trim()) {
+            setBetSearchState(prev => ({ ...prev, results: [], summary: null }));
+            return;
+        }
+        setBetSearchState(prev => ({ ...prev, isLoading: true }));
+        try {
+            const response = await fetchWithAuth(`/api/admin/bet-search?number=${betSearchState.query.trim()}`);
+            if (!response.ok) throw new Error('Failed to fetch search results.');
+            const data = await response.json();
+            setBetSearchState(prev => ({ ...prev, isLoading: false, results: data.bets, summary: data.summary }));
+        } catch (error) {
+            console.error("Bet search failed:", error);
+            setBetSearchState(prev => ({ ...prev, isLoading: false, results: [], summary: null }));
+        }
+    };
+
 
   // --- Dealers Filtering & Sorting ---
   const handleDealerSort = (key: SortKey) => {
@@ -1456,20 +1396,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         });
     }, [users, dealers, userSearchQuery, userSortKey, userSortDirection]);
 
-  const flatBets = useMemo(() => bets.flatMap(bet => {
-        const user = users.find(u => u.id === bet.userId);
-        const dealer = dealers.find(d => d.id === bet.dealerId);
-        const game = games.find(g => g.id === bet.gameId);
-        if (!user || !dealer || !game) return [];
-        return bet.numbers.map(num => ({
-            betId: bet.id, userName: user.name, dealerName: dealer.name, gameName: game.name,
-            subGameType: bet.subGameType, number: num, amount: bet.amountPerNumber, timestamp: bet.timestamp,
-        }));
-    }), [bets, users, dealers, games]);
-
-  const filteredBets = useMemo(() => !betSearchQuery.trim() ? [] : flatBets.filter(bet => bet.number === betSearchQuery.trim()), [flatBets, betSearchQuery]);
-  const searchSummary = useMemo(() => !betSearchQuery.trim() || filteredBets.length === 0 ? null : { number: betSearchQuery.trim(), count: filteredBets.length, totalStake: filteredBets.reduce((s, b) => s + b.amount, 0) }, [filteredBets, betSearchQuery]);
-
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
     { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
@@ -1496,7 +1422,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </div>
       
       {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} selectedDate={dashboardDate} onDateChange={setDashboardDate} />}
-      {activeTab === 'winners' && <WinnersReportView games={games} bets={bets} users={users} dealers={dealers} dailyResults={dailyResults} />}
+      {activeTab === 'winners' && <WinnersReportView games={games} dailyResults={dailyResults} />}
       {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} />}
       {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
       {activeTab === 'limits' && <NumberLimitsView />}
@@ -1721,15 +1647,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                 <label htmlFor="bet-search" className="font-semibold text-slate-300 whitespace-nowrap">Search by Number:</label>
                 <div className="relative flex-grow max-w-xs">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
-                    <input id="bet-search" type="text" placeholder="e.g. 42" value={betSearchQuery} onChange={(e) => setBetSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full" />
+                    <input id="bet-search" type="text" placeholder="e.g. 42" 
+                           value={betSearchState.query} 
+                           onChange={(e) => setBetSearchState(prev => ({...prev, query: e.target.value}))} 
+                           onKeyDown={e => e.key === 'Enter' && handleBetSearch()}
+                           className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full" />
                 </div>
+                <button onClick={handleBetSearch} disabled={betSearchState.isLoading} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-slate-600">
+                  {betSearchState.isLoading ? 'Searching...' : 'Search'}
+                </button>
             </div>
 
-            {searchSummary && (
+            {betSearchState.summary && (
                 <div className="mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                    <div><p className="text-sm text-slate-400 uppercase">Number</p><p className="text-2xl font-bold text-cyan-400">{searchSummary.number}</p></div>
-                    <div><p className="text-sm text-slate-400 uppercase">Total Bets</p><p className="text-2xl font-bold text-white">{searchSummary.count}</p></div>
-                    <div><p className="text-sm text-slate-400 uppercase">Total Stake</p><p className="text-2xl font-bold text-emerald-400">PKR {searchSummary.totalStake.toLocaleString()}</p></div>
+                    <div><p className="text-sm text-slate-400 uppercase">Number</p><p className="text-2xl font-bold text-cyan-400">{betSearchState.summary.number}</p></div>
+                    <div><p className="text-sm text-slate-400 uppercase">Total Bets</p><p className="text-2xl font-bold text-white">{betSearchState.summary.count.toLocaleString()}</p></div>
+                    <div><p className="text-sm text-slate-400 uppercase">Total Stake</p><p className="text-2xl font-bold text-emerald-400">PKR {betSearchState.summary.totalStake.toLocaleString()}</p></div>
                 </div>
             )}
 
@@ -1747,10 +1680,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                            {filteredBets.length > 0 ? (
-                                filteredBets.map(bet => (
-                                    <tr key={`${bet.betId}-${bet.number}`} className="hover:bg-cyan-500/10 transition-colors">
-                                        <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{bet.timestamp.toLocaleString()}</td>
+                            {betSearchState.isLoading ? (
+                                <tr><td colSpan={6} className="text-center p-8 text-slate-400">Searching...</td></tr>
+                            ) : betSearchState.results.length > 0 ? (
+                                betSearchState.results.map(bet => (
+                                    <tr key={bet.betId} className="hover:bg-cyan-500/10 transition-colors">
+                                        <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{new Date(bet.timestamp).toLocaleString()}</td>
                                         <td className="p-4 font-semibold text-white">{bet.userName}</td>
                                         <td className="p-4 text-slate-400">{bet.dealerName}</td>
                                         <td className="p-4 text-slate-300">{bet.gameName}</td>
@@ -1759,7 +1694,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan={6} className="text-center p-8 text-slate-500">{betSearchQuery ? 'No bets found.' : 'Enter a number to search.'}</td></tr>
+                                <tr><td colSpan={6} className="text-center p-8 text-slate-500">{betSearchState.query ? 'No bets found.' : 'Enter a number to search.'}</td></tr>
                             )}
                         </tbody>
                     </table>

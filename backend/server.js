@@ -1,5 +1,4 @@
 
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -334,6 +333,21 @@ app.get('/api/admin/summary', authMiddleware, (req, res) => {
     }
 });
 
+app.get('/api/admin/winners-report', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
+    try {
+        const { date, gameId } = req.query;
+        if (!date || !gameId) {
+            return res.status(400).json({ message: 'Date and Game ID are required.' });
+        }
+        const report = database.getWinnersReport(gameId, date);
+        res.json(report);
+    } catch (error) {
+        console.error("Error fetching winners report:", error);
+        res.status(500).json({ message: 'Failed to fetch winners report.' });
+    }
+});
+
 // Admin Number Limit Routes
 app.get('/api/admin/number-limits', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
@@ -370,6 +384,18 @@ app.post('/api/admin/bulk-bet', authMiddleware, (req, res) => {
         res.status(201).json({ message: 'Bet placed successfully!', bets: result });
     } catch (error) {
         res.status(error.status || 500).json({ message: error.message || 'Failed to place bet.' });
+    }
+});
+
+app.get('/api/admin/bet-search', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
+    try {
+        const { number } = req.query;
+        const result = database.searchBetsByNumber(number);
+        res.json(result);
+    } catch (error) {
+        console.error("Error during bet search:", error);
+        res.status(500).json({ message: 'Failed to search bets.' });
     }
 });
 
