@@ -1,5 +1,3 @@
-
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -57,7 +55,8 @@ app.post('/api/auth/login', (req, res) => {
 
     const { account, role } = database.findAccountForLogin(loginId);
     
-    if (!account || account.password !== password) {
+    // More robust check for password, ignoring whitespace and handling nulls.
+    if (!account || !account.password || account.password.trim() !== password.trim()) {
         return res.status(401).json({ message: 'Invalid credentials.' });
     }
     

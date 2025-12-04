@@ -1,5 +1,3 @@
-
-
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -119,38 +117,46 @@ const findAccountById = (id, table) => {
     const account = stmt.get(id);
     if (!account) return null;
 
-    try {
-        // Attach ledger for non-game tables
-        if (table !== 'games' && table !== 'daily_results') {
-            const ledgerStmt = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC');
-            account.ledger = ledgerStmt.all(id);
-        } else if (table === 'games') {
-            // Dynamically determine if the game market is open based on time.
-            account.isMarketOpen = isGameOpen(account.drawTime);
-        }
+    // Attach ledger for non-game tables
+    if (table !== 'games' && table !== 'daily_results') {
+        const ledgerStmt = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC');
+        account.ledger = ledgerStmt.all(id);
+    } else if (table === 'games') {
+        // Dynamically determine if the game market is open based on time.
+        account.isMarketOpen = isGameOpen(account.drawTime);
+    }
 
-        // Parse JSON fields safely
-        if (account.prizeRates && typeof account.prizeRates === 'string') {
+    // Safely parse JSON fields for each property
+    if (account.prizeRates && typeof account.prizeRates === 'string') {
+        try {
             account.prizeRates = JSON.parse(account.prizeRates);
+        } catch (e) {
+            console.error(`CORRUPT DATA: Failed to parse prizeRates for ${table} ID ${id}`);
+            account.prizeRates = { oneDigitOpen: 0, oneDigitClose: 0, twoDigit: 0 };
         }
-        if (account.betLimits && typeof account.betLimits === 'string') {
+    }
+    if (account.betLimits && typeof account.betLimits === 'string') {
+        try {
             account.betLimits = JSON.parse(account.betLimits);
+        } catch (e) {
+            console.error(`CORRUPT DATA: Failed to parse betLimits for ${table} ID ${id}`);
+            account.betLimits = { oneDigit: 0, twoDigit: 0 };
         }
-        
-        // Convert boolean
-        if ('isRestricted' in account) {
-            account.isRestricted = !!account.isRestricted;
-        }
-    } catch (e) {
-        console.error(`Failed to parse data for account in table ${table} with id ${id}`, e);
-        // Return account with raw data to avoid crashing the entire request
+    }
+    
+    // Convert boolean
+    if ('isRestricted' in account) {
+        account.isRestricted = !!account.isRestricted;
     }
 
     return account;
 };
 
 const findAccountForLogin = (loginId) => {
-    const lowerCaseLoginId = loginId.toLowerCase();
+    if (!loginId || typeof loginId !== 'string') {
+        return { account: null, role: null };
+    }
+    const lowerCaseLoginId = loginId.trim().toLowerCase();
 
     const tables = [
         { name: 'users', role: 'USER' },
@@ -190,27 +196,26 @@ const getAllFromTable = (table, withLedger = false) => {
     let accounts = db.prepare(`SELECT * FROM ${table}`).all();
     if (table === 'daily_results') return accounts;
     return accounts.map(acc => {
-        try {
-            if (withLedger && acc.id) {
-                acc.ledger = getLedgerForAccount(acc.id);
-            }
-            if (table === 'games' && acc.drawTime) {
-                acc.isMarketOpen = isGameOpen(acc.drawTime);
-            }
-            if (acc.prizeRates && typeof acc.prizeRates === 'string') {
-                acc.prizeRates = JSON.parse(acc.prizeRates);
-            }
-            if (acc.betLimits && typeof acc.betLimits === 'string') {
-                acc.betLimits = JSON.parse(acc.betLimits);
-            }
-            if (table === 'bets' && acc.numbers && typeof acc.numbers === 'string') {
-                acc.numbers = JSON.parse(acc.numbers);
-            }
-            if ('isRestricted' in acc) {
-                acc.isRestricted = !!acc.isRestricted;
-            }
-        } catch (e) {
-            console.error(`Failed to parse data for item in table ${table} with id ${acc.id}`, e);
+        if (withLedger && acc.id) {
+            acc.ledger = getLedgerForAccount(acc.id);
+        }
+        if (table === 'games' && acc.drawTime) {
+            acc.isMarketOpen = isGameOpen(acc.drawTime);
+        }
+        if (acc.prizeRates && typeof acc.prizeRates === 'string') {
+            try { acc.prizeRates = JSON.parse(acc.prizeRates); }
+            catch (e) { console.error(`CORRUPT DATA: prizeRates for ${table} ID ${acc.id}`); acc.prizeRates = {}; }
+        }
+        if (acc.betLimits && typeof acc.betLimits === 'string') {
+             try { acc.betLimits = JSON.parse(acc.betLimits); }
+             catch (e) { console.error(`CORRUPT DATA: betLimits for ${table} ID ${acc.id}`); acc.betLimits = {}; }
+        }
+        if (table === 'bets' && acc.numbers && typeof acc.numbers === 'string') {
+            try { acc.numbers = JSON.parse(acc.numbers); }
+            catch (e) { console.error(`CORRUPT DATA: numbers for bet ID ${acc.id}`); acc.numbers = []; }
+        }
+        if ('isRestricted' in acc) {
+            acc.isRestricted = !!acc.isRestricted;
         }
         return acc;
     });
@@ -377,17 +382,22 @@ const approvePayoutsForGame = (gameId) => {
             throw { status: 400, message: "Cannot approve payouts for AK until the close number from AKC is declared." };
         }
 
-        // Determine the market day for which payouts are being approved.
         const marketDateForPayouts = getMarketDateForDeclaration(game.drawTime);
-
-        // Fetch all bets for the game and filter them to the correct market day.
         const allGameBets = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(gameId);
+        
         const winningBets = allGameBets
             .filter(bet => getMarketDateString(new Date(bet.timestamp)) === marketDateForPayouts)
-            .map(b => ({
-                ...b,
-                numbers: JSON.parse(b.numbers)
-            }));
+            .map(b => {
+                let numbers = [];
+                try {
+                    if (b.numbers && typeof b.numbers === 'string') {
+                        numbers = JSON.parse(b.numbers);
+                    }
+                } catch(e) {
+                    console.error(`CORRUPT DATA: Ignoring bet ID ${b.id} in approvePayoutsForGame due to invalid JSON.`);
+                }
+                return { ...b, numbers };
+            });
         
         const winningNumber = game.winningNumber;
         const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
@@ -426,11 +436,8 @@ const approvePayoutsForGame = (gameId) => {
                 const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
                 const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
                 
-                // Payout to user
                 addLedgerEntry(user.id, 'USER', `Prize money for ${game.name}`, 0, userPrize);
                 addLedgerEntry(admin.id, 'ADMIN', `Prize payout to ${user.name}`, userPrize, 0);
-
-                // Profit to dealer
                 addLedgerEntry(dealer.id, 'DEALER', `Profit from winner in ${game.name}`, 0, dealerProfit);
                 addLedgerEntry(admin.id, 'ADMIN', `Dealer profit payout to ${dealer.name}`, dealerProfit, 0);
             }
@@ -444,19 +451,23 @@ const approvePayoutsForGame = (gameId) => {
 
 
 const getFinancialSummary = (targetDate) => {
-    // If no date is provided, default to the current market date.
     const date = targetDate || getMarketDateString(new Date());
-
-    // 1. Fetch all necessary data
-    const allBets = db.prepare('SELECT * FROM bets').all().map(b => ({...b, numbers: JSON.parse(b.numbers)}));
+    const allBets = db.prepare('SELECT * FROM bets').all().map(b => {
+        let numbers = [];
+        try {
+            if (b.numbers && typeof b.numbers === 'string') {
+                numbers = JSON.parse(b.numbers);
+            }
+        } catch(e) {
+            console.error(`CORRUPT DATA: Failed to parse numbers for bet ID ${b.id} in getFinancialSummary`);
+        }
+        return {...b, numbers};
+    });
     const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
     const allDealers = Object.fromEntries(getAllFromTable('dealers').map(d => [d.id, d]));
-    const allGames = getAllFromTable('games'); // Get all game definitions (name, etc.)
+    const allGames = getAllFromTable('games');
 
-    // 2. Filter bets for the target market date
     const betsForDate = allBets.filter(bet => getMarketDateString(new Date(bet.timestamp)) === date);
-
-    // 3. Get results specifically for the target date
     const resultsForDate = db.prepare('SELECT gameId, winningNumber FROM daily_results WHERE date = ?').all(date);
     const winningNumbersMap = new Map(resultsForDate.map(r => [r.gameId, r.winningNumber]));
 
@@ -467,10 +478,9 @@ const getFinancialSummary = (targetDate) => {
         return rates.twoDigit;
     };
 
-    // 4. Process each game that has a result on the target date
     const summaryByGame = Array.from(winningNumbersMap.entries()).map(([gameId, winningNumber]) => {
         const game = allGames.find(g => g.id === gameId);
-        if (!game || winningNumber.endsWith('_')) return null; // Skip if game def not found or result is partial (like AK_)
+        if (!game || winningNumber.endsWith('_')) return null;
 
         const gameBets = betsForDate.filter(b => b.gameId === game.id);
         const totalStake = gameBets.reduce((sum, b) => sum + b.totalAmount, 0);
@@ -515,13 +525,10 @@ const getFinancialSummary = (targetDate) => {
         const netProfit = totalStake - totalPayouts - totalDealerProfit - totalCommissions;
 
         return {
-            gameName: game.name,
-            winningNumber: winningNumber,
-            totalStake, totalPayouts, totalDealerProfit, totalCommissions, netProfit,
+            gameName: game.name, winningNumber, totalStake, totalPayouts, totalDealerProfit, totalCommissions, netProfit,
         };
-    }).filter(Boolean); // Filter out nulls
+    }).filter(Boolean);
 
-    // 5. Calculate grand total
     const grandTotal = summaryByGame.reduce((totals, game) => {
         totals.totalStake += game.totalStake;
         totals.totalPayouts += game.totalPayouts;
@@ -542,9 +549,7 @@ const getWinnersReport = (gameId, date) => {
     const game = findAccountById(gameId, 'games');
     const result = db.prepare('SELECT winningNumber FROM daily_results WHERE gameId = ? AND date = ?').get(gameId, date);
 
-    if (!game || !result || !result.winningNumber || result.winningNumber.endsWith('_')) {
-        return null;
-    }
+    if (!game || !result || !result.winningNumber || result.winningNumber.endsWith('_')) return null;
 
     const winningNumber = result.winningNumber;
     const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
@@ -570,9 +575,19 @@ const getWinnersReport = (gameId, date) => {
         const dealer = allDealers[bet.dealerId];
         if (!user || !dealer) return;
 
-        const betNumbers = JSON.parse(bet.numbers);
-        const winningBetNumbers = [];
+        let betNumbers;
+        try {
+            if (bet.numbers && typeof bet.numbers === 'string') {
+                betNumbers = JSON.parse(bet.numbers);
+            } else {
+                betNumbers = [];
+            }
+        } catch (e) {
+            console.error(`CORRUPT DATA: Failed to parse numbers for bet ID ${bet.id} in getWinnersReport`);
+            return;
+        }
 
+        const winningBetNumbers = [];
         betNumbers.forEach(num => {
             let isWin = false;
             switch (bet.subGameType) {
@@ -580,9 +595,7 @@ const getWinnersReport = (gameId, date) => {
                 case "1 Digit Close": if (game.name === 'AKC') isWin = num === winningNumber; else if (winningNumber.length === 2) isWin = num === winningNumber[1]; break;
                 default: isWin = num === winningNumber; break;
             }
-            if (isWin) {
-                winningBetNumbers.push(num);
-            }
+            if (isWin) winningBetNumbers.push(num);
         });
 
         if (winningBetNumbers.length > 0) {
@@ -590,14 +603,8 @@ const getWinnersReport = (gameId, date) => {
             totalPayout += payoutForThisBet;
 
             winners.push({
-                userId: user.id,
-                userName: user.name,
-                dealerName: dealer.name,
-                betId: bet.id,
-                subGameType: bet.subGameType,
-                winningNumbers: winningBetNumbers,
-                amountPerNumber: bet.amountPerNumber,
-                payout: payoutForThisBet,
+                userId: user.id, userName: user.name, dealerName: dealer.name, betId: bet.id,
+                subGameType: bet.subGameType, winningNumbers: winningBetNumbers, amountPerNumber: bet.amountPerNumber, payout: payoutForThisBet,
             });
         }
     });
@@ -605,26 +612,18 @@ const getWinnersReport = (gameId, date) => {
     const winnersByUser = winners.reduce((acc, winner) => {
         if (!acc[winner.userId]) {
             acc[winner.userId] = {
-                userName: winner.userName,
-                dealerName: winner.dealerName,
-                totalPayout: 0,
-                winningBets: []
+                userName: winner.userName, dealerName: winner.dealerName, totalPayout: 0, winningBets: []
             };
         }
         acc[winner.userId].totalPayout += winner.payout;
         acc[winner.userId].winningBets.push({
-            subGameType: winner.subGameType,
-            winningNumbers: winner.winningNumbers,
-            amountPerNumber: winner.amountPerNumber,
-            payout: winner.payout
+            subGameType: winner.subGameType, winningNumbers: winner.winningNumbers, amountPerNumber: winner.amountPerNumber, payout: winner.payout
         });
         return acc;
     }, {});
 
     return {
-        gameName: game.name,
-        winningNumber: winningNumber,
-        totalPayout: totalPayout,
+        gameName: game.name, winningNumber: winningNumber, totalPayout: totalPayout,
         winners: Object.values(winnersByUser).sort((a, b) => b.totalPayout - a.totalPayout),
     };
 };
@@ -792,12 +791,21 @@ const createBet = (betData) => {
 };
 
 const getUserStakesForGame = (userId, gameId) => {
+    // FIX: Only check stakes for the current market day to prevent slowdowns and incorrect limit checks.
+    const currentMarketDate = getMarketDateString(new Date());
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    
     const stmt = db.prepare(`
-        SELECT subGameType, numbers, amountPerNumber 
+        SELECT subGameType, numbers, amountPerNumber, timestamp 
         FROM bets 
-        WHERE userId = ? AND gameId = ?
+        WHERE userId = ? AND gameId = ? AND date(timestamp) >= ?
     `);
-    const userBetsForGame = stmt.all(userId, gameId);
+    const recentBets = stmt.all(userId, gameId, yesterdayStr);
+    
+    const userBetsForGame = recentBets.filter(bet => getMarketDateString(new Date(bet.timestamp)) === currentMarketDate);
 
     const stakesMap = new Map(); // Key: 'oneDigit-7' or 'twoDigit-42', Value: total stake
 
@@ -833,6 +841,7 @@ const deleteNumberLimit = (id) => db.prepare('DELETE FROM number_limits WHERE id
 const getNumberLimit = (gameType, numberValue) => db.prepare('SELECT * FROM number_limits WHERE gameType = ? AND numberValue = ?').get(gameType, numberValue);
 
 const getCurrentStakeForNumber = (gameType, numberValue) => {
+    // FIX: This check must be scoped to the current market day to be correct.
     const subGameTypes = gameType === '2-digit' 
         ? ['2 Digit', 'Bulk Game', 'Combo Game'] 
         : gameType === '1-open' 
@@ -841,22 +850,34 @@ const getCurrentStakeForNumber = (gameType, numberValue) => {
     
     const placeholders = subGameTypes.map(() => '?').join(',');
     
-    let totalStake = 0;
-    
-    const bets = db.prepare(`
-        SELECT numbers, amountPerNumber 
-        FROM bets 
-        WHERE subGameType IN (${placeholders}) 
-        AND gameId IN (SELECT id FROM games WHERE winningNumber IS NULL OR payoutsApproved = 0)`
-    ).all(...subGameTypes);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-    for (const bet of bets) {
-        const numbers = JSON.parse(bet.numbers);
-        if (numbers.includes(numberValue)) {
-            // This logic is slightly flawed for combo/bulk as one line item might contribute to the stake on a number.
-            // Let's assume a bet with ['12', '34'] for 10 is two separate 10 rupee stakes.
-            const occurrences = numbers.filter(n => n === numberValue).length;
-            totalStake += occurrences * bet.amountPerNumber;
+    const stmt = db.prepare(`
+        SELECT timestamp, numbers, amountPerNumber 
+        FROM bets 
+        WHERE subGameType IN (${placeholders}) AND date(timestamp) >= ?`
+    );
+    const recentBets = stmt.all(...subGameTypes, yesterdayStr);
+    
+    const currentMarketDate = getMarketDateString(new Date());
+    let totalStake = 0;
+
+    for (const bet of recentBets) {
+        const betMarketDate = getMarketDateString(new Date(bet.timestamp));
+        if (betMarketDate !== currentMarketDate) {
+            continue;
+        }
+
+        try {
+            const numbers = JSON.parse(bet.numbers);
+            if (numbers.includes(numberValue)) {
+                const occurrences = numbers.filter(n => n === numberValue).length;
+                totalStake += occurrences * bet.amountPerNumber;
+            }
+        } catch (e) {
+            console.error(`Could not parse numbers in getCurrentStakeForNumber: ${e}`);
         }
     }
     return totalStake;
@@ -937,12 +958,14 @@ const getNumberStakeSummary = ({ gameId, dealerId, date }) => {
 };
 
 const searchBetsByNumber = (number) => {
-    if (!number || number.trim() === '') {
-        return { bets: [], summary: { number: '', count: 0, totalStake: 0 } };
+    // FIX: This function was fundamentally broken. It used an exact match on a JSON string array,
+    // which would only work if a bet was for a single number.
+    // This new version uses LIKE to find the number within the JSON array string, which is correct and more performant.
+    if (!number || !String(number).trim()) {
+        return { bets: [], summary: null };
     }
+    const searchTerm = String(number).trim();
     
-    const numbersJsonString = JSON.stringify([number]);
-
     const stmt = db.prepare(`
         SELECT 
             b.id as betId,
@@ -956,26 +979,26 @@ const searchBetsByNumber = (number) => {
         JOIN users u ON b.userId = u.id
         JOIN dealers d ON b.dealerId = d.id
         JOIN games g ON b.gameId = g.id
-        WHERE b.numbers = ?
+        WHERE b.numbers LIKE '%"' || ? || '"%'
         ORDER BY b.timestamp DESC
     `);
     
-    const searchResults = stmt.all(numbersJsonString);
+    const searchResults = stmt.all(searchTerm);
 
-    const flatBets = searchResults.map(bet => ({
+    const bets = searchResults.map(bet => ({
         ...bet,
-        number: number 
+        number: searchTerm 
     }));
 
-    const totalStake = flatBets.reduce((sum, bet) => sum + bet.amount, 0);
+    const totalStake = bets.reduce((sum, bet) => sum + bet.amount, 0);
 
     const summary = {
-        number: number,
-        count: flatBets.length,
+        number: searchTerm,
+        count: bets.length,
         totalStake: totalStake
     };
 
-    return { bets: flatBets, summary };
+    return { bets, summary };
 };
 
 
@@ -1021,4 +1044,208 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
              throw { status: 400, message: `Betting is currently closed for AKC.` };
         }
 
-        //
+        const processBetGroups = (targetGameId, groupsToProcess) => {
+            if (groupsToProcess.length === 0) return { totalCost: 0, placedBets: [] };
+
+            const userStakes = getUserStakesForGame(userId, targetGameId);
+            let totalCost = 0;
+            const placedBets = [];
+
+            for (const group of groupsToProcess) {
+                const rawNumbers = group.numbers;
+                const amount = group.amountPerNumber;
+                if (!Array.isArray(rawNumbers) || rawNumbers.length === 0 || !amount || amount <= 0) {
+                    throw { status: 400, message: `Invalid bet data provided: missing numbers or amount.` };
+                }
+
+                // De-duplicate numbers within a single group to prevent multiple bets on the same number from one line
+                group.numbers = [...new Set(rawNumbers)];
+
+                // Check limits for each number
+                for (const num of group.numbers) {
+                    const isOneDigit = group.subGameType === '1 Digit Open' || group.subGameType === '1 Digit Close';
+                    const typeKey = isOneDigit ? 'oneDigit' : 'twoDigit';
+
+                    // Check System-wide Number Limit
+                    const limitType = group.subGameType === '1 Digit Open' ? '1-open' : (group.subGameType === '1 Digit Close' ? '1-close' : '2-digit');
+                    const numberLimit = getNumberLimit(limitType, num);
+                    if (numberLimit && numberLimit.limitAmount > 0) {
+                        const currentTotalStake = getCurrentStakeForNumber(limitType, num);
+                        if (currentTotalStake + amount > numberLimit.limitAmount) {
+                             throw { status: 400, message: `System limit of ${numberLimit.limitAmount} exceeded for number ${num}.` };
+                        }
+                    }
+
+                    // Check User-specific Bet Limit
+                    if (user.betLimits && user.betLimits[typeKey] > 0) {
+                        const userStake = userStakes.get(`${typeKey}-${num}`) || 0;
+                        if (userStake + amount > user.betLimits[typeKey]) {
+                            throw { status: 400, message: `Your personal limit of ${user.betLimits[typeKey]} for number ${num} has been exceeded.` };
+                        }
+                    }
+                }
+
+                const costForGroup = group.numbers.length * amount;
+                totalCost += costForGroup;
+
+                placedBets.push({
+                    id: uuidv4(),
+                    userId: userId,
+                    dealerId: user.dealerId,
+                    gameId: targetGameId,
+                    subGameType: group.subGameType,
+                    numbers: JSON.stringify(group.numbers),
+                    amountPerNumber: amount,
+                    totalAmount: costForGroup,
+                    timestamp: new Date().toISOString()
+                });
+            }
+            return { totalCost, placedBets };
+        };
+
+        const mainResult = processBetGroups(game.id, mainGameGroups);
+        const akcResult = processBetGroups(akcGame ? akcGame.id : '', akcGroups);
+
+        const grandTotalCost = mainResult.totalCost + akcResult.totalCost;
+        if (grandTotalCost > user.wallet) {
+            throw { status: 400, message: `Insufficient wallet balance. Required: ${grandTotalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}.` };
+        }
+
+        // 4. Record transactions and bets if validation passed
+        if (grandTotalCost > 0) {
+            const userCommission = grandTotalCost * (user.commissionRate / 100);
+            const dealerCommission = grandTotalCost * ((dealer.commissionRate - user.commissionRate) / 100);
+            
+            const betDescription = `Bet placed for ${game.name}` + (akcResult.placedBets.length > 0 ? ' & AKC' : '');
+            addLedgerEntry(user.id, 'USER', betDescription, grandTotalCost, userCommission);
+            addLedgerEntry(dealer.id, 'DEALER', `User bet: ${user.name}`, grandTotalCost, dealerCommission);
+            addLedgerEntry(admin.id, 'ADMIN', `Bet from ${user.name}`, grandTotalCost, 0);
+        }
+
+        mainResult.placedBets.forEach(createBet);
+        akcResult.placedBets.forEach(createBet);
+        
+        finalResult = [...mainResult.placedBets, ...akcResult.placedBets];
+    });
+    return finalResult;
+};
+
+const updateGameDrawTime = (gameId, newDrawTime) => {
+    const game = findAccountById(gameId, 'games');
+    if (!game) throw { status: 404, message: 'Game not found.' };
+    if (game.winningNumber) throw { status: 400, message: 'Cannot change draw time after a winner has been declared.' };
+
+    db.prepare('UPDATE games SET drawTime = ? WHERE id = ?').run(newDrawTime, gameId);
+    return findAccountById(gameId, 'games');
+};
+
+const resetAllGames = () => {
+    db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0').run();
+    console.log("All games have been reset for the new market day.");
+};
+
+const reprocessPayoutsForMarketDay = (gameId, date) => {
+    let result = { processedBets: 0, totalPayout: 0, totalProfit: 0 };
+    runInTransaction(() => {
+        const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
+        const dailyResult = db.prepare('SELECT * FROM daily_results WHERE gameId = ? AND date = ?').get(gameId, date);
+
+        if (!game || !dailyResult || !dailyResult.winningNumber || dailyResult.winningNumber.endsWith('_')) {
+            throw { status: 404, message: 'Valid winning number for the selected game and date not found.' };
+        }
+        
+        const allGameBets = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(gameId);
+        const betsToProcess = allGameBets.filter(bet => getMarketDateString(new Date(bet.timestamp)) === date);
+
+        if (betsToProcess.length === 0) {
+            return result; // No bets to process
+        }
+
+        const winningNumber = dailyResult.winningNumber;
+        const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
+        const allDealers = Object.fromEntries(getAllFromTable('dealers').map(d => [d.id, d]));
+        const admin = findAccountById('Guru', 'admins');
+
+        const getPrizeMultiplier = (rates, subGameType) => {
+            if (!rates) return 0;
+            if (subGameType === "1 Digit Open") return rates.oneDigitOpen;
+            if (subGameType === "1 Digit Close") return rates.oneDigitClose;
+            return rates.twoDigit;
+        };
+
+        betsToProcess.forEach(bet => {
+            try {
+                const betNumbers = JSON.parse(bet.numbers);
+                const winningNumbersInBet = betNumbers.filter(num => {
+                    let isWin = false;
+                    switch (bet.subGameType) {
+                        case "1 Digit Open": if (winningNumber.length === 2) isWin = num === winningNumber[0]; break;
+                        case "1 Digit Close": if (game.name === 'AKC') isWin = num === winningNumber; else if (winningNumber.length === 2) isWin = num === winningNumber[1]; break;
+                        default: isWin = num === winningNumber; break;
+                    }
+                    return isWin;
+                });
+                
+                if (winningNumbersInBet.length > 0) {
+                    const user = allUsers[bet.userId];
+                    const dealer = allDealers[bet.dealerId];
+                    if (!user || !dealer) return;
+
+                    const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
+                    const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
+                    
+                    const desc = `REPROCESSED Prize for ${game.name} on ${date}`;
+                    addLedgerEntry(user.id, 'USER', desc, 0, userPrize);
+                    addLedgerEntry(admin.id, 'ADMIN', `REPROCESSED Payout to ${user.name}`, userPrize, 0);
+
+                    const profitDesc = `REPROCESSED Profit for ${game.name} on ${date}`;
+                    addLedgerEntry(dealer.id, 'DEALER', profitDesc, 0, dealerProfit);
+                    addLedgerEntry(admin.id, 'ADMIN', `REPROCESSED Profit to ${dealer.name}`, dealerProfit, 0);
+
+                    result.totalPayout += userPrize;
+                    result.totalProfit += dealerProfit;
+                }
+                result.processedBets++;
+            } catch (e) {
+                console.error(`Skipping bet ID ${bet.id} due to parsing error during reprocessing.`);
+            }
+        });
+    });
+    return result;
+};
+
+
+module.exports = {
+    connect,
+    verifySchema,
+    findAccountById,
+    findAccountForLogin,
+    updatePassword,
+    getAllFromTable,
+    runInTransaction,
+    addLedgerEntry,
+    declareWinnerForGame,
+    updateWinningNumber,
+    approvePayoutsForGame,
+    getFinancialSummary,
+    getWinnersReport,
+    createDealer,
+    updateDealer,
+    findUsersByDealerId,
+    findUserByDealer,
+    createUser,
+    updateUser,
+    getBetHistory,
+    findBetsByGameId,
+    toggleAccountRestrictionByAdmin,
+    toggleUserRestrictionByDealer,
+    placeBulkBets,
+    getAllNumberLimits,
+    saveNumberLimit,
+    deleteNumberLimit,
+    getNumberStakeSummary,
+    searchBetsByNumber,
+    updateGameDrawTime,
+    resetAllGames,
+    reprocessPayoutsForMarketDay,
+};
