@@ -88,7 +88,6 @@ const AppContent: React.FC = () => {
                 data = await response.json();
                 const parsedData = parseAllDates(data);
                 setUsers(parsedData.users);
-                setBets(parsedData.bets);
                 setDailyResults(parsedData.daily_results || []);
                 const gamesResponse = await fetchWithAuth('/api/games');
                 const gamesData = await gamesResponse.json();
@@ -99,7 +98,6 @@ const AppContent: React.FC = () => {
                 data = await response.json();
                 const parsedData = parseAllDates(data);
                 setGames(parsedData.games);
-                setBets(parsedData.bets);
                 setDailyResults(parsedData.daily_results || []);
             }
         } catch (error) {
@@ -335,26 +333,21 @@ const AppContent: React.FC = () => {
                 fetchData={fetchData}
             />;
         case Role.Dealer:
-            const dealerUsers = users.filter(u => u.dealerId === account.id);
-            const dealerBets = bets.filter(b => b.dealerId === account.id);
             return <DealerPanel
                 dealer={account as Dealer}
-                users={dealerUsers}
+                users={users}
                 onSaveUser={onSaveUser}
                 topUpUserWallet={topUpUserWallet}
                 withdrawFromUserWallet={withdrawFromUserWallet}
                 toggleAccountRestriction={toggleAccountRestriction}
-                bets={dealerBets}
                 games={games}
                 dailyResults={dailyResults}
                 placeBetAsDealer={placeBetAsDealer}
             />;
         case Role.User:
-            const userBets = bets.filter(b => b.userId === account.id);
             return <UserPanel
                 user={account as User}
                 games={games}
-                bets={userBets}
                 dailyResults={dailyResults}
                 placeBet={placeBet}
             />;

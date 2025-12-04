@@ -3,10 +3,12 @@
 
 
 
-import React, { useState, useMemo } from 'react';
+
+import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType, DailyResult } from '../types';
 import { Icons } from '../constants';
 import { useCountdown, getMarketDateForBet } from '../hooks/useCountdown';
+import { useAuth } from '../hooks/useAuth';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
@@ -360,10 +362,54 @@ const UserTransactionForm: React.FC<{
     );
 };
 
-const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[], dailyResults: DailyResult[] }> = ({ bets, games, users, dailyResults }) => {
+const BetHistoryView: React.FC<{ games: Game[], users: User[], dailyResults: DailyResult[] }> = ({ games, users, dailyResults }) => {
+    const { fetchWithAuth } = useAuth();
+    const [bets, setBets] = useState<Bet[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [totalBets, setTotalBets] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
+    
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
+
+    const BETS_PER_PAGE = 25;
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const params = new URLSearchParams({
+                    limit: String(BETS_PER_PAGE),
+                    offset: String((currentPage - 1) * BETS_PER_PAGE),
+                });
+                if (startDate) params.append('startDate', startDate);
+                if (endDate) params.append('endDate', endDate);
+                if (searchTerm) params.append('searchTerm', searchTerm);
+
+                const response = await fetchWithAuth(`/api/bet-history?${params.toString()}`);
+                if (!response.ok) throw new Error('Failed to fetch bet history.');
+                
+                const data = await response.json();
+                const parsedBets = data.bets.map((b: any) => ({
+                    ...b,
+                    timestamp: new Date(b.timestamp),
+                    numbers: JSON.parse(b.numbers)
+                }));
+
+                setBets(parsedBets);
+                setTotalBets(data.totalCount);
+            } catch (err: any) {
+                setError(err.message);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchHistory();
+    }, [currentPage, startDate, endDate, searchTerm, fetchWithAuth]);
 
     const getBetOutcome = (bet: Bet) => {
         const game = games.find(g => g.id === bet.gameId);
@@ -411,34 +457,15 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[], dail
         }
         return { status: 'Lost', payout: 0, color: 'text-red-400' };
     };
-
-    const filteredBets = useMemo(() => {
-        return bets.filter(bet => {
-            const betDateStr = bet.timestamp.toISOString().split('T')[0];
-            if (startDate && betDateStr < startDate) return false;
-            if (endDate && betDateStr > endDate) return false;
-
-            if (searchTerm.trim()) {
-                const user = users.find(u => u.id === bet.userId);
-                const game = games.find(g => g.id === bet.gameId);
-                const lowerSearchTerm = searchTerm.trim().toLowerCase();
-
-                const userNameMatch = user?.name.toLowerCase().includes(lowerSearchTerm);
-                const gameNameMatch = game?.name.toLowerCase().includes(lowerSearchTerm);
-                
-                if (!userNameMatch && !gameNameMatch) return false;
-            }
-
-            return true;
-        }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [bets, games, users, startDate, endDate, searchTerm]);
-
+    
     const handleClearFilters = () => {
         setStartDate('');
         setEndDate('');
         setSearchTerm('');
+        setCurrentPage(1);
     };
     
+    const totalPages = Math.ceil(totalBets / BETS_PER_PAGE);
     const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
 
     return (
@@ -449,15 +476,15 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[], dail
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div>
                         <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
-                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`${inputClass} font-sans`} />
+                        <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }} className={`${inputClass} font-sans`} />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
-                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`${inputClass} font-sans`} />
+                        <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }} className={`${inputClass} font-sans`} />
                     </div>
                     <div className="md:col-span-2 lg:col-span-1">
                         <label className="block text-sm font-medium text-slate-400 mb-1">User / Game</label>
-                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="e.g., ADU-001, LS3" className={inputClass} />
+                        <input type="text" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }} placeholder="e.g., ADU-001, LS3" className={inputClass} />
                     </div>
                     <div className="flex items-center">
                         <button onClick={handleClearFilters} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Clear Filters</button>
@@ -466,7 +493,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[], dail
             </div>
 
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto max-h-[60vh] mobile-scroll-x">
+                <div className="overflow-x-auto min-h-[300px] mobile-scroll-x">
                     <table className="w-full text-left min-w-[800px]">
                         <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                             <tr>
@@ -480,33 +507,45 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[], dail
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                           {filteredBets.map(bet => {
-                                const game = games.find(g => g.id === bet.gameId);
-                                const user = users.find(u => u.id === bet.userId);
-                                const outcome = getBetOutcome(bet);
-                                return (
-                                <tr key={bet.id} className="hover:bg-emerald-500/10 transition-colors">
-                                    <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{new Date(bet.timestamp).toLocaleString()}</td>
-                                    <td className="p-4 text-white font-medium">{user?.name || 'Unknown User'}</td>
-                                    <td className="p-4 text-slate-300 font-medium">{game?.name || 'Unknown Game'}</td>
-                                    <td className="p-4 text-slate-300">
-                                        <div className="font-semibold">{bet.subGameType}</div>
-                                        <div className="text-xs text-slate-400 max-w-[200px] truncate" title={bet.numbers.join(', ')}>{bet.numbers.join(', ')}</div>
-                                    </td>
-                                    <td className="p-4 text-right text-red-400 font-mono">{bet.totalAmount.toFixed(2)}</td>
-                                    <td className="p-4 text-right text-green-400 font-mono">{outcome.payout > 0 ? outcome.payout.toFixed(2) : '-'}</td>
-                                    <td className="p-4 text-right font-semibold"><span className={outcome.color}>{outcome.status}</span></td>
-                                </tr>);
-                           })}
-                           {filteredBets.length === 0 && (
+                           {isLoading ? (
+                               <tr><td colSpan={7} className="p-8 text-center text-slate-400">Loading history...</td></tr>
+                           ) : error ? (
+                               <tr><td colSpan={7} className="p-8 text-center text-red-400">{error}</td></tr>
+                           ) : bets.length > 0 ? (
+                               bets.map(bet => {
+                                    const game = games.find(g => g.id === bet.gameId);
+                                    const user = users.find(u => u.id === bet.userId);
+                                    const outcome = getBetOutcome(bet);
+                                    return (
+                                    <tr key={bet.id} className="hover:bg-emerald-500/10 transition-colors">
+                                        <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{new Date(bet.timestamp).toLocaleString()}</td>
+                                        <td className="p-4 text-white font-medium">{user?.name || 'Unknown User'}</td>
+                                        <td className="p-4 text-slate-300 font-medium">{game?.name || 'Unknown Game'}</td>
+                                        <td className="p-4 text-slate-300">
+                                            <div className="font-semibold">{bet.subGameType}</div>
+                                            <div className="text-xs text-slate-400 max-w-[200px] truncate" title={bet.numbers.join(', ')}>{bet.numbers.join(', ')}</div>
+                                        </td>
+                                        <td className="p-4 text-right text-red-400 font-mono">{bet.totalAmount.toFixed(2)}</td>
+                                        <td className="p-4 text-right text-green-400 font-mono">{outcome.payout > 0 ? outcome.payout.toFixed(2) : '-'}</td>
+                                        <td className="p-4 text-right font-semibold"><span className={outcome.color}>{outcome.status}</span></td>
+                                    </tr>);
+                               })
+                           ) : (
                                <tr>
                                    <td colSpan={7} className="p-8 text-center text-slate-500">
-                                       {bets.length === 0 ? "No bets placed by your users yet." : "No bets found matching your filters."}
+                                       No bets found matching your filters.
                                    </td>
                                </tr>
                            )}
                         </tbody>
                     </table>
+                </div>
+                 <div className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-between items-center text-sm">
+                    <p className="text-slate-400">Showing <span className="font-semibold text-white">{(currentPage - 1) * BETS_PER_PAGE + 1}-{Math.min(currentPage * BETS_PER_PAGE, totalBets)}</span> of <span className="font-semibold text-white">{totalBets}</span> bets</p>
+                    <div className="flex gap-2">
+                        <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1 || isLoading} className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-1.5 px-3 rounded-md transition-colors text-xs">Previous</button>
+                        <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages || isLoading} className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-1.5 px-3 rounded-md transition-colors text-xs">Next</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -902,7 +941,6 @@ interface DealerPanelProps {
   topUpUserWallet: (userId: string, amount: number) => Promise<void>;
   withdrawFromUserWallet: (userId: string, amount: number) => Promise<void>;
   toggleAccountRestriction: (userId: string, userType: 'user') => void;
-  bets: Bet[];
   games: Game[];
   dailyResults: DailyResult[];
   placeBetAsDealer: (details: {
@@ -913,7 +951,7 @@ interface DealerPanelProps {
 }
 
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, dailyResults, placeBetAsDealer }) => {
+const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, games, dailyResults, placeBetAsDealer }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
@@ -924,13 +962,12 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
 
   const dealerUsers = useMemo(() => {
         return users
-            .filter(user => user.dealerId === dealer.id)
             .filter(user => 
                 user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 user.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (user.area || '').toLowerCase().includes(searchQuery.toLowerCase())
             );
-  }, [users, dealer.id, searchQuery]);
+  }, [users, searchQuery]);
 
   const handleSaveUser = async (userData: User, originalId?: string, initialDeposit?: number) => {
     await onSaveUser(userData, originalId, initialDeposit);
@@ -958,7 +995,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
       
       {activeTab === 'terminal' && <BettingTerminalView users={dealerUsers} games={games} placeBetAsDealer={placeBetAsDealer} />}
       {activeTab === 'wallet' && <WalletView dealer={dealer} />}
-      {activeTab === 'history' && <BetHistoryView bets={bets} games={games} users={users} dailyResults={dailyResults} />}
+      {activeTab === 'history' && <BetHistoryView games={games} users={users} dailyResults={dailyResults} />}
 
       {activeTab === 'users' && (
         <div>

@@ -62,8 +62,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [token, logout]);
     
     useEffect(() => {
+        const controller = new AbortController();
+        const signal = controller.signal;
         let pollInterval: ReturnType<typeof setInterval> | undefined;
-        
+
         const verifyTokenAndPoll = async () => {
             if (!token) {
                 setLoading(false);
@@ -71,14 +73,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
 
             try {
-                const response = await fetch('/api/auth/verify', { headers: { 'Authorization': `Bearer ${token}` } });
+                const response = await fetch('/api/auth/verify', { headers: { 'Authorization': `Bearer ${token}` }, signal });
                 if (!response.ok) throw new Error('Token verification failed');
                 
                 const data = await response.json();
                 setAccount(parseAccountDates(data.account));
                 setRole(data.role);
 
-                // If the logged-in user is a USER or DEALER, start polling for updates.
                 if (data.role === Role.User || data.role === Role.Dealer) {
                     pollInterval = setInterval(async () => {
                         try {
@@ -87,18 +88,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                                 const pollData = await pollResponse.json();
                                 setAccount(parseAccountDates(pollData.account));
                             } else {
-                                // Token likely expired, log out
                                 logout();
                             }
                         } catch (error) {
                             console.error("Polling for account update failed:", error);
-                            logout(); // Stop polling on error
+                            logout();
                         }
-                    }, 3000); // Poll every 3 seconds
+                    }, 3000);
                 }
-            } catch (error) {
-                console.error("Session verification failed:", error);
-                logout();
+            } catch (error: any) {
+                if (error.name === 'AbortError') {
+                    console.log('Session verification fetch aborted.');
+                } else {
+                    console.error("Session verification failed:", error);
+                    logout();
+                }
             } finally {
                 setLoading(false);
             }
@@ -106,8 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         verifyTokenAndPoll();
         
-        // Cleanup function to clear interval when component unmounts or token changes
         return () => {
+            controller.abort();
             if (pollInterval) {
                 clearInterval(pollInterval);
             }
