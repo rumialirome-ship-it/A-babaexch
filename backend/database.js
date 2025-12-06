@@ -119,8 +119,8 @@ const findAccountById = (id, table) => {
 
     // Attach ledger for non-game tables
     if (table !== 'games' && table !== 'daily_results') {
-        const ledgerStmt = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC');
-        account.ledger = ledgerStmt.all(id);
+        // Ledgers are fetched on demand now to improve performance.
+        // account.ledger = ledgerStmt.all(id);
     } else if (table === 'games') {
         // Dynamically determine if the game market is open based on time.
         account.isMarketOpen = isGameOpen(account.drawTime);
@@ -197,7 +197,7 @@ const getAllFromTable = (table, withLedger = false) => {
     if (table === 'daily_results') return accounts;
     return accounts.map(acc => {
         if (withLedger && acc.id) {
-            acc.ledger = getLedgerForAccount(acc.id);
+            // Ledgers are now fetched on demand to improve performance
         }
         if (table === 'games' && acc.drawTime) {
             acc.isMarketOpen = isGameOpen(acc.drawTime);
@@ -225,7 +225,7 @@ const runInTransaction = (fn) => {
     db.transaction(fn)();
 };
 
-const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
+const addLedgerEntry = (accountId, accountType, description, debit, credit, type) => {
     const table = accountType.toLowerCase() + 's';
     
     const lastBalanceStmt = db.prepare('SELECT balance FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC, ROWID DESC LIMIT 1');
@@ -242,8 +242,8 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
     
     const newBalance = lastBalance - debit + credit;
     
-    const insertLedgerStmt = db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    insertLedgerStmt.run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
+    const insertLedgerStmt = db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    insertLedgerStmt.run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance, type);
     
     const updateWalletStmt = db.prepare(`UPDATE ${table} SET wallet = ? WHERE id = ?`);
     updateWalletStmt.run(newBalance, accountId);
@@ -436,10 +436,10 @@ const approvePayoutsForGame = (gameId) => {
                 const userPrize = winningNumbersInBet.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
                 const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
                 
-                addLedgerEntry(user.id, 'USER', `Prize money for ${game.name}`, 0, userPrize);
-                addLedgerEntry(admin.id, 'ADMIN', `Prize payout to ${user.name}`, userPrize, 0);
-                addLedgerEntry(dealer.id, 'DEALER', `Profit from winner in ${game.name}`, 0, dealerProfit);
-                addLedgerEntry(admin.id, 'ADMIN', `Dealer profit payout to ${dealer.name}`, dealerProfit, 0);
+                addLedgerEntry(user.id, 'USER', `Prize money for ${game.name}`, 0, userPrize, 'WinPayout');
+                addLedgerEntry(admin.id, 'ADMIN', `Prize payout to ${user.name}`, userPrize, 0, 'Withdrawal');
+                addLedgerEntry(dealer.id, 'DEALER', `Profit from winner in ${game.name}`, 0, dealerProfit, 'DealerProfit');
+                addLedgerEntry(admin.id, 'ADMIN', `Dealer profit payout to ${dealer.name}`, dealerProfit, 0, 'Withdrawal');
             }
         });
 
@@ -558,7 +558,7 @@ const getWinnersReport = (gameId, date) => {
     const allGameBets = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(gameId);
     const marketDayBets = allGameBets.filter(bet => getMarketDateString(new Date(bet.timestamp)) === date);
 
-    const winners = [];
+    const winnersData = [];
     let totalPayout = 0;
 
     const getPrizeMultiplier = (rates, subGameType) => {
@@ -602,17 +602,17 @@ const getWinnersReport = (gameId, date) => {
             const payoutForThisBet = winningBetNumbers.length * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
             totalPayout += payoutForThisBet;
 
-            winners.push({
+            winnersData.push({
                 userId: user.id, userName: user.name, dealerName: dealer.name, betId: bet.id,
                 subGameType: bet.subGameType, winningNumbers: winningBetNumbers, amountPerNumber: bet.amountPerNumber, payout: payoutForThisBet,
             });
         }
     });
     
-    const winnersByUser = winners.reduce((acc, winner) => {
+    const winnersByUser = winnersData.reduce((acc, winner) => {
         if (!acc[winner.userId]) {
             acc[winner.userId] = {
-                userName: winner.userName, dealerName: winner.dealerName, totalPayout: 0, winningBets: []
+                userId: winner.userId, userName: winner.userName, dealerName: winner.dealerName, totalPayout: 0, winningBets: []
             };
         }
         acc[winner.userId].totalPayout += winner.payout;
@@ -624,7 +624,7 @@ const getWinnersReport = (gameId, date) => {
 
     return {
         gameName: game.name, winningNumber: winningNumber, totalPayout: totalPayout,
-        winners: Object.values(winnersByUser).sort((a, b) => b.totalPayout - a.totalPayout),
+        winners: Object.values(winnersByUser).sort((a: any, b: any) => b.totalPayout - a.totalPayout),
     };
 };
 
@@ -639,7 +639,7 @@ const createDealer = (dealerData) => {
       .run(dealerData.id, dealerData.name, dealerData.password, dealerData.area, dealerData.contact, initialAmount, dealerData.commissionRate, 0, JSON.stringify(dealerData.prizeRates), dealerData.avatarUrl);
     
     if (initialAmount > 0) {
-        addLedgerEntry(dealerData.id, 'DEALER', 'Initial Deposit by Admin', 0, initialAmount);
+        addLedgerEntry(dealerData.id, 'DEALER', 'Initial Deposit by Admin', 0, initialAmount, 'InitialDeposit');
     }
     return findAccountById(dealerData.id, 'dealers');
 };
@@ -748,8 +748,8 @@ const createUser = (userData, dealerId, initialDeposit = 0) => {
       .run(userData.id, userData.name, userData.password, dealerId, userData.area, userData.contact, 0, userData.commissionRate, 0, JSON.stringify(userData.prizeRates), JSON.stringify(userData.betLimits), userData.avatarUrl);
 
     if (initialDeposit > 0) {
-        addLedgerEntry(dealerId, 'DEALER', `Initial Deposit for User: ${userData.name}`, initialDeposit, 0);
-        addLedgerEntry(userData.id, 'USER', `Initial Deposit from Dealer: ${dealer.name}`, 0, initialDeposit);
+        addLedgerEntry(dealerId, 'DEALER', `Initial Deposit for User: ${userData.name}`, initialDeposit, 0, 'Withdrawal');
+        addLedgerEntry(userData.id, 'USER', `Initial Deposit from Dealer: ${dealer.name}`, 0, initialDeposit, 'InitialDeposit');
     }
     return findAccountById(userData.id, 'users');
 };
@@ -1117,9 +1117,15 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
             const dealerCommission = grandTotalCost * ((dealer.commissionRate - user.commissionRate) / 100);
             
             const betDescription = `Bet placed for ${game.name}` + (akcResult.placedBets.length > 0 ? ' & AKC' : '');
-            addLedgerEntry(user.id, 'USER', betDescription, grandTotalCost, userCommission);
-            addLedgerEntry(dealer.id, 'DEALER', `User bet: ${user.name}`, grandTotalCost, dealerCommission);
-            addLedgerEntry(admin.id, 'ADMIN', `Bet from ${user.name}`, grandTotalCost, 0);
+            addLedgerEntry(user.id, 'USER', betDescription, grandTotalCost, 0, 'BetPlaced');
+            if (userCommission > 0) {
+                addLedgerEntry(user.id, 'USER', `Commission for ${game.name} bet`, 0, userCommission, 'CommissionPayout');
+            }
+            addLedgerEntry(dealer.id, 'DEALER', `User bet: ${user.name}`, 0, grandTotalCost, 'Deposit');
+            if (dealerCommission > 0) {
+                addLedgerEntry(dealer.id, 'DEALER', `Commission on bet by ${user.name}`, 0, dealerCommission, 'CommissionPayout');
+            }
+            addLedgerEntry(admin.id, 'ADMIN', `Bet from ${user.name}`, 0, grandTotalCost, 'Deposit');
         }
 
         mainResult.placedBets.forEach(createBet);
@@ -1195,12 +1201,12 @@ const reprocessPayoutsForMarketDay = (gameId, date) => {
                     const dealerProfit = winningNumbersInBet.length * bet.amountPerNumber * (getPrizeMultiplier(dealer.prizeRates, bet.subGameType) - getPrizeMultiplier(user.prizeRates, bet.subGameType));
                     
                     const desc = `REPROCESSED Prize for ${game.name} on ${date}`;
-                    addLedgerEntry(user.id, 'USER', desc, 0, userPrize);
-                    addLedgerEntry(admin.id, 'ADMIN', `REPROCESSED Payout to ${user.name}`, userPrize, 0);
+                    addLedgerEntry(user.id, 'USER', desc, 0, userPrize, 'WinPayout');
+                    addLedgerEntry(admin.id, 'ADMIN', `REPROCESSED Payout to ${user.name}`, userPrize, 0, 'Withdrawal');
 
                     const profitDesc = `REPROCESSED Profit for ${game.name} on ${date}`;
-                    addLedgerEntry(dealer.id, 'DEALER', profitDesc, 0, dealerProfit);
-                    addLedgerEntry(admin.id, 'ADMIN', `REPROCESSED Profit to ${dealer.name}`, dealerProfit, 0);
+                    addLedgerEntry(dealer.id, 'DEALER', profitDesc, 0, dealerProfit, 'DealerProfit');
+                    addLedgerEntry(admin.id, 'ADMIN', `REPROCESSED Profit to ${dealer.name}`, dealerProfit, 0, 'Withdrawal');
 
                     result.totalPayout += userPrize;
                     result.totalProfit += dealerProfit;
@@ -1224,6 +1230,7 @@ module.exports = {
     getAllFromTable,
     runInTransaction,
     addLedgerEntry,
+    getLedgerForAccount,
     declareWinnerForGame,
     updateWinningNumber,
     approvePayoutsForGame,

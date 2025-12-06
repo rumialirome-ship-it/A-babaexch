@@ -62,6 +62,7 @@ app.post('/api/auth/login', (req, res) => {
     
     // Fetch full account details with ledger, etc.
     const fullAccount = database.findAccountById(account.id, role.toLowerCase() + 's');
+    fullAccount.ledger = database.getLedgerForAccount(account.id);
     
     const token = jwt.sign({ id: account.id, role: role }, process.env.JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, role, account: fullAccount });
@@ -73,6 +74,7 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
     if (!account) {
         return res.status(404).json({ message: 'Account not found.' });
     }
+    account.ledger = database.getLedgerForAccount(id);
     res.json({ account, role });
 });
 
@@ -173,8 +175,8 @@ app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
         if (!user) return res.status(404).json({ message: "User not found or does not belong to this dealer." });
         
         database.runInTransaction(() => {
-            database.addLedgerEntry(req.user.id, 'DEALER', `Top-Up for User: ${user.name}`, amount, 0);
-            database.addLedgerEntry(userId, 'USER', `Top-Up from Dealer: ${req.user.name}`, 0, amount);
+            database.addLedgerEntry(req.user.id, 'DEALER', `Top-Up for User: ${user.name}`, amount, 0, 'Withdrawal');
+            database.addLedgerEntry(userId, 'USER', `Top-Up from Dealer: ${database.findAccountById(req.user.id, 'dealers').name}`, 0, amount, 'Deposit');
         });
         res.json({ message: 'Top-up successful.' });
     } catch (error) {
@@ -190,8 +192,8 @@ app.post('/api/dealer/withdraw/user', authMiddleware, (req, res) => {
         if (!user) return res.status(404).json({ message: "User not found or does not belong to this dealer." });
 
         database.runInTransaction(() => {
-            database.addLedgerEntry(userId, 'USER', `Withdrawal by Dealer: ${req.user.name}`, amount, 0);
-            database.addLedgerEntry(req.user.id, 'DEALER', `Withdrawal from User: ${user.name}`, 0, amount);
+            database.addLedgerEntry(userId, 'USER', `Withdrawal by Dealer: ${database.findAccountById(req.user.id, 'dealers').name}`, amount, 0, 'Withdrawal');
+            database.addLedgerEntry(req.user.id, 'DEALER', `Withdrawal from User: ${user.name}`, 0, amount, 'Deposit');
         });
         res.json({ message: 'Withdrawal successful.' });
     } catch (error) {
@@ -244,12 +246,45 @@ app.get('/api/bet-history', authMiddleware, (req, res) => {
 app.get('/api/admin/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
     const admin = database.findAccountById(req.user.id, 'admins');
-    const dealers = database.getAllFromTable('dealers', true);
-    const users = database.getAllFromTable('users', true);
+    const dealers = database.getAllFromTable('dealers', false);
+    const users = database.getAllFromTable('users', false);
     const games = database.getAllFromTable('games');
     const daily_results = database.getAllFromTable('daily_results');
     res.json({ admin, dealers, users, games, daily_results });
 });
+
+app.get('/api/ledger/:accountType/:accountId', authMiddleware, (req, res) => {
+    const { accountType, accountId } = req.params;
+    const { role, id } = req.user;
+
+    // Security check: Only admins can fetch any ledger. Dealers can only fetch their own users' ledgers.
+    if (role === 'ADMIN') {
+        // Admins can fetch any 'dealer' or 'admin' ledger
+        if (accountType !== 'dealer' && accountType !== 'admin') {
+            return res.status(403).json({ message: 'Admins can only view dealer or admin ledgers.' });
+        }
+    } else if (role === 'DEALER') {
+        // Dealers can only fetch ledgers for users that belong to them
+        if (accountType !== 'user') {
+            return res.status(403).json({ message: 'Dealers can only view user ledgers.' });
+        }
+        const user = database.findUserByDealer(accountId, id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found or does not belong to this dealer.' });
+        }
+    } else {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    try {
+        const ledger = database.getLedgerForAccount(accountId);
+        res.json(ledger);
+    } catch (error) {
+        console.error(`Failed to fetch ledger for ${accountType} ${accountId}:`, error);
+        res.status(500).json({ message: 'Failed to retrieve ledger.' });
+    }
+});
+
 
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
@@ -277,8 +312,8 @@ app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
     try {
         const dealer = database.findAccountById(dealerId, 'dealers');
         database.runInTransaction(() => {
-            database.addLedgerEntry(req.user.id, 'ADMIN', `Top-Up for Dealer: ${dealer.name}`, amount, 0);
-            database.addLedgerEntry(dealerId, 'DEALER', 'Top-Up from Admin', 0, amount);
+            database.addLedgerEntry(req.user.id, 'ADMIN', `Top-Up for Dealer: ${dealer.name}`, amount, 0, 'Withdrawal');
+            database.addLedgerEntry(dealerId, 'DEALER', 'Top-Up from Admin', 0, amount, 'Deposit');
         });
         res.json({ message: 'Top-up successful.' });
     } catch (error) {
@@ -292,8 +327,8 @@ app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
     try {
         const dealer = database.findAccountById(dealerId, 'dealers');
         database.runInTransaction(() => {
-            database.addLedgerEntry(dealerId, 'DEALER', 'Withdrawal by Admin', amount, 0);
-            database.addLedgerEntry(req.user.id, 'ADMIN', `Withdrawal from Dealer: ${dealer.name}`, 0, amount);
+            database.addLedgerEntry(dealerId, 'DEALER', 'Withdrawal by Admin', amount, 0, 'Withdrawal');
+            database.addLedgerEntry(req.user.id, 'ADMIN', `Withdrawal from Dealer: ${dealer.name}`, 0, amount, 'Deposit');
         });
         res.json({ message: 'Withdrawal successful.' });
     } catch (error) {
