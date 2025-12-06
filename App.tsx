@@ -1,13 +1,14 @@
 
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
-import LandingPage from './components/LandingPage';
-import AdminPanel from './components/AdminPanel';
-import DealerPanel from './components/DealerPanel';
-import UserPanel from './components/UserPanel';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+
+// Lazy load components for code splitting
+const LandingPage = lazy(() => import('./components/LandingPage'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const DealerPanel = lazy(() => import('./components/DealerPanel'));
+const UserPanel = lazy(() => import('./components/UserPanel'));
 
 const Header: React.FC = () => {
     const { role, account, logout } = useAuth();
@@ -297,60 +298,70 @@ const AppContent: React.FC = () => {
         await fetchData();
     }, [fetchWithAuth, fetchData]);
 
-    if (loading) {
-        return (
+    return (
+        <Suspense fallback={
             <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-                <div className="text-cyan-400 text-xl">Loading Session...</div>
+                <div className="text-cyan-400 text-xl">Loading Interface...</div>
             </div>
-        );
-    }
+        }>
+            {(() => {
+                if (loading) {
+                    return (
+                        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+                            <div className="text-cyan-400 text-xl">Loading Session...</div>
+                        </div>
+                    );
+                }
 
-    if (!role || !account) {
-        return <LandingPage />;
-    }
+                if (!role || !account) {
+                    return <LandingPage />;
+                }
 
-    switch (role) {
-        case Role.Admin:
-            return <AdminPanel
-                admin={account as Admin}
-                dealers={dealers}
-                onSaveDealer={onSaveDealer}
-                users={users}
-                setUsers={setUsers}
-                games={games}
-                dailyResults={dailyResults}
-                declareWinner={declareWinner}
-                updateWinner={updateWinner}
-                approvePayouts={approvePayouts}
-                topUpDealerWallet={topUpDealerWallet}
-                withdrawFromDealerWallet={withdrawFromDealerWallet}
-                toggleAccountRestriction={toggleAccountRestriction}
-                onPlaceAdminBets={onPlaceAdminBets}
-                updateGameDrawTime={updateGameDrawTime}
-                fetchData={fetchData}
-            />;
-        case Role.Dealer:
-            return <DealerPanel
-                dealer={account as Dealer}
-                users={users}
-                onSaveUser={onSaveUser}
-                topUpUserWallet={topUpUserWallet}
-                withdrawFromUserWallet={withdrawFromUserWallet}
-                toggleAccountRestriction={toggleAccountRestriction}
-                games={games}
-                dailyResults={dailyResults}
-                placeBetAsDealer={placeBetAsDealer}
-            />;
-        case Role.User:
-            return <UserPanel
-                user={account as User}
-                games={games}
-                dailyResults={dailyResults}
-                placeBet={placeBet}
-            />;
-        default:
-            return <div>Error: Unknown user role.</div>;
-    }
+                switch (role) {
+                    case Role.Admin:
+                        return <AdminPanel
+                            admin={account as Admin}
+                            dealers={dealers}
+                            onSaveDealer={onSaveDealer}
+                            users={users}
+                            setUsers={setUsers}
+                            games={games}
+                            dailyResults={dailyResults}
+                            declareWinner={declareWinner}
+                            updateWinner={updateWinner}
+                            approvePayouts={approvePayouts}
+                            topUpDealerWallet={topUpDealerWallet}
+                            withdrawFromDealerWallet={withdrawFromDealerWallet}
+                            toggleAccountRestriction={toggleAccountRestriction}
+                            onPlaceAdminBets={onPlaceAdminBets}
+                            updateGameDrawTime={updateGameDrawTime}
+                            fetchData={fetchData}
+                        />;
+                    case Role.Dealer:
+                        return <DealerPanel
+                            dealer={account as Dealer}
+                            users={users}
+                            onSaveUser={onSaveUser}
+                            topUpUserWallet={topUpUserWallet}
+                            withdrawFromUserWallet={withdrawFromUserWallet}
+                            toggleAccountRestriction={toggleAccountRestriction}
+                            games={games}
+                            dailyResults={dailyResults}
+                            placeBetAsDealer={placeBetAsDealer}
+                        />;
+                    case Role.User:
+                        return <UserPanel
+                            user={account as User}
+                            games={games}
+                            dailyResults={dailyResults}
+                            placeBet={placeBet}
+                        />;
+                    default:
+                        return <div>Error: Unknown user role.</div>;
+                }
+            })()}
+        </Suspense>
+    );
 };
 
 function App() {

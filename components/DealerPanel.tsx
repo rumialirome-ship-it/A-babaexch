@@ -1,14 +1,10 @@
 
-
-
-
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType, DailyResult } from '../types';
 import { Icons } from '../constants';
 import { useCountdown, getMarketDateForBet } from '../hooks/useCountdown';
 import { useAuth } from '../hooks/useAuth';
+import './UserPanel.css';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 

@@ -4,6 +4,7 @@ import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameT
 import { Icons } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 import { getMarketDateForBet } from '../hooks/useCountdown';
+import './UserPanel.css';
 
 // --- TYPE DEFINITIONS FOR NEW DASHBOARD ---
 interface GameSummary {

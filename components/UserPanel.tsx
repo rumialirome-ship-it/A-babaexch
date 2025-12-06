@@ -6,6 +6,7 @@ import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits, Daily
 import { Icons } from '../constants';
 import { useCountdown, getMarketDateForBet } from '../hooks/useCountdown';
 import { useAuth } from '../hooks/useAuth';
+import './UserPanel.css';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 

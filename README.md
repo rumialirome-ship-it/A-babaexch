@@ -206,8 +206,16 @@ Nginx will act as the web server. It will serve your built frontend files and fo
         root /var/www/html/A-babaexch/dist;
         index index.html;
 
+        # Cache static assets for a long time since Vite uses hashes in filenames.
+        # This tells browsers to cache JS, CSS, and images for one year.
+        location ~* \.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+
         # For single-page applications, this ensures that refreshing any page
-        # still serves the main index.html file.
+        # still serves the main index.html file. This MUST come after the static
+        # assets location block.
         location / {
             try_files $uri /index.html;
         }
