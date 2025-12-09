@@ -73,8 +73,6 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
 };
 
 // --- NEW PROFESSIONAL LEDGER COMPONENT ---
-
-{/* FIX: Changed icon prop type from React.ReactElement to React.ReactElement<any> to allow adding className prop via React.cloneElement. */}
 const SummaryCard: React.FC<{ title: string; value: number; color: string; icon: React.ReactElement<any> }> = ({ title, value, color, icon }) => (
     <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex items-center gap-4">
         <div className={`p-3 rounded-full bg-${color}-500/20 text-${color}-400`}>
@@ -88,7 +86,10 @@ const SummaryCard: React.FC<{ title: string; value: number; color: string; icon:
 );
 
 const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' | 'dealer' | 'admin', themeColor?: string }> = ({ accountId, accountType, themeColor = 'cyan' }) => {
-    const [allEntries, setAllEntries] = useState<LedgerEntry[]>([]);
+    const [entries, setEntries] = useState<LedgerEntry[]>([]);
+    const [totalEntries, setTotalEntries] = useState(0);
+    const [summary, setSummary] = useState({ totalDebit: 0, totalCredit: 0, totalBets: 0, totalWinnings: 0, totalCommission: 0 });
+
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const { fetchWithAuth } = useAuth();
@@ -102,90 +103,65 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
 
     useEffect(() => {
         const fetchLedger = async () => {
+            if (!accountId) return;
+
             setIsLoading(true);
             setError(null);
+            
+            const params = new URLSearchParams({
+                page: String(currentPage),
+                limit: String(ENTRIES_PER_PAGE),
+            });
+
+            const now = new Date();
+            let finalStartDate: Date | null = null;
+            let finalEndDate: Date | null = new Date();
+            
+            switch(datePreset) {
+                case 'today': finalStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break;
+                case 'week': finalStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()); break;
+                case 'month': finalStartDate = new Date(now.getFullYear(), now.getMonth(), 1); break;
+                case 'all': finalStartDate = null; finalEndDate = null; break;
+            }
+
+            if (customStartDate) {
+                finalStartDate = new Date(customStartDate);
+                finalStartDate.setHours(0,0,0,0);
+            }
+            if (customEndDate) {
+                finalEndDate = new Date(customEndDate);
+                finalEndDate.setHours(23, 59, 59, 999);
+            }
+
+            if (finalStartDate) params.append('startDate', finalStartDate.toISOString().split('T')[0]);
+            if (finalEndDate) params.append('endDate', finalEndDate.toISOString().split('T')[0]);
+            if (searchQuery) params.append('searchQuery', searchQuery);
+
             try {
-                const response = await fetchWithAuth(`/api/ledger/${accountType}/${accountId}`);
+                const response = await fetchWithAuth(`/api/ledger/${accountType}/${accountId}?${params.toString()}`);
                 if (!response.ok) throw new Error('Failed to fetch ledger data.');
-                const data = await response.json();
-                const parsedEntries = data.map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) })).sort((a: LedgerEntry, b: LedgerEntry) => b.timestamp.getTime() - a.timestamp.getTime());
-                setAllEntries(parsedEntries);
+                const data = await response.json(); // { entries, totalCount, summary }
+                
+                setEntries(data.entries.map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) })));
+                setTotalEntries(data.totalCount);
+                setSummary(data.summary);
+
             } catch (err: any) {
                 setError(err.message);
             } finally {
                 setIsLoading(false);
             }
         };
-        if (accountId) {
+        
+        const debounceFetch = setTimeout(() => {
             fetchLedger();
-        }
-    }, [accountId, accountType, fetchWithAuth]);
+        }, 300); // Small debounce for search input
+
+        return () => clearTimeout(debounceFetch);
+
+    }, [accountId, accountType, fetchWithAuth, currentPage, datePreset, customStartDate, customEndDate, searchQuery]);
     
-    const filteredEntries = useMemo(() => {
-        const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        let startDate: Date | null = null;
-        let endDate: Date | null = new Date(); // up to now
-        
-        switch(datePreset) {
-            case 'today':
-                startDate = startOfToday;
-                break;
-            case 'week':
-                startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-                break;
-            case 'month':
-                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                break;
-            case 'all':
-                startDate = null;
-                endDate = null;
-                break;
-        }
-
-        if (customStartDate) {
-            startDate = new Date(customStartDate);
-            startDate.setHours(0,0,0,0);
-        }
-        if (customEndDate) {
-            endDate = new Date(customEndDate);
-            endDate.setHours(23, 59, 59, 999); // Include the whole end day
-        }
-
-        const dateFiltered = allEntries.filter(entry => {
-            if (startDate && entry.timestamp < startDate) return false;
-            if (endDate && entry.timestamp > endDate) return false;
-            return true;
-        });
-
-        if (!searchQuery.trim()) {
-            return dateFiltered;
-        }
-
-        const lowercasedQuery = searchQuery.trim().toLowerCase();
-        return dateFiltered.filter(entry => 
-            entry.description.toLowerCase().includes(lowercasedQuery)
-        );
-    }, [allEntries, datePreset, customStartDate, customEndDate, searchQuery]);
-
-    const summary = useMemo(() => {
-        return filteredEntries.reduce((acc, entry) => {
-            acc.totalDebit += entry.debit;
-            acc.totalCredit += entry.credit;
-            if (entry.type === LedgerEntryType.BetPlaced) acc.totalBets += entry.debit;
-            if (entry.type === LedgerEntryType.WinPayout) acc.totalWinnings += entry.credit;
-            if ([LedgerEntryType.CommissionPayout, LedgerEntryType.DealerProfit].includes(entry.type)) acc.totalCommission += entry.credit;
-            return acc;
-        }, { totalDebit: 0, totalCredit: 0, totalBets: 0, totalWinnings: 0, totalCommission: 0 });
-    }, [filteredEntries]);
-    
-    const paginatedEntries = useMemo(() => {
-        const startIndex = (currentPage - 1) * ENTRIES_PER_PAGE;
-        return filteredEntries.slice(startIndex, startIndex + ENTRIES_PER_PAGE);
-    }, [filteredEntries, currentPage]);
-
-    const totalPages = Math.ceil(filteredEntries.length / ENTRIES_PER_PAGE);
+    const totalPages = Math.ceil(totalEntries / ENTRIES_PER_PAGE);
 
     const handlePresetChange = (preset: 'today' | 'week' | 'month' | 'all') => {
         setDatePreset(preset);
@@ -206,17 +182,16 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
     };
 
     const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
-
-    if (isLoading) return <div className="text-center p-8 text-slate-400">Loading ledger...</div>;
-    if (error) return <div className="text-center p-8 text-red-400">{error}</div>;
+    
+    const displaySummary = isLoading ? { totalCredit: 0, totalDebit: 0, totalBets: 0, totalWinnings: 0, totalCommission: 0 } : summary;
 
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <SummaryCard title="Total Credit" value={summary.totalCredit} color="green" icon={Icons.deposit} />
-                <SummaryCard title="Total Debit" value={summary.totalDebit} color="red" icon={Icons.withdrawal} />
-                <SummaryCard title="Total Bets" value={summary.totalBets} color="amber" icon={Icons.betPlaced} />
-                <SummaryCard title="Total Winnings" value={summary.totalWinnings + summary.totalCommission} color="cyan" icon={Icons.winPayout} />
+                <SummaryCard title="Total Credit" value={displaySummary.totalCredit} color="green" icon={Icons.deposit} />
+                <SummaryCard title="Total Debit" value={displaySummary.totalDebit} color="red" icon={Icons.withdrawal} />
+                <SummaryCard title="Total Bets" value={displaySummary.totalBets} color="amber" icon={Icons.betPlaced} />
+                <SummaryCard title="Total Earnings" value={displaySummary.totalWinnings + displaySummary.totalCommission} color="cyan" icon={Icons.winPayout} />
             </div>
 
             <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col md:flex-row gap-4 items-center flex-wrap">
@@ -248,7 +223,7 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
             </div>
 
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-auto max-h-[60vh] mobile-scroll-x">
+                <div className="overflow-auto min-h-[300px] mobile-scroll-x">
                     <table className="w-full text-left min-w-[700px]">
                         <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                             <tr>
@@ -261,29 +236,34 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                            {paginatedEntries.map(entry => (
-                                <tr key={entry.id} className={`hover:bg-${themeColor}-500/10 text-sm transition-colors`}>
-                                    <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
-                                    <td className="p-3">
-                                        <div className="flex items-center gap-2" title={entry.type.replace(/_/g, ' ')}>
-                                            <span className={`text-${themeColor}-400`}>{entryTypeIcons[entry.type] || Icons.adjustment}</span>
-                                            <span className="text-slate-300 text-xs hidden sm:inline capitalize">{entry.type.replace(/_/g, ' ').toLowerCase()}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-3 text-white">{entry.description}</td>
-                                    <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
-                                    <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
-                                    <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
-                                </tr>
-                            ))}
-                            {filteredEntries.length === 0 && (
-                                <tr><td colSpan={6} className="p-8 text-center text-slate-500">No ledger entries found for the selected period.</td></tr>
+                            {isLoading ? (
+                                <tr><td colSpan={6} className="p-8 text-center text-slate-500">Loading entries...</td></tr>
+                            ) : error ? (
+                                <tr><td colSpan={6} className="p-8 text-center text-red-400">{error}</td></tr>
+                            ) : entries.length === 0 ? (
+                                <tr><td colSpan={6} className="p-8 text-center text-slate-500">No ledger entries found for the selected criteria.</td></tr>
+                            ) : (
+                                entries.map(entry => (
+                                    <tr key={entry.id} className={`hover:bg-${themeColor}-500/10 text-sm transition-colors`}>
+                                        <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
+                                        <td className="p-3">
+                                            <div className="flex items-center gap-2" title={entry.type.replace(/_/g, ' ')}>
+                                                <span className={`text-${themeColor}-400`}>{entryTypeIcons[entry.type] || Icons.adjustment}</span>
+                                                <span className="text-slate-300 text-xs hidden sm:inline capitalize">{entry.type.replace(/_/g, ' ').toLowerCase()}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-white">{entry.description}</td>
+                                        <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
+                                        <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
+                                        <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
+                                    </tr>
+                                ))
                             )}
                         </tbody>
                     </table>
                 </div>
                  <div className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-between items-center text-sm">
-                    <p className="text-slate-400">Showing <span className="font-semibold text-white">{(currentPage - 1) * ENTRIES_PER_PAGE + 1}-{Math.min(currentPage * ENTRIES_PER_PAGE, filteredEntries.length)}</span> of <span className="font-semibold text-white">{filteredEntries.length}</span> entries</p>
+                    <p className="text-slate-400">Showing <span className="font-semibold text-white">{totalEntries > 0 ? (currentPage - 1) * ENTRIES_PER_PAGE + 1 : 0}-{Math.min(currentPage * ENTRIES_PER_PAGE, totalEntries)}</span> of <span className="font-semibold text-white">{totalEntries}</span> entries</p>
                     <div className="flex gap-2">
                         <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-1.5 px-3 rounded-md transition-colors text-xs">Previous</button>
                         <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages} className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-1.5 px-3 rounded-md transition-colors text-xs">Next</button>

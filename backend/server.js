@@ -60,9 +60,8 @@ app.post('/api/auth/login', (req, res) => {
         return res.status(401).json({ message: 'Invalid credentials.' });
     }
     
-    // Fetch full account details with ledger, etc.
+    // Fetch full account details, but WITHOUT the ledger for performance.
     const fullAccount = database.findAccountById(account.id, role.toLowerCase() + 's');
-    fullAccount.ledger = database.getLedgerForAccount(account.id);
     
     const token = jwt.sign({ id: account.id, role: role }, process.env.JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, role, account: fullAccount });
@@ -74,7 +73,7 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
     if (!account) {
         return res.status(404).json({ message: 'Account not found.' });
     }
-    account.ledger = database.getLedgerForAccount(id);
+    // Do NOT attach the ledger here. It will be fetched on-demand by the ledger view.
     res.json({ account, role });
 });
 
@@ -257,28 +256,39 @@ app.get('/api/ledger/:accountType/:accountId', authMiddleware, (req, res) => {
     const { accountType, accountId } = req.params;
     const { role, id } = req.user;
 
-    // Security check: Only admins can fetch any ledger. Dealers can only fetch their own users' ledgers.
+    // Security check
     if (role === 'ADMIN') {
-        // Admins can fetch any 'dealer' or 'admin' ledger
         if (accountType !== 'dealer' && accountType !== 'admin') {
             return res.status(403).json({ message: 'Admins can only view dealer or admin ledgers.' });
         }
     } else if (role === 'DEALER') {
-        // Dealers can only fetch ledgers for users that belong to them
-        if (accountType !== 'user') {
-            return res.status(403).json({ message: 'Dealers can only view user ledgers.' });
+        if (accountType === 'user') {
+            const user = database.findUserByDealer(accountId, id);
+            if (!user) return res.status(404).json({ message: 'User not found or does not belong to this dealer.' });
+        } else if (accountType === 'dealer') {
+            if (accountId !== id) return res.status(403).json({ message: 'Dealers can only view their own ledger.' });
+        } else {
+            return res.status(403).json({ message: 'Forbidden account type.' });
         }
-        const user = database.findUserByDealer(accountId, id);
-        if (!user) {
-            return res.status(404).json({ message: 'User not found or does not belong to this dealer.' });
+    } else if (role === 'USER') {
+        if(accountType !== 'user' || accountId !== id) {
+            return res.status(403).json({ message: 'Users can only view their own ledger.' });
         }
     } else {
         return res.status(403).json({ message: 'Forbidden' });
     }
 
     try {
-        const ledger = database.getLedgerForAccount(accountId);
-        res.json(ledger);
+        const { page = 1, limit = 25, startDate, endDate, searchQuery } = req.query;
+        const result = database.getLedgerForAccountPaginated({
+            accountId,
+            page: parseInt(page, 10),
+            limit: parseInt(limit, 10),
+            startDate,
+            endDate,
+            searchQuery,
+        });
+        res.json(result);
     } catch (error) {
         console.error(`Failed to fetch ledger for ${accountType} ${accountId}:`, error);
         res.status(500).json({ message: 'Failed to retrieve ledger.' });

@@ -39,7 +39,10 @@ const SummaryCard: React.FC<{ title: string; value: number; color: string; icon:
 );
 
 const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' | 'dealer' | 'admin', themeColor?: string }> = ({ accountId, accountType, themeColor = 'cyan' }) => {
-    const [allEntries, setAllEntries] = useState<LedgerEntry[]>([]);
+    const [entries, setEntries] = useState<LedgerEntry[]>([]);
+    const [totalEntries, setTotalEntries] = useState(0);
+    const [summary, setSummary] = useState({ totalDebit: 0, totalCredit: 0, totalBets: 0, totalWinnings: 0, totalCommission: 0 });
+
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const { fetchWithAuth } = useAuth();
@@ -53,91 +56,65 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
 
     useEffect(() => {
         const fetchLedger = async () => {
+            if (!accountId) return;
+
             setIsLoading(true);
             setError(null);
+            
+            const params = new URLSearchParams({
+                page: String(currentPage),
+                limit: String(ENTRIES_PER_PAGE),
+            });
+
+            const now = new Date();
+            let finalStartDate: Date | null = null;
+            let finalEndDate: Date | null = new Date();
+            
+            switch(datePreset) {
+                case 'today': finalStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break;
+                case 'week': finalStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()); break;
+                case 'month': finalStartDate = new Date(now.getFullYear(), now.getMonth(), 1); break;
+                case 'all': finalStartDate = null; finalEndDate = null; break;
+            }
+
+            if (customStartDate) {
+                finalStartDate = new Date(customStartDate);
+                finalStartDate.setHours(0,0,0,0);
+            }
+            if (customEndDate) {
+                finalEndDate = new Date(customEndDate);
+                finalEndDate.setHours(23, 59, 59, 999);
+            }
+
+            if (finalStartDate) params.append('startDate', finalStartDate.toISOString().split('T')[0]);
+            if (finalEndDate) params.append('endDate', finalEndDate.toISOString().split('T')[0]);
+            if (searchQuery) params.append('searchQuery', searchQuery);
+
             try {
-                const response = await fetchWithAuth(`/api/ledger/${accountType}/${accountId}`);
+                const response = await fetchWithAuth(`/api/ledger/${accountType}/${accountId}?${params.toString()}`);
                 if (!response.ok) throw new Error('Failed to fetch ledger data.');
-                const data = await response.json();
-                const parsedEntries = data.map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) })).sort((a: LedgerEntry, b: LedgerEntry) => b.timestamp.getTime() - a.timestamp.getTime());
-                setAllEntries(parsedEntries);
+                const data = await response.json(); // { entries, totalCount, summary }
+                
+                setEntries(data.entries.map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) })));
+                setTotalEntries(data.totalCount);
+                setSummary(data.summary);
+
             } catch (err: any) {
                 setError(err.message);
             } finally {
                 setIsLoading(false);
             }
         };
-        if (accountId) {
+        
+        const debounceFetch = setTimeout(() => {
             fetchLedger();
-        }
-    }, [accountId, accountType, fetchWithAuth]);
+        }, 300); // Small debounce for search input
+
+        return () => clearTimeout(debounceFetch);
+
+    }, [accountId, accountType, fetchWithAuth, currentPage, datePreset, customStartDate, customEndDate, searchQuery]);
     
-    const filteredEntries = useMemo(() => {
-        const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        let startDate: Date | null = null;
-        let endDate: Date | null = new Date(); // up to now
-        
-        switch(datePreset) {
-            case 'today':
-                startDate = startOfToday;
-                break;
-            case 'week':
-                startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-                break;
-            case 'month':
-                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                break;
-            case 'all':
-                startDate = null;
-                endDate = null;
-                break;
-        }
-
-        if (customStartDate) {
-            startDate = new Date(customStartDate);
-            startDate.setHours(0,0,0,0);
-        }
-        if (customEndDate) {
-            endDate = new Date(customEndDate);
-            endDate.setHours(23, 59, 59, 999); // Include the whole end day
-        }
-
-        const dateFiltered = allEntries.filter(entry => {
-            if (startDate && entry.timestamp < startDate) return false;
-            if (endDate && entry.timestamp > endDate) return false;
-            return true;
-        });
-
-        if (!searchQuery.trim()) {
-            return dateFiltered;
-        }
-
-        const lowercasedQuery = searchQuery.trim().toLowerCase();
-        return dateFiltered.filter(entry => 
-            entry.description.toLowerCase().includes(lowercasedQuery)
-        );
-
-    }, [allEntries, datePreset, customStartDate, customEndDate, searchQuery]);
-
-    const summary = useMemo(() => {
-        return filteredEntries.reduce((acc, entry) => {
-            acc.totalDebit += entry.debit;
-            acc.totalCredit += entry.credit;
-            if (entry.type === LedgerEntryType.BetPlaced) acc.totalBets += entry.debit;
-            if (entry.type === LedgerEntryType.WinPayout) acc.totalWinnings += entry.credit;
-            if ([LedgerEntryType.CommissionPayout, LedgerEntryType.DealerProfit].includes(entry.type)) acc.totalCommission += entry.credit;
-            return acc;
-        }, { totalDebit: 0, totalCredit: 0, totalBets: 0, totalWinnings: 0, totalCommission: 0 });
-    }, [filteredEntries]);
-    
-    const paginatedEntries = useMemo(() => {
-        const startIndex = (currentPage - 1) * ENTRIES_PER_PAGE;
-        return filteredEntries.slice(startIndex, startIndex + ENTRIES_PER_PAGE);
-    }, [filteredEntries, currentPage]);
-
-    const totalPages = Math.ceil(filteredEntries.length / ENTRIES_PER_PAGE);
+    const totalPages = Math.ceil(totalEntries / ENTRIES_PER_PAGE);
 
     const handlePresetChange = (preset: 'today' | 'week' | 'month' | 'all') => {
         setDatePreset(preset);
@@ -158,17 +135,16 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
     };
 
     const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
-
-    if (isLoading) return <div className="text-center p-8 text-slate-400">Loading ledger...</div>;
-    if (error) return <div className="text-center p-8 text-red-400">{error}</div>;
+    
+    const displaySummary = isLoading ? { totalCredit: 0, totalDebit: 0, totalBets: 0, totalWinnings: 0, totalCommission: 0 } : summary;
 
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <SummaryCard title="Total Credit" value={summary.totalCredit} color="green" icon={Icons.deposit} />
-                <SummaryCard title="Total Debit" value={summary.totalDebit} color="red" icon={Icons.withdrawal} />
-                <SummaryCard title="Total Bets" value={summary.totalBets} color="amber" icon={Icons.betPlaced} />
-                <SummaryCard title="Total Earnings" value={summary.totalWinnings + summary.totalCommission} color="cyan" icon={Icons.winPayout} />
+                <SummaryCard title="Total Credit" value={displaySummary.totalCredit} color="green" icon={Icons.deposit} />
+                <SummaryCard title="Total Debit" value={displaySummary.totalDebit} color="red" icon={Icons.withdrawal} />
+                <SummaryCard title="Total Bets" value={displaySummary.totalBets} color="amber" icon={Icons.betPlaced} />
+                <SummaryCard title="Total Earnings" value={displaySummary.totalWinnings + displaySummary.totalCommission} color="cyan" icon={Icons.winPayout} />
             </div>
 
             <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col md:flex-row gap-4 items-center flex-wrap">
@@ -200,7 +176,7 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
             </div>
 
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-auto max-h-[60vh] mobile-scroll-x">
+                <div className="overflow-auto min-h-[300px] mobile-scroll-x">
                     <table className="w-full text-left min-w-[700px]">
                         <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                             <tr>
@@ -213,29 +189,34 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                            {paginatedEntries.map(entry => (
-                                <tr key={entry.id} className={`hover:bg-${themeColor}-500/10 text-sm transition-colors`}>
-                                    <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
-                                    <td className="p-3">
-                                        <div className="flex items-center gap-2" title={entry.type.replace(/_/g, ' ')}>
-                                            <span className={`text-${themeColor}-400`}>{entryTypeIcons[entry.type] || Icons.adjustment}</span>
-                                            <span className="text-slate-300 text-xs hidden sm:inline capitalize">{entry.type.replace(/_/g, ' ').toLowerCase()}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-3 text-white">{entry.description}</td>
-                                    <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
-                                    <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
-                                    <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
-                                </tr>
-                            ))}
-                            {filteredEntries.length === 0 && (
-                                <tr><td colSpan={6} className="p-8 text-center text-slate-500">No ledger entries found for the selected period.</td></tr>
+                            {isLoading ? (
+                                <tr><td colSpan={6} className="p-8 text-center text-slate-500">Loading entries...</td></tr>
+                            ) : error ? (
+                                <tr><td colSpan={6} className="p-8 text-center text-red-400">{error}</td></tr>
+                            ) : entries.length === 0 ? (
+                                <tr><td colSpan={6} className="p-8 text-center text-slate-500">No ledger entries found for the selected criteria.</td></tr>
+                            ) : (
+                                entries.map(entry => (
+                                    <tr key={entry.id} className={`hover:bg-${themeColor}-500/10 text-sm transition-colors`}>
+                                        <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
+                                        <td className="p-3">
+                                            <div className="flex items-center gap-2" title={entry.type.replace(/_/g, ' ')}>
+                                                <span className={`text-${themeColor}-400`}>{entryTypeIcons[entry.type] || Icons.adjustment}</span>
+                                                <span className="text-slate-300 text-xs hidden sm:inline capitalize">{entry.type.replace(/_/g, ' ').toLowerCase()}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-white">{entry.description}</td>
+                                        <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
+                                        <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
+                                        <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
+                                    </tr>
+                                ))
                             )}
                         </tbody>
                     </table>
                 </div>
                  <div className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-between items-center text-sm">
-                    <p className="text-slate-400">Showing <span className="font-semibold text-white">{(currentPage - 1) * ENTRIES_PER_PAGE + 1}-{Math.min(currentPage * ENTRIES_PER_PAGE, filteredEntries.length)}</span> of <span className="font-semibold text-white">{filteredEntries.length}</span> entries</p>
+                    <p className="text-slate-400">Showing <span className="font-semibold text-white">{totalEntries > 0 ? (currentPage - 1) * ENTRIES_PER_PAGE + 1 : 0}-{Math.min(currentPage * ENTRIES_PER_PAGE, totalEntries)}</span> of <span className="font-semibold text-white">{totalEntries}</span> entries</p>
                     <div className="flex gap-2">
                         <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-1.5 px-3 rounded-md transition-colors text-xs">Previous</button>
                         <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages} className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-1.5 px-3 rounded-md transition-colors text-xs">Next</button>
@@ -413,8 +394,29 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
         </form>
     );
 };
+{/* FIX: Add placeholder BettingView component definition to resolve compilation error */}
+const BettingView: React.FC<{
+    users: User[];
+    games: Game[];
+    dailyResults: DailyResult[];
+    placeBetAsDealer: (details: {
+        userId: string;
+        gameId: string;
+        betGroups: {
+            subGameType: SubGameType;
+            numbers: string[];
+            amountPerNumber: number;
+        }[];
+    }) => Promise<void>;
+}> = ({ users, games, dailyResults, placeBetAsDealer }) => {
+    // Placeholder implementation
+    return (
+        <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700">
+            <p className="text-slate-400">Betting functionality is not fully implemented in this view.</p>
+        </div>
+    );
+};
 
-// FIX: Added missing props `games`, `dailyResults`, and `placeBetAsDealer` to match what is being passed from App.tsx. This resolves the TypeScript error.
 interface DealerPanelProps {
     dealer: Dealer;
     users: User[];
@@ -479,7 +481,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
     
     const tabs = [
         { id: 'users', label: 'My Users', icon: Icons.userGroup },
-        { id: 'wallet', label: 'My Ledger', icon: Icons.bookOpen },
+        { id: 'ledger', label: 'My Ledger', icon: Icons.bookOpen },
         { id: 'betting', label: 'Bet for User', icon: Icons.gamepad },
     ];
     
@@ -499,34 +501,27 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
                 ))}
             </div>
 
-            {activeTab === 'wallet' && (
+            {activeTab === 'ledger' && (
                 <div>
                      <h3 className="text-xl font-semibold text-white mb-4">My Ledger</h3>
                      <ProfessionalLedgerView accountId={dealer.id} accountType="dealer" themeColor="emerald" />
                 </div>
             )}
             
-            {activeTab === 'betting' && (
-                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700">
-                    <p className="text-slate-400">Betting for users is coming soon!</p>
-                </div>
-            )}
-
             {activeTab === 'users' && (
                 <div>
                     <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                         <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">My Users ({filteredUsers.length})</h3>
                         <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
-                            <div className="relative w-full sm:w-64">
+                             <div className="relative w-full sm:w-64">
                                 <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
                                 <input type="text" placeholder="Search by name or ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none w-full"/>
                             </div>
                             <button onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} className="flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
-                                {Icons.plus} Create User
+                              {Icons.plus} Create User
                             </button>
                         </div>
                     </div>
-
                     <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
                         <div className="overflow-x-auto mobile-scroll-x">
                             <table className="w-full text-left min-w-[800px]">
@@ -550,15 +545,16 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
                                             <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
                                             <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                             <td className="p-4">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <button onClick={() => handleOpenTransactionModal(user, 'Top-Up')} className="flex items-center bg-green-500/20 hover:bg-green-500/40 text-green-300 font-semibold py-1 px-3 rounded-md text-sm">{Icons.plus} Top-Up</button>
-                                                    <button onClick={() => handleOpenTransactionModal(user, 'Withdrawal')} className="flex items-center bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-semibold py-1 px-3 rounded-md text-sm">{Icons.minus} Withdraw</button>
-                                                    <button onClick={() => { setSelectedUser(user); setIsUserModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm">Edit</button>
-                                                    <button onClick={() => { setLedgerUser(user); setIsLedgerModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm">Ledger</button>
-                                                     <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                                    <button onClick={() => { setSelectedUser(user); setIsUserModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => handleOpenTransactionModal(user, 'Top-Up')} className="flex-1 bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Top-Up</button>
+                                                        <button onClick={() => handleOpenTransactionModal(user, 'Withdrawal')} className="flex-1 bg-slate-700 hover:bg-slate-600 text-amber-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Withdraw</button>
+                                                    </div>
+                                                    <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                                         {user.isRestricted ? 'Unrestrict' : 'Restrict'}
                                                     </button>
-                                                </div>
+                                                 </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -568,28 +564,38 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
                     </div>
                 </div>
             )}
-            
+
+            {activeTab === 'betting' && (
+                <BettingView 
+                    users={users.filter(u => !u.isRestricted)}
+                    games={games}
+                    dailyResults={dailyResults}
+                    placeBetAsDealer={placeBetAsDealer}
+                />
+            )}
+
             <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Edit User" : "Create User"}>
                 <UserForm user={selectedUser} users={users} onSave={handleSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerId={dealer.id} />
             </Modal>
             
             <Modal isOpen={isTransactionModalOpen} onClose={() => setIsTransactionModalOpen(false)} title={`${transactionType} User Wallet`} themeColor={transactionType === 'Top-Up' ? 'emerald' : 'amber'}>
-                {transactionUser && (
-                    <form onSubmit={handleTransactionSubmit} className="space-y-4">
-                        <p className="text-slate-300">Performing transaction for: <strong className="text-white">{transactionUser.name}</strong></p>
-                        <div>
-                            <label htmlFor="amount-input" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
-                            <input id="amount-input" type="number" value={transactionAmount} onChange={(e) => setTransactionAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 1000" className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white" min="1" required />
-                        </div>
-                        <div className="flex justify-end space-x-3 pt-4">
-                            <button type="button" onClick={() => setIsTransactionModalOpen(false)} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                            <button type="submit" className={`font-bold py-2 px-4 rounded-md transition-colors text-white ${transactionType === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>{transactionType}</button>
-                        </div>
-                    </form>
-                )}
+                <form onSubmit={handleTransactionSubmit} className="space-y-4 text-slate-200">
+                    <div>
+                        <p className="text-sm text-slate-400">User</p>
+                        <p className="font-semibold text-white text-lg">{transactionUser?.name}</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
+                        <input type="number" value={transactionAmount} onChange={(e) => setTransactionAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g., 1000" className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white" min="1" required />
+                    </div>
+                    <div className="flex justify-end space-x-3 pt-4">
+                        <button type="button" onClick={() => setIsTransactionModalOpen(false)} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
+                        <button type="submit" className={`font-bold py-2 px-4 rounded-md transition-colors text-white ${transactionType === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>Confirm {transactionType}</button>
+                    </div>
+                </form>
             </Modal>
 
-            <Modal isOpen={isLedgerModalOpen} onClose={() => setIsLedgerModalOpen(false)} title={`Ledger for ${ledgerUser?.name}`} size="xl" themeColor="emerald">
+            <Modal isOpen={isLedgerModalOpen} onClose={() => setIsLedgerModalOpen(false)} title={`Ledger for ${ledgerUser?.name}`} size="xl">
                 {ledgerUser && <ProfessionalLedgerView accountId={ledgerUser.id} accountType="user" themeColor="emerald" />}
             </Modal>
         </div>

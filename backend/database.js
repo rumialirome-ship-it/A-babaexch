@@ -118,12 +118,7 @@ const findAccountById = (id, table) => {
     const account = stmt.get(id);
     if (!account) return null;
 
-    // Attach ledger for non-game tables
-    if (table !== 'games' && table !== 'daily_results') {
-        // Ledgers are fetched on demand now to improve performance.
-        // account.ledger = ledgerStmt.all(id);
-    } else if (table === 'games') {
-        // Dynamically determine if the game market is open based on time.
+    if (table === 'games') {
         account.isMarketOpen = isGameOpen(account.drawTime);
     }
 
@@ -189,17 +184,63 @@ const updatePassword = (accountId, contact, newPassword) => {
     return updated;
 };
 
-const getLedgerForAccount = (accountId) => {
-    return db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC').all(accountId);
+const getLedgerForAccountPaginated = ({ accountId, limit = 25, page = 1, startDate, endDate, searchQuery = '' }) => {
+    const offset = (page - 1) * limit;
+    const params = [];
+    const conditions = ['accountId = ?'];
+    params.push(accountId);
+
+    if (startDate) {
+        conditions.push("timestamp >= ?");
+        params.push(new Date(startDate).toISOString());
+    }
+    if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        conditions.push("timestamp <= ?");
+        params.push(end.toISOString());
+    }
+    if (searchQuery) {
+        conditions.push("description LIKE ?");
+        params.push(`%${searchQuery}%`);
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+    // Get total count and summary for the entire filtered set
+    const summaryQuery = `
+        SELECT 
+            COUNT(*) as totalCount,
+            SUM(debit) as totalDebit,
+            SUM(credit) as totalCredit,
+            SUM(CASE WHEN type = 'BET_PLACED' THEN debit ELSE 0 END) as totalBets,
+            SUM(CASE WHEN type = 'WIN_PAYOUT' THEN credit ELSE 0 END) as totalWinnings,
+            SUM(CASE WHEN type IN ('COMMISSION_PAYOUT', 'DEALER_PROFIT') THEN credit ELSE 0 END) as totalCommission
+        FROM ledgers ${whereClause}
+    `;
+    const summaryResult = db.prepare(summaryQuery).get(...params);
+    
+    const totalCount = summaryResult.totalCount || 0;
+    const summary = {
+        totalDebit: summaryResult.totalDebit || 0,
+        totalCredit: summaryResult.totalCredit || 0,
+        totalBets: summaryResult.totalBets || 0,
+        totalWinnings: summaryResult.totalWinnings || 0,
+        totalCommission: summaryResult.totalCommission || 0,
+    };
+
+    // Get paginated entries
+    const entriesQuery = `SELECT * FROM ledgers ${whereClause} ORDER BY timestamp DESC, ROWID DESC LIMIT ? OFFSET ?`;
+    const entries = db.prepare(entriesQuery).all(...params, limit, offset);
+
+    return { entries, totalCount, summary };
 };
+
 
 const getAllFromTable = (table, withLedger = false) => {
     let accounts = db.prepare(`SELECT * FROM ${table}`).all();
     if (table === 'daily_results') return accounts;
     return accounts.map(acc => {
-        if (withLedger && acc.id) {
-            // Ledgers are now fetched on demand to improve performance
-        }
         if (table === 'games' && acc.drawTime) {
             acc.isMarketOpen = isGameOpen(acc.drawTime);
         }
@@ -1241,7 +1282,7 @@ module.exports = {
     getAllFromTable,
     runInTransaction,
     addLedgerEntry,
-    getLedgerForAccount,
+    getLedgerForAccountPaginated,
     declareWinnerForGame,
     updateWinningNumber,
     approvePayoutsForGame,
