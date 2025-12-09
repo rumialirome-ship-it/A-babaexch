@@ -1,22 +1,10 @@
 
 
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType, DailyResult, LedgerEntryType } from '../types';
 import { Icons } from '../constants';
-import { useCountdown, getMarketDateForBet } from '../hooks/useCountdown';
 import { useAuth } from '../hooks/useAuth';
 import './UserPanel.css';
-
-const getTodayDateString = () => new Date().toISOString().split('T')[0];
-
-const formatTime12h = (time24: string) => {
-    if (!time24 || !time24.includes(':')) return 'N/A';
-    const [hours, minutes] = time24.split(':').map(Number);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const hours12 = hours % 12 || 12;
-    return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
-};
 
 // --- STABLE, TOP-LEVEL COMPONENT DEFINITIONS ---
 
@@ -36,10 +24,8 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
     );
 };
 
-
 // --- NEW PROFESSIONAL LEDGER COMPONENT ---
 
-{/* FIX: Changed icon prop type from React.ReactElement to React.ReactElement<any> to allow adding className prop via React.cloneElement. */}
 const SummaryCard: React.FC<{ title: string; value: number; color: string; icon: React.ReactElement<any> }> = ({ title, value, color, icon }) => (
     <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex items-center gap-4">
         <div className={`p-3 rounded-full bg-${color}-500/20 text-${color}-400`}>
@@ -61,6 +47,7 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
     const [datePreset, setDatePreset] = useState<'today' | 'week' | 'month' | 'all'>('today');
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const ENTRIES_PER_PAGE = 25;
 
@@ -117,12 +104,22 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
             endDate.setHours(23, 59, 59, 999); // Include the whole end day
         }
 
-        return allEntries.filter(entry => {
+        const dateFiltered = allEntries.filter(entry => {
             if (startDate && entry.timestamp < startDate) return false;
             if (endDate && entry.timestamp > endDate) return false;
             return true;
         });
-    }, [allEntries, datePreset, customStartDate, customEndDate]);
+
+        if (!searchQuery.trim()) {
+            return dateFiltered;
+        }
+
+        const lowercasedQuery = searchQuery.trim().toLowerCase();
+        return dateFiltered.filter(entry => 
+            entry.description.toLowerCase().includes(lowercasedQuery)
+        );
+
+    }, [allEntries, datePreset, customStartDate, customEndDate, searchQuery]);
 
     const summary = useMemo(() => {
         return filteredEntries.reduce((acc, entry) => {
@@ -171,10 +168,10 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
                 <SummaryCard title="Total Credit" value={summary.totalCredit} color="green" icon={Icons.deposit} />
                 <SummaryCard title="Total Debit" value={summary.totalDebit} color="red" icon={Icons.withdrawal} />
                 <SummaryCard title="Total Bets" value={summary.totalBets} color="amber" icon={Icons.betPlaced} />
-                <SummaryCard title="Total Winnings" value={summary.totalWinnings + summary.totalCommission} color="cyan" icon={Icons.winPayout} />
+                <SummaryCard title="Total Earnings" value={summary.totalWinnings + summary.totalCommission} color="cyan" icon={Icons.winPayout} />
             </div>
 
-            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col md:flex-row gap-4 justify-between">
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col md:flex-row gap-4 items-center flex-wrap">
                 <div className="flex items-center space-x-2 flex-wrap gap-2">
                     { (['today', 'week', 'month', 'all'] as const).map(p => (
                         <button key={p} onClick={() => handlePresetChange(p)} className={`py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 capitalize ${datePreset === p && !customStartDate ? `bg-slate-700 text-${themeColor}-400 shadow-lg` : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'}`}>
@@ -182,10 +179,23 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
                         </button>
                     ))}
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                    <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('all'); setCurrentPage(1); }} className={`${inputClass} text-sm`} />
-                    <span className="text-slate-400">to</span>
-                    <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('all'); setCurrentPage(1); }} className={`${inputClass} text-sm`} />
+                <div className="flex-grow"></div> {/* Spacer */}
+                <div className="flex items-center gap-4 flex-wrap md:justify-end">
+                    <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                        <input
+                            type="text"
+                            placeholder="Search description..."
+                            value={searchQuery}
+                            onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                            className={`${inputClass} pl-10 text-sm w-full sm:w-48`}
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('all'); setCurrentPage(1); }} className={`${inputClass} text-sm`} />
+                        <span className="text-slate-400">to</span>
+                        <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('all'); setCurrentPage(1); }} className={`${inputClass} text-sm`} />
+                    </div>
                 </div>
             </div>
 
@@ -249,8 +259,8 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
                 ...user,
                 password: '',
                 betLimits: {
-                    oneDigit: user.betLimits?.oneDigit ?? (user.betLimits as any)?.oneDigitOpen ?? '', // Handle old and new data structures
-                    twoDigit: user.betLimits?.twoDigit || '',
+                    oneDigit: user.betLimits?.oneDigit ?? '',
+                    twoDigit: user.betLimits?.twoDigit ?? '',
                 }
             };
         }
@@ -380,7 +390,6 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
             
             <fieldset className="border border-slate-600 p-4 rounded-md">
                 <legend className="px-2 text-sm font-medium text-slate-400">Bet Limits (Per Number)</legend>
-                {/* FIX: The file was truncated here. Completed the UserForm component based on other forms in the application. */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm">1 Digit (Open/Close)</label>
@@ -405,7 +414,7 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
     );
 };
 
-{/* FIX: This file was incomplete, missing the main DealerPanel component and its export. This caused a syntax error and a compilation failure. Added a minimal but functional DealerPanel component to resolve the issue. */}
+// FIX: Added missing props `games`, `dailyResults`, and `placeBetAsDealer` to match what is being passed from App.tsx. This resolves the TypeScript error.
 interface DealerPanelProps {
     dealer: Dealer;
     users: User[];
@@ -415,72 +424,173 @@ interface DealerPanelProps {
     toggleAccountRestriction: (userId: string, accountType: 'user') => void;
     games: Game[];
     dailyResults: DailyResult[];
-    placeBetAsDealer: (details: any) => Promise<void>;
+    placeBetAsDealer: (details: {
+        userId: string;
+        gameId: string;
+        betGroups: {
+            subGameType: SubGameType;
+            numbers: string[];
+            amountPerNumber: number;
+        }[];
+    }) => Promise<void>;
 }
 
 const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, games, dailyResults, placeBetAsDealer }) => {
+    const [activeTab, setActiveTab] = useState('users');
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+    const [transactionType, setTransactionType] = useState<'Top-Up' | 'Withdrawal'>('Top-Up');
+    const [transactionUser, setTransactionUser] = useState<User | null>(null);
+    const [transactionAmount, setTransactionAmount] = useState<number | ''>('');
+    const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
+    const [ledgerUser, setLedgerUser] = useState<User | null>(null);
     
-    const handleEditUser = (user: User) => {
-        setSelectedUser(user);
-        setIsUserModalOpen(true);
+    const handleSaveUser = async (userData: User, originalId?: string, initialDeposit?: number) => {
+        await onSaveUser(userData, originalId, initialDeposit);
+        setIsUserModalOpen(false);
     };
-    const handleNewUser = () => {
-        setSelectedUser(undefined);
-        setIsUserModalOpen(true);
+
+    const handleOpenTransactionModal = (user: User, type: 'Top-Up' | 'Withdrawal') => {
+        setTransactionUser(user);
+        setTransactionType(type);
+        setTransactionAmount('');
+        setIsTransactionModalOpen(true);
     };
+
+    const handleTransactionSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!transactionUser || !transactionAmount || transactionAmount <= 0) {
+            alert("Invalid amount");
+            return;
+        }
+        try {
+            if (transactionType === 'Top-Up') {
+                await topUpUserWallet(transactionUser.id, transactionAmount);
+            } else {
+                await withdrawFromUserWallet(transactionUser.id, transactionAmount);
+            }
+            setIsTransactionModalOpen(false);
+        } catch (error: any) {
+            alert(error.message);
+        }
+    };
+    
+    const tabs = [
+        { id: 'users', label: 'My Users', icon: Icons.userGroup },
+        { id: 'wallet', label: 'My Ledger', icon: Icons.bookOpen },
+        { id: 'betting', label: 'Bet for User', icon: Icons.gamepad },
+    ];
+    
+    const filteredUsers = useMemo(() => {
+        return users.filter(user => user.name.toLowerCase().includes(searchQuery.toLowerCase()) || user.id.toLowerCase().includes(searchQuery.toLowerCase()));
+    }, [users, searchQuery]);
 
     return (
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
             <h2 className="text-3xl font-bold text-emerald-400 mb-6 uppercase tracking-widest">Dealer Panel</h2>
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-white">My Users ({users.length})</h3>
-                <button onClick={handleNewUser} className="flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors">
-                    {Icons.plus} Create User
-                </button>
+
+             <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
+                {tabs.map(tab => (
+                    <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
+                        {tab.icon} <span>{tab.label}</span>
+                    </button>
+                ))}
             </div>
-             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-800">
-                            <tr>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wallet (PKR)</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-700">
-                            {users.map(user => (
-                                <tr key={user.id} className="hover:bg-emerald-500/10">
-                                    <td className="p-4 font-medium text-white">{user.name}</td>
-                                    <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
-                                    <td className="p-4">
-                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
-                                            {user.isRestricted ? 'Restricted' : 'Active'}
-                                        </span>
-                                    </td>
-                                    <td className="p-4">
-                                        <button onClick={() => handleEditUser(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-300 font-semibold py-1 px-3 rounded-md text-sm">
-                                            Edit
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+
+            {activeTab === 'wallet' && (
+                <div>
+                     <h3 className="text-xl font-semibold text-white mb-4">My Ledger</h3>
+                     <ProfessionalLedgerView accountId={dealer.id} accountType="dealer" themeColor="emerald" />
                 </div>
-            </div>
+            )}
+            
+            {activeTab === 'betting' && (
+                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700">
+                    <p className="text-slate-400">Betting for users is coming soon!</p>
+                </div>
+            )}
+
+            {activeTab === 'users' && (
+                <div>
+                    <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+                        <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">My Users ({filteredUsers.length})</h3>
+                        <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
+                            <div className="relative w-full sm:w-64">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                                <input type="text" placeholder="Search by name or ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none w-full"/>
+                            </div>
+                            <button onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} className="flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
+                                {Icons.plus} Create User
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                        <div className="overflow-x-auto mobile-scroll-x">
+                            <table className="w-full text-left min-w-[800px]">
+                                <thead className="bg-slate-800/50">
+                                    <tr>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID / Area</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wallet (PKR)</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {filteredUsers.map(user => (
+                                        <tr key={user.id} className="hover:bg-emerald-500/10 transition-colors">
+                                            <td className="p-4 font-medium"><div className="flex items-center gap-3">
+                                                {user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
+                                                <span className="font-semibold text-white">{user.name}</span>
+                                            </div></td>
+                                            <td className="p-4 text-slate-400"><div className="font-mono">{user.id}</div><div className="text-xs">{user.area}</div></td>
+                                            <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
+                                            <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
+                                            <td className="p-4">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <button onClick={() => handleOpenTransactionModal(user, 'Top-Up')} className="flex items-center bg-green-500/20 hover:bg-green-500/40 text-green-300 font-semibold py-1 px-3 rounded-md text-sm">{Icons.plus} Top-Up</button>
+                                                    <button onClick={() => handleOpenTransactionModal(user, 'Withdrawal')} className="flex items-center bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-semibold py-1 px-3 rounded-md text-sm">{Icons.minus} Withdraw</button>
+                                                    <button onClick={() => { setSelectedUser(user); setIsUserModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm">Edit</button>
+                                                    <button onClick={() => { setLedgerUser(user); setIsLedgerModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm">Ledger</button>
+                                                     <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                                        {user.isRestricted ? 'Unrestrict' : 'Restrict'}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
             <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Edit User" : "Create User"}>
-                <UserForm 
-                    user={selectedUser} 
-                    users={users} 
-                    onSave={async (...args) => { await onSaveUser(...args); setIsUserModalOpen(false); }} 
-                    onCancel={() => setIsUserModalOpen(false)} 
-                    dealerPrizeRates={dealer.prizeRates} 
-                    dealerId={dealer.id} 
-                />
+                <UserForm user={selectedUser} users={users} onSave={handleSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerId={dealer.id} />
+            </Modal>
+            
+            <Modal isOpen={isTransactionModalOpen} onClose={() => setIsTransactionModalOpen(false)} title={`${transactionType} User Wallet`} themeColor={transactionType === 'Top-Up' ? 'emerald' : 'amber'}>
+                {transactionUser && (
+                    <form onSubmit={handleTransactionSubmit} className="space-y-4">
+                        <p className="text-slate-300">Performing transaction for: <strong className="text-white">{transactionUser.name}</strong></p>
+                        <div>
+                            <label htmlFor="amount-input" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
+                            <input id="amount-input" type="number" value={transactionAmount} onChange={(e) => setTransactionAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 1000" className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white" min="1" required />
+                        </div>
+                        <div className="flex justify-end space-x-3 pt-4">
+                            <button type="button" onClick={() => setIsTransactionModalOpen(false)} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
+                            <button type="submit" className={`font-bold py-2 px-4 rounded-md transition-colors text-white ${transactionType === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>{transactionType}</button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
+
+            <Modal isOpen={isLedgerModalOpen} onClose={() => setIsLedgerModalOpen(false)} title={`Ledger for ${ledgerUser?.name}`} size="xl" themeColor="emerald">
+                {ledgerUser && <ProfessionalLedgerView accountId={ledgerUser.id} accountType="user" themeColor="emerald" />}
             </Modal>
         </div>
     );

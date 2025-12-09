@@ -1,3 +1,4 @@
+
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -624,7 +625,7 @@ const getWinnersReport = (gameId, date) => {
 
     return {
         gameName: game.name, winningNumber: winningNumber, totalPayout: totalPayout,
-        winners: Object.values(winnersByUser).sort((a: any, b: any) => b.totalPayout - a.totalPayout),
+        winners: Object.values(winnersByUser).sort((a, b) => b.totalPayout - a.totalPayout),
     };
 };
 
@@ -1117,15 +1118,25 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
             const dealerCommission = grandTotalCost * ((dealer.commissionRate - user.commissionRate) / 100);
             
             const betDescription = `Bet placed for ${game.name}` + (akcResult.placedBets.length > 0 ? ' & AKC' : '');
+            
+            // --- CORRECTED FINANCIAL FLOW ---
+            // 1. Debit user for the full stake
             addLedgerEntry(user.id, 'USER', betDescription, grandTotalCost, 0, 'BetPlaced');
+
+            // 2. Credit the full stake to the Admin (system) wallet
+            addLedgerEntry(admin.id, 'ADMIN', `Bet from ${user.name} via ${dealer.name}`, 0, grandTotalCost, 'Deposit');
+
+            // 3. Pay out commissions FROM the Admin wallet
             if (userCommission > 0) {
-                addLedgerEntry(user.id, 'USER', `Commission for ${game.name} bet`, 0, userCommission, 'CommissionPayout');
+                const userCommDesc = `Commission for bet on ${game.name}`;
+                addLedgerEntry(admin.id, 'ADMIN', `User commission for ${user.name}`, userCommission, 0, 'CommissionPayout');
+                addLedgerEntry(user.id, 'USER', userCommDesc, 0, userCommission, 'CommissionPayout');
             }
-            addLedgerEntry(dealer.id, 'DEALER', `User bet: ${user.name}`, 0, grandTotalCost, 'Deposit');
             if (dealerCommission > 0) {
-                addLedgerEntry(dealer.id, 'DEALER', `Commission on bet by ${user.name}`, 0, dealerCommission, 'CommissionPayout');
+                 const dealerCommDesc = `Commission for bet by ${user.name}`;
+                addLedgerEntry(admin.id, 'ADMIN', `Dealer commission for ${dealer.name}`, dealerCommission, 0, 'CommissionPayout');
+                addLedgerEntry(dealer.id, 'DEALER', dealerCommDesc, 0, dealerCommission, 'CommissionPayout');
             }
-            addLedgerEntry(admin.id, 'ADMIN', `Bet from ${user.name}`, 0, grandTotalCost, 'Deposit');
         }
 
         mainResult.placedBets.forEach(createBet);

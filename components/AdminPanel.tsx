@@ -96,6 +96,7 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
     const [datePreset, setDatePreset] = useState<'today' | 'week' | 'month' | 'all'>('today');
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const ENTRIES_PER_PAGE = 25;
 
@@ -152,12 +153,21 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
             endDate.setHours(23, 59, 59, 999); // Include the whole end day
         }
 
-        return allEntries.filter(entry => {
+        const dateFiltered = allEntries.filter(entry => {
             if (startDate && entry.timestamp < startDate) return false;
             if (endDate && entry.timestamp > endDate) return false;
             return true;
         });
-    }, [allEntries, datePreset, customStartDate, customEndDate]);
+
+        if (!searchQuery.trim()) {
+            return dateFiltered;
+        }
+
+        const lowercasedQuery = searchQuery.trim().toLowerCase();
+        return dateFiltered.filter(entry => 
+            entry.description.toLowerCase().includes(lowercasedQuery)
+        );
+    }, [allEntries, datePreset, customStartDate, customEndDate, searchQuery]);
 
     const summary = useMemo(() => {
         return filteredEntries.reduce((acc, entry) => {
@@ -209,7 +219,7 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
                 <SummaryCard title="Total Winnings" value={summary.totalWinnings + summary.totalCommission} color="cyan" icon={Icons.winPayout} />
             </div>
 
-            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col md:flex-row gap-4 justify-between">
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col md:flex-row gap-4 items-center flex-wrap">
                 <div className="flex items-center space-x-2 flex-wrap gap-2">
                     { (['today', 'week', 'month', 'all'] as const).map(p => (
                         <button key={p} onClick={() => handlePresetChange(p)} className={`py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 capitalize ${datePreset === p && !customStartDate ? `bg-slate-700 text-${themeColor}-400 shadow-lg` : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'}`}>
@@ -217,10 +227,23 @@ const ProfessionalLedgerView: React.FC<{ accountId: string, accountType: 'user' 
                         </button>
                     ))}
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                    <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('all'); setCurrentPage(1); }} className={`${inputClass} text-sm`} />
-                    <span className="text-slate-400">to</span>
-                    <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('all'); setCurrentPage(1); }} className={`${inputClass} text-sm`} />
+                <div className="flex-grow"></div> {/* Spacer */}
+                <div className="flex items-center gap-4 flex-wrap md:justify-end">
+                    <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                        <input
+                            type="text"
+                            placeholder="Search description..."
+                            value={searchQuery}
+                            onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                            className={`${inputClass} pl-10 text-sm w-full sm:w-48`}
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <input type="date" value={customStartDate} onChange={e => { setCustomStartDate(e.target.value); setDatePreset('all'); setCurrentPage(1); }} className={`${inputClass} text-sm`} />
+                        <span className="text-slate-400">to</span>
+                        <input type="date" value={customEndDate} onChange={e => { setCustomEndDate(e.target.value); setDatePreset('all'); setCurrentPage(1); }} className={`${inputClass} text-sm`} />
+                    </div>
                 </div>
             </div>
 
