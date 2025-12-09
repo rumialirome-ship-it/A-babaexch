@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType, DailyResult, LedgerEntryType } from '../types';
 import { Icons } from '../constants';
@@ -23,6 +21,23 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
         </div>
     );
 };
+
+const SuccessModal: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => (
+    <Modal isOpen={true} onClose={onClose} title="Success" size="md">
+        <div className="text-center p-4">
+            <div className="mx-auto mb-4">
+                <svg className="animated-check" viewBox="0 0 52 52">
+                    <circle className="animated-check__circle" cx="26" cy="26" r="25" fill="none" />
+                    <path className="animated-check__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+                </svg>
+            </div>
+            <p className="text-lg text-white font-semibold">{message}</p>
+            <button onClick={onClose} className="mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-md transition-colors">
+                OK
+            </button>
+        </div>
+    </Modal>
+);
 
 // --- NEW PROFESSIONAL LEDGER COMPONENT ---
 
@@ -394,25 +409,152 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
         </form>
     );
 };
-{/* FIX: Add placeholder BettingView component definition to resolve compilation error */}
-const BettingView: React.FC<{
-    users: User[];
-    games: Game[];
-    dailyResults: DailyResult[];
-    placeBetAsDealer: (details: {
-        userId: string;
-        gameId: string;
-        betGroups: {
-            subGameType: SubGameType;
-            numbers: string[];
-            amountPerNumber: number;
-        }[];
-    }) => Promise<void>;
-}> = ({ users, games, dailyResults, placeBetAsDealer }) => {
-    // Placeholder implementation
+
+const BettingView: React.FC<DealerPanelProps> = ({ users, games, placeBetAsDealer }) => {
+    const [selectedUserId, setSelectedUserId] = useState('');
+    const [selectedGameId, setSelectedGameId] = useState('');
+
+    const betTypes = [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose];
+    const [activeBetType, setActiveBetType] = useState<SubGameType>(betTypes[0]);
+    const [betInputs, setBetInputs] = useState<Record<SubGameType, { numbers: string, amount: string }>>({
+        [SubGameType.TwoDigit]: { numbers: '', amount: '' }, [SubGameType.OneDigitOpen]: { numbers: '', amount: '' }, [SubGameType.OneDigitClose]: { numbers: '', amount: '' },
+        [SubGameType.Bulk]: { numbers: '', amount: '' }, [SubGameType.Combo]: { numbers: '', amount: '' }
+    });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
+    const { fetchWithAuth } = useAuth();
+    
+    const selectedUser = useMemo(() => users.find(u => u.id === selectedUserId), [users, selectedUserId]);
+    const selectedGame = useMemo(() => games.find(g => g.id === selectedGameId), [games, selectedGameId]);
+    const openGames = useMemo(() => games.filter(g => g.isMarketOpen), [games]);
+
+    const handleInputChange = (subGameType: SubGameType, field: 'numbers' | 'amount', value: string) => {
+        if (field === 'amount') {
+            const sanitizedValue = value.replace(/[^0-9.]/g, '');
+            setBetInputs(prev => ({ ...prev, [subGameType]: { ...prev[subGameType], [field]: sanitizedValue } }));
+            return;
+        }
+    
+        if (field === 'numbers') {
+            const isTwoDigit = subGameType === SubGameType.TwoDigit;
+            const chunkSize = isTwoDigit ? 2 : 1;
+            const digitsOnly = value.replace(/\D/g, '');
+    
+            if (digitsOnly.length > 0) {
+                const chunks = [];
+                for (let i = 0; i < digitsOnly.length; i += chunkSize) {
+                    chunks.push(digitsOnly.substring(i, i + chunkSize));
+                }
+                const formattedValue = chunks.join(',');
+                setBetInputs(prev => ({ ...prev, [subGameType]: { ...prev[subGameType], [field]: formattedValue } }));
+            } else {
+                setBetInputs(prev => ({ ...prev, [subGameType]: { ...prev[subGameType], [field]: '' } }));
+            }
+        }
+    };
+
+    const getLuckyPicks = async () => {
+        if (!selectedGame) return;
+        setIsLoading(true);
+        try {
+            const response = await fetchWithAuth('/api/ai/lucky-pick', { method: 'POST', body: JSON.stringify({ gameName: selectedGame.name, count: 5 }) });
+            if (!response.ok) throw new Error("Failed to get lucky picks.");
+            const { luckyNumbers } = await response.json();
+            handleInputChange(activeBetType, 'numbers', luckyNumbers.join(''));
+        } catch (err: any) { setError(err.message); } 
+        finally { setIsLoading(false); }
+    };
+    
+    const betSummary = useMemo(() => {
+        let totalCost = 0; let totalNumbers = 0;
+        for (const type of betTypes) {
+            const { numbers, amount } = betInputs[type];
+            if (amount && Number(amount) > 0) {
+                const numberList = numbers.trim().split(/[\s,]+/).filter(Boolean);
+                totalNumbers += numberList.length;
+                totalCost += numberList.length * Number(amount);
+            }
+        }
+        return { totalCost, totalNumbers };
+    }, [betInputs, betTypes]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        if (!selectedUser || !selectedGame) { setError("Please select a user and a game."); return; }
+        if (betSummary.totalCost <= 0) { setError("Please enter numbers and an amount to bet."); return; }
+        if (betSummary.totalCost > selectedUser.wallet) { setError("Insufficient wallet balance for this user."); return; }
+
+        const betGroups = betTypes.map(type => {
+            const { numbers, amount } = betInputs[type];
+            const numberList = numbers.trim().split(/[\s,]+/).filter(Boolean);
+            return { subGameType: type, numbers: numberList, amountPerNumber: Number(amount) };
+        }).filter(group => group.numbers.length > 0 && group.amountPerNumber > 0);
+
+        if (betGroups.length === 0) { setError("No valid bets to place."); return; }
+        
+        setIsLoading(true);
+        try {
+            await placeBetAsDealer({ userId: selectedUser.id, gameId: selectedGame.id, betGroups });
+            setSuccess(`Bet placed for ${selectedUser.name} on ${selectedGame.name} successfully!`);
+            // Fix: Corrected property names 'n' and 'a' to 'numbers' and 'amount' to match the state type.
+            setBetInputs({ [SubGameType.TwoDigit]:{numbers:'',amount:''}, [SubGameType.OneDigitOpen]:{numbers:'',amount:''}, [SubGameType.OneDigitClose]:{numbers:'',amount:''}, [SubGameType.Bulk]:{numbers:'',amount:''}, [SubGameType.Combo]:{numbers:'',amount:''}});
+        } catch (err: any) { setError(err.message); } 
+        finally { setIsLoading(false); }
+    };
+    
+    if (success) { return <SuccessModal message={success} onClose={() => setSuccess(null)} />; }
+
+    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
+
     return (
-        <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700">
-            <p className="text-slate-400">Betting functionality is not fully implemented in this view.</p>
+        <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Place a Bet for a User</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">Select User</label>
+                    <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} className={inputClass}>
+                        <option value="">-- Choose a user --</option>
+                        {users.filter(u=>!u.isRestricted).map(u => <option key={u.id} value={u.id}>{u.name} (Wallet: {u.wallet.toFixed(2)})</option>)}
+                    </select>
+                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">Select Game</label>
+                    <select value={selectedGameId} onChange={e => setSelectedGameId(e.target.value)} className={inputClass}>
+                        <option value="">-- Choose a game --</option>
+                        {openGames.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                </div>
+            </div>
+
+            {selectedUser && selectedGame && (
+                <form onSubmit={handleSubmit} className="bg-slate-800/50 rounded-lg border border-slate-700 p-6 space-y-6">
+                    <div className="flex items-center space-x-2 bg-slate-800 p-1 rounded-lg">
+                        {betTypes.map(type => <button key={type} type="button" onClick={() => setActiveBetType(type)} className={`flex-1 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeBetType === type ? 'bg-slate-700 text-emerald-400' : 'text-slate-400 hover:bg-slate-600'}`}>{type}</button>)}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Numbers</label>
+                        <textarea value={betInputs[activeBetType].numbers} onChange={e => handleInputChange(activeBetType, 'numbers', e.target.value)} rows={3} className={inputClass} placeholder={`Enter ${activeBetType === SubGameType.TwoDigit ? '2-digit' : '1-digit'} numbers (e.g. 12,34,56)`} />
+                         <div className="flex justify-end mt-2">
+                            <button type="button" onClick={getLuckyPicks} disabled={isLoading} className="flex items-center text-sm bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-semibold py-1 px-3 rounded-md transition-colors disabled:opacity-50">
+                                {Icons.sparkles} AI Lucky Pick
+                            </button>
+                        </div>
+                    </div>
+                    <div><label className="block text-sm font-medium text-slate-400 mb-1">Amount Per Number (PKR)</label><input type="number" value={betInputs[activeBetType].amount} onChange={e => handleInputChange(activeBetType, 'amount', e.target.value)} className={inputClass} placeholder="e.g., 10" /></div>
+                    
+                    <div className="border-t border-slate-700 pt-4 space-y-2 text-white">
+                        <div className="flex justify-between"><span className="text-slate-400">Total Numbers:</span><span className="font-mono">{betSummary.totalNumbers}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Total Cost:</span><span className="font-mono font-bold text-lg">{betSummary.totalCost.toFixed(2)} PKR</span></div>
+                        <div className="flex justify-between text-sm"><span className="text-slate-400">{selectedUser.name}'s Wallet:</span><span className="font-mono">{selectedUser.wallet.toFixed(2)} PKR</span></div>
+                    </div>
+                    {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-md text-sm">{error}</div>}
+                    <button type="submit" disabled={isLoading || betSummary.totalCost <= 0 || betSummary.totalCost > selectedUser.wallet} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed">
+                        {isLoading ? 'Placing Bet...' : `Place Bet for ${selectedUser.name}`}
+                    </button>
+                </form>
+            )}
         </div>
     );
 };
@@ -567,7 +709,12 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
 
             {activeTab === 'betting' && (
                 <BettingView 
-                    users={users.filter(u => !u.isRestricted)}
+                    dealer={dealer}
+                    users={users}
+                    onSaveUser={onSaveUser}
+                    topUpUserWallet={topUpUserWallet}
+                    withdrawFromUserWallet={withdrawFromUserWallet}
+                    toggleAccountRestriction={toggleAccountRestriction}
                     games={games}
                     dailyResults={dailyResults}
                     placeBetAsDealer={placeBetAsDealer}

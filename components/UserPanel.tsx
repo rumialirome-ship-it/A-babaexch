@@ -210,13 +210,28 @@ const BettingInterface: React.FC<{ game: Game; user: User; placeBet: (details: a
     const { fetchWithAuth } = useAuth();
     
     const handleInputChange = (subGameType: SubGameType, field: 'numbers' | 'amount', value: string) => {
-        let sanitizedValue = value;
-        if (field === 'numbers') {
-            sanitizedValue = value.replace(/[^0-9\s,]/g, '');
-        } else if (field === 'amount') {
-            sanitizedValue = value.replace(/[^0-9.]/g, '');
+        if (field === 'amount') {
+            const sanitizedValue = value.replace(/[^0-9.]/g, '');
+            setBetInputs(prev => ({ ...prev, [subGameType]: { ...prev[subGameType], [field]: sanitizedValue } }));
+            return;
         }
-        setBetInputs(prev => ({ ...prev, [subGameType]: { ...prev[subGameType], [field]: sanitizedValue } }));
+    
+        if (field === 'numbers') {
+            const isTwoDigit = subGameType === SubGameType.TwoDigit;
+            const chunkSize = isTwoDigit ? 2 : 1;
+            const digitsOnly = value.replace(/\D/g, '');
+    
+            if (digitsOnly.length > 0) {
+                const chunks = [];
+                for (let i = 0; i < digitsOnly.length; i += chunkSize) {
+                    chunks.push(digitsOnly.substring(i, i + chunkSize));
+                }
+                const formattedValue = chunks.join(',');
+                setBetInputs(prev => ({ ...prev, [subGameType]: { ...prev[subGameType], [field]: formattedValue } }));
+            } else {
+                setBetInputs(prev => ({ ...prev, [subGameType]: { ...prev[subGameType], [field]: '' } }));
+            }
+        }
     };
 
     const getLuckyPicks = async () => {
@@ -225,7 +240,7 @@ const BettingInterface: React.FC<{ game: Game; user: User; placeBet: (details: a
             const response = await fetchWithAuth('/api/ai/lucky-pick', { method: 'POST', body: JSON.stringify({ gameName: game.name, count: 5 }) });
             if (!response.ok) throw new Error("Failed to get lucky picks.");
             const { luckyNumbers } = await response.json();
-            handleInputChange(activeBetType, 'numbers', luckyNumbers.join(' '));
+            handleInputChange(activeBetType, 'numbers', luckyNumbers.join(''));
         } catch (err: any) { setError(err.message); } 
         finally { setIsLoading(false); }
     };
@@ -280,8 +295,8 @@ const BettingInterface: React.FC<{ game: Game; user: User; placeBet: (details: a
                     {betTypes.map(type => <button key={type} type="button" onClick={() => setActiveBetType(type)} className={`flex-1 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeBetType === type ? 'bg-slate-700 text-sky-400' : 'text-slate-400 hover:bg-slate-600'}`}>{type}</button>)}
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Numbers (separated by space or comma)</label>
-                    <textarea value={betInputs[activeBetType].numbers} onChange={e => handleInputChange(activeBetType, 'numbers', e.target.value)} rows={3} className={inputClass} placeholder={`Enter ${activeBetType === SubGameType.TwoDigit ? '2-digit' : '1-digit'} numbers`} />
+                    <label className="block text-sm font-medium text-slate-400 mb-1">Numbers</label>
+                    <textarea value={betInputs[activeBetType].numbers} onChange={e => handleInputChange(activeBetType, 'numbers', e.target.value)} rows={3} className={inputClass} placeholder={`Enter ${activeBetType === SubGameType.TwoDigit ? '2-digit' : '1-digit'} numbers (e.g. 12,34,56)`} />
                     <div className="flex justify-end mt-2">
                         <button type="button" onClick={getLuckyPicks} disabled={isLoading} className="flex items-center text-sm bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-semibold py-1 px-3 rounded-md transition-colors disabled:opacity-50">
                             {Icons.sparkles} AI Lucky Pick
@@ -330,7 +345,6 @@ const BetHistoryView: React.FC<{ user: User, games: Game[] }> = ({ user, games }
                 if (!res.ok) throw new Error('Failed to fetch bet history.');
                 const data = await res.json();
                 setHistory({
-// FIX: The `numbers` property is a string from the API and should be accessed directly, not called as a function.
                     bets: data.bets.map((b: any) => ({ ...b, timestamp: new Date(b.timestamp), numbers: JSON.parse(b.numbers) })),
                     totalCount: data.totalCount,
                 });
