@@ -1000,6 +1000,7 @@ export const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveU
                 </table>
             </div>
           </div>
+        </div>
       )}
 
       <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Edit User" : "Create User"}>
