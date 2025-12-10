@@ -1,4 +1,5 @@
 
+
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -1054,22 +1055,14 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         }
 
         // 5. Process Ledger Entries (based on the grand total)
-        // **FIXED FINANCIAL LOGIC**
         const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
         const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
         const betDescription = `Bet placed on ${game.name}${akcGame ? ' & AKC' : ''} by ${placedBy}`;
         
-        // 1. User places bet
         addLedgerEntry(user.id, 'USER', betDescription, totalTransactionAmount, 0);
-        // 2. Stake goes to Admin
+        if (totalUserCommission > 0) addLedgerEntry(user.id, 'USER', `Commission earned`, 0, totalUserCommission);
         addLedgerEntry(admin.id, 'ADMIN', `Stake from ${user.name}`, 0, totalTransactionAmount);
-        
-        // 3. Admin pays user commission
-        if (totalUserCommission > 0) {
-            addLedgerEntry(admin.id, 'ADMIN', `Commission to user ${user.name}`, totalUserCommission, 0);
-            addLedgerEntry(user.id, 'USER', `Commission earned`, 0, totalUserCommission);
-        }
-        // 4. Admin pays dealer commission
+        if (totalUserCommission > 0) addLedgerEntry(admin.id, 'ADMIN', `Commission to user ${user.name}`, totalUserCommission, 0);
         if (totalDealerCommission > 0) {
             addLedgerEntry(admin.id, 'ADMIN', `Commission to dealer ${dealer.name}`, totalDealerCommission, 0);
             addLedgerEntry(dealer.id, 'DEALER', `Commission from ${user.name}'s bet`, 0, totalDealerCommission);

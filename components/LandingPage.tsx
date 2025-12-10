@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Game } from '../types';
 import { useCountdown } from '../hooks/useCountdown';
@@ -7,30 +6,11 @@ import { useAuth } from '../hooks/useAuth';
 
 // Helper function to format time to 12-hour AM/PM format
 const formatTime12h = (time24: string) => {
-    if (!time24 || !time24.includes(':')) return 'N/A';
     const [hours, minutes] = time24.split(':').map(Number);
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hours12 = hours % 12 || 12; // Convert 0 to 12
     return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
 };
-
-const GameDisplayCardSkeleton: React.FC = () => (
-    <div 
-        className="bg-slate-800/50 p-6 flex flex-col items-center justify-between text-center border border-slate-700 w-full animate-pulse"
-        style={{ clipPath: 'polygon(0 15px, 15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%)' }}
-    >
-        <div className="flex-grow w-full">
-            <div className="w-24 h-24 rounded-full bg-slate-700 mb-4 mx-auto"></div>
-            <div className="h-7 bg-slate-700 rounded w-3/4 mx-auto mb-2"></div>
-            <div className="h-5 bg-slate-700 rounded w-1/2 mx-auto"></div>
-        </div>
-        <div className="text-center w-full p-2 mt-4 bg-black/30 border-t border-slate-700/20 min-h-20 flex flex-col justify-center">
-            <div className="h-4 bg-slate-700 rounded w-1/3 mx-auto mb-2"></div>
-            <div className="h-8 bg-slate-700 rounded w-1/2 mx-auto"></div>
-        </div>
-    </div>
-);
-
 
 const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, onClick }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
@@ -56,7 +36,7 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
                     <h3 className="text-2xl text-white mb-1 uppercase tracking-wider">{game.name}</h3>
                     <p className="text-slate-400 text-sm">Draw @ {formatTime12h(game.drawTime)}</p>
                 </div>
-                <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor}-400/20 min-h-20 flex flex-col justify-center`}>
+                <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor}-400/20`}>
                     {hasWinner && isMarketClosedForDisplay ? (
                         <>
                             <div className="text-xs uppercase tracking-widest text-slate-400">PREVIOUS WINNER</div>
@@ -328,22 +308,18 @@ const AdminResetInfoModal: React.FC<{ isOpen: boolean; onClose: () => void; }> =
 
 const LandingPage: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
-    const [loading, setLoading] = useState(true);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
     
     useEffect(() => {
         const fetchGames = async () => {
-            setLoading(true);
             try {
                 const response = await fetch('/api/games');
                 const data = await response.json();
                 setGames(data);
             } catch (error) {
                 console.error("Failed to fetch games:", error);
-            } finally {
-                setLoading(false);
             }
         };
         fetchGames();
@@ -364,13 +340,9 @@ const LandingPage: React.FC = () => {
                 <section id="games" className="mb-20">
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Today's Games</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-                        {loading ? (
-                            Array.from({ length: 5 }).map((_, index) => <GameDisplayCardSkeleton key={index} />)
-                        ) : (
-                            games.map(game => (
-                                <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
-                            ))
-                        )}
+                        {games.map(game => (
+                            <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
+                        ))}
                     </div>
                 </section>
 
