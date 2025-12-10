@@ -1,11 +1,13 @@
 
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
 import LandingPage from './components/LandingPage';
 import AdminPanel from './components/AdminPanel';
-import DealerPanel from './components/DealerPanel';
+// FIX: Switched to a named import to match the export change in DealerPanel.tsx and resolve the module error.
+import { DealerPanel } from './components/DealerPanel';
 import UserPanel from './components/UserPanel';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 

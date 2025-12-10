@@ -899,7 +899,8 @@ interface DealerPanelProps {
 }
 
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, dailyResults, placeBetAsDealer }) => {
+{/* FIX: Switched to a named export to resolve a module resolution issue. */}
+export const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, dailyResults, placeBetAsDealer }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
@@ -1029,5 +1030,3 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
     </div>
   );
 };
-
-export default DealerPanel;
