@@ -25,7 +25,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [role, setRole] = useState<Role | null>(null);
     const [account, setAccount] = useState<User | Dealer | Admin | null>(null);
     const [token, setToken] = useState<string | null>(localStorage.getItem('authToken'));
-    const [loading, setLoading] = useState<boolean>(true);
+    // FIX: Only show loading screen if a token actually exists to be verified.
+    const [loading, setLoading] = useState<boolean>(!!localStorage.getItem('authToken'));
 
     const logout = useCallback(() => {
         setRole(null);
@@ -68,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const verifyTokenAndPoll = async () => {
             if (!token) {
-                setLoading(false);
+                // No token, loading is already false, so nothing to do.
                 return;
             }
 
