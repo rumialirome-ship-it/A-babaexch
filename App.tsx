@@ -1,13 +1,14 @@
-
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
-import LandingPage from './components/LandingPage';
-import AdminPanel from './components/AdminPanel';
-import DealerPanel from './components/DealerPanel';
-import UserPanel from './components/UserPanel';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+
+// Lazy-load components to enable code splitting
+const LandingPage = lazy(() => import('./components/LandingPage'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const DealerPanel = lazy(() => import('./components/DealerPanel'));
+const UserPanel = lazy(() => import('./components/UserPanel'));
+
 
 const Header: React.FC = () => {
     const { role, account, logout } = useAuth();
@@ -52,6 +53,13 @@ const Header: React.FC = () => {
     );
 };
 
+const LoadingFallback: React.FC = () => (
+    <div className="min-h-[calc(100vh-80px)] flex items-center justify-center">
+        <div className="text-cyan-400 text-xl">Loading Interface...</div>
+    </div>
+);
+
+
 const AppContent: React.FC = () => {
     const { role, account, loading, fetchWithAuth } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
@@ -59,14 +67,6 @@ const AppContent: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
     const [dailyResults, setDailyResults] = useState<DailyResult[]>([]);
-
-    const parseAllDates = (data: any) => {
-        const parseLedger = (ledger: LedgerEntry[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
-        if (data.users) data.users = data.users.map((u: User) => ({...u, ledger: parseLedger(u.ledger)}));
-        if (data.dealers) data.dealers = data.dealers.map((d: Dealer) => ({...d, ledger: parseLedger(d.ledger)}));
-        if (data.bets) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
-        return data;
-    };
 
     const fetchData = useCallback(async () => {
         if (!role || !account) return;
@@ -76,20 +76,16 @@ const AppContent: React.FC = () => {
                 const response = await fetchWithAuth('/api/admin/data');
                 if (!response.ok) throw new Error('Failed to fetch admin data');
                 data = await response.json();
-                const parsedData = parseAllDates(data);
-                setUsers(parsedData.users);
-                setDealers(parsedData.dealers);
-                setGames(parsedData.games);
-                setBets(parsedData.bets);
-                setDailyResults(parsedData.daily_results || []);
+                setUsers(data.users);
+                setDealers(data.dealers);
+                setGames(data.games);
+                setDailyResults(data.daily_results || []);
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
                 if (!response.ok) throw new Error('Failed to fetch dealer data');
                 data = await response.json();
-                const parsedData = parseAllDates(data);
-                setUsers(parsedData.users);
-                setBets(parsedData.bets);
-                setDailyResults(parsedData.daily_results || []);
+                setUsers(data.users);
+                setDailyResults(data.daily_results || []);
                 const gamesResponse = await fetchWithAuth('/api/games');
                 const gamesData = await gamesResponse.json();
                 setGames(gamesData);
@@ -97,10 +93,9 @@ const AppContent: React.FC = () => {
                 const response = await fetchWithAuth('/api/user/data');
                 if (!response.ok) throw new Error('Failed to fetch user data');
                 data = await response.json();
-                const parsedData = parseAllDates(data);
-                setGames(parsedData.games);
-                setBets(parsedData.bets);
-                setDailyResults(parsedData.daily_results || []);
+                setGames(data.games);
+                setBets(data.bets || []);
+                setDailyResults(data.daily_results || []);
             }
         } catch (error) {
             console.error("Failed to fetch data:", error);
@@ -206,7 +201,6 @@ const AppContent: React.FC = () => {
     const onSaveDealer = useCallback(async (dealerData: Dealer, originalId?: string) => {
         let response;
         if (originalId) {
-            // FIX: The body was passing the JSON.stringify function itself, not the result of calling it.
             response = await fetchWithAuth(`/api/admin/dealers/${originalId}`, { method: 'PUT', body: JSON.stringify(dealerData) });
         } else {
             response = await fetchWithAuth('/api/admin/dealers', { method: 'POST', body: JSON.stringify(dealerData) });
@@ -310,57 +304,62 @@ const AppContent: React.FC = () => {
         );
     }
 
-    if (!role || !account) {
-        return <LandingPage />;
-    }
+    const renderContent = () => {
+        if (!role || !account) {
+            return <LandingPage />;
+        }
 
-    switch (role) {
-        case Role.Admin:
-            return <AdminPanel
-                admin={account as Admin}
-                dealers={dealers}
-                onSaveDealer={onSaveDealer}
-                users={users}
-                setUsers={setUsers}
-                games={games}
-                dailyResults={dailyResults}
-                declareWinner={declareWinner}
-                updateWinner={updateWinner}
-                approvePayouts={approvePayouts}
-                topUpDealerWallet={topUpDealerWallet}
-                withdrawFromDealerWallet={withdrawFromDealerWallet}
-                toggleAccountRestriction={toggleAccountRestriction}
-                onPlaceAdminBets={onPlaceAdminBets}
-                updateGameDrawTime={updateGameDrawTime}
-                fetchData={fetchData}
-            />;
-        case Role.Dealer:
-            const dealerUsers = users.filter(u => u.dealerId === account.id);
-            const dealerBets = bets.filter(b => b.dealerId === account.id);
-            return <DealerPanel
-                dealer={account as Dealer}
-                users={dealerUsers}
-                onSaveUser={onSaveUser}
-                topUpUserWallet={topUpUserWallet}
-                withdrawFromUserWallet={withdrawFromUserWallet}
-                toggleAccountRestriction={toggleAccountRestriction}
-                bets={dealerBets}
-                games={games}
-                dailyResults={dailyResults}
-                placeBetAsDealer={placeBetAsDealer}
-            />;
-        case Role.User:
-            const userBets = bets.filter(b => b.userId === account.id);
-            return <UserPanel
-                user={account as User}
-                games={games}
-                bets={userBets}
-                dailyResults={dailyResults}
-                placeBet={placeBet}
-            />;
-        default:
-            return <div>Error: Unknown user role.</div>;
-    }
+        switch (role) {
+            case Role.Admin:
+                return <AdminPanel
+                    admin={account as Admin}
+                    dealers={dealers}
+                    onSaveDealer={onSaveDealer}
+                    users={users}
+                    setUsers={setUsers}
+                    games={games}
+                    dailyResults={dailyResults}
+                    declareWinner={declareWinner}
+                    updateWinner={updateWinner}
+                    approvePayouts={approvePayouts}
+                    topUpDealerWallet={topUpDealerWallet}
+                    withdrawFromDealerWallet={withdrawFromDealerWallet}
+                    toggleAccountRestriction={toggleAccountRestriction}
+                    onPlaceAdminBets={onPlaceAdminBets}
+                    updateGameDrawTime={updateGameDrawTime}
+                    fetchData={fetchData}
+                />;
+            case Role.Dealer:
+                const dealerUsers = users.filter(u => u.dealerId === account.id);
+                return <DealerPanel
+                    dealer={account as Dealer}
+                    users={dealerUsers}
+                    onSaveUser={onSaveUser}
+                    topUpUserWallet={topUpUserWallet}
+                    withdrawFromUserWallet={withdrawFromUserWallet}
+                    toggleAccountRestriction={toggleAccountRestriction}
+                    games={games}
+                    dailyResults={dailyResults}
+                    placeBetAsDealer={placeBetAsDealer}
+                />;
+            case Role.User:
+                return <UserPanel
+                    user={account as User}
+                    games={games}
+                    bets={bets}
+                    dailyResults={dailyResults}
+                    placeBet={placeBet}
+                />;
+            default:
+                return <div>Error: Unknown user role.</div>;
+        }
+    };
+    
+    return (
+        <Suspense fallback={<LoadingFallback />}>
+            {renderContent()}
+        </Suspense>
+    );
 };
 
 function App() {

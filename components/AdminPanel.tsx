@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin, DailyResult } from '../types';
 import { Icons } from '../constants';
@@ -32,6 +31,127 @@ type SortKey = 'name' | 'wallet' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
+
+// FIX: Define ProfessionalLedgerView to resolve compilation error.
+// This component is adapted from UserPanel.tsx to display ledger entries for any account.
+const ProfessionalLedgerView: React.FC<{
+    accountId: string;
+    accountType: 'ADMIN' | 'DEALER' | 'USER';
+    admin: Admin;
+    dealers: Dealer[];
+    users: User[];
+}> = ({ accountId, accountType, admin, dealers, users }) => {
+    
+    const entries = useMemo(() => {
+        let account: Admin | Dealer | User | undefined;
+        if (accountType === 'ADMIN') {
+            account = admin.id === accountId ? admin : undefined;
+        } else if (accountType === 'DEALER') {
+            account = dealers.find(d => d.id === accountId);
+        } else { // USER
+            account = users.find(u => u.id === accountId);
+        }
+        return account?.ledger || [];
+    }, [accountId, accountType, admin, dealers, users]);
+
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
+    const [page, setPage] = useState(1);
+    const itemsPerPage = 15;
+
+    const { filteredEntries, summary } = useMemo(() => {
+        const filtered = entries.filter(entry => {
+            const entryDateStr = new Date(entry.timestamp).toISOString().split('T')[0];
+            if (startDate && entryDateStr < startDate) return false;
+            if (endDate && entryDateStr > endDate) return false;
+            return true;
+        });
+
+        const summaryData = filtered.reduce((acc, entry) => {
+            acc.totalDebit += entry.debit;
+            acc.totalCredit += entry.credit;
+            return acc;
+        }, { totalDebit: 0, totalCredit: 0 });
+
+        return { filteredEntries: filtered.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), summary: summaryData };
+    }, [entries, startDate, endDate]);
+
+    const paginatedEntries = useMemo(() => {
+        const startIndex = (page - 1) * itemsPerPage;
+        return filteredEntries.slice(startIndex, startIndex + itemsPerPage);
+    }, [filteredEntries, page]);
+
+    const totalPages = Math.ceil(filteredEntries.length / itemsPerPage);
+
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-sans";
+
+    return (
+        <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                    <p className="text-sm text-slate-400 uppercase">Total Credit</p>
+                    <p className="text-2xl font-bold font-mono text-green-400">{summary.totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                    <p className="text-sm text-slate-400 uppercase">Total Debit</p>
+                    <p className="text-2xl font-bold font-mono text-red-400">{summary.totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+            </div>
+
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">From</label>
+                        <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setPage(1); }} className={inputClass} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">To</label>
+                        <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setPage(1); }} className={inputClass} />
+                    </div>
+                    <button onClick={() => { setStartDate(''); setEndDate(''); setPage(1); }} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md h-fit">Show All</button>
+                </div>
+            </div>
+
+            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="overflow-x-auto mobile-scroll-x">
+                    <table className="w-full text-left min-w-[600px]">
+                        <thead className="bg-slate-800/50">
+                            <tr>
+                                <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
+                                <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
+                                <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Debit</th>
+                                <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Credit</th>
+                                <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {paginatedEntries.map(entry => (
+                                <tr key={entry.id}>
+                                    <td className="p-3 text-slate-400">{new Date(entry.timestamp).toLocaleString()}</td>
+                                    <td className="p-3 text-white">{entry.description}</td>
+                                    <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
+                                    <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
+                                    <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                            {filteredEntries.length === 0 && (
+                                <tr><td colSpan={5} className="p-8 text-center text-slate-500">No entries found for the selected period.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                 {totalPages > 1 && (
+                    <div className="p-4 flex justify-between items-center text-sm bg-slate-800/50 border-t border-slate-700">
+                        <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="font-semibold text-white disabled:text-slate-500 disabled:cursor-not-allowed">Previous</button>
+                        <span className="text-slate-400">Page {page} of {totalPages}</span>
+                        <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="font-semibold text-white disabled:text-slate-500 disabled:cursor-not-allowed">Next</button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 
 const SortableHeader: React.FC<{
     label: string;
@@ -69,42 +189,6 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
         </div>
     );
 };
-
-const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
-    <div className="bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
-        <div className="overflow-auto max-h-[60vh] mobile-scroll-x">
-            <table className="w-full text-left min-w-[600px]">
-                <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
-                    <tr>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Debit</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Credit</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                    {[...entries].reverse().map(entry => (
-                        <tr key={entry.id} className="hover:bg-cyan-500/10 text-sm transition-colors">
-                            <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
-                            <td className="p-3 text-white">{entry.description}</td>
-                            <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
-                            <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
-                            <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
-                        </tr>
-                    ))}
-                     {entries.length === 0 && (
-                        <tr>
-                            <td colSpan={5} className="p-8 text-center text-slate-500">
-                                No ledger entries found for the selected date range.
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
-    </div>
-);
 
 const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => Promise<void>; onCancel: () => void; adminPrizeRates: PrizeRates }> = ({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
     // For new dealers, password is part of formData. For edits, it's handled separately.
@@ -1103,40 +1187,6 @@ const WinnersReportView: React.FC<{
     );
 };
 
-const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
-    const [startDate, setStartDate] = useState(getTodayDateString());
-    const [endDate, setEndDate] = useState(getTodayDateString());
-
-    const filteredEntries = useMemo(() => {
-        if (!startDate && !endDate) return entries;
-        return entries.filter(entry => {
-            const entryDateStr = entry.timestamp.toISOString().split('T')[0];
-            if (startDate && entryDateStr < startDate) return false;
-            if (endDate && entryDateStr > endDate) return false;
-            return true;
-        });
-    }, [entries, startDate, endDate]);
-
-    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white font-sans";
-
-    return (
-        <div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass} />
-                </div>
-                <button onClick={() => { setStartDate(''); setEndDate(''); }} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Show All History</button>
-            </div>
-            <LedgerTable entries={filteredEntries} />
-        </div>
-    );
-};
-
 interface AdminPanelProps {
   admin: Admin; 
   dealers: Dealer[]; 
@@ -1168,7 +1218,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [searchQuery, setSearchQuery] = useState('');
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
-  const [ledgerModalData, setLedgerModalData] = useState<{ title: string; entries: LedgerEntry[] } | null>(null);
+  const [ledgerModalData, setLedgerModalData] = useState<{ accountId: string; accountType: 'ADMIN' | 'DEALER' | 'USER'; accountName: string; } | null>(null);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
   const [dashboardDate, setDashboardDate] = useState(getTodayDateString());
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
@@ -1500,7 +1550,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                  <td className="p-4">
                                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                                         <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
-                                        <button onClick={() => setLedgerModalData({ title: dealer.name, entries: dealer.ledger })} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
+                                        <button onClick={() => setLedgerModalData({ accountId: dealer.id, accountType: 'DEALER', accountName: dealer.name })} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
                                         <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${dealer.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                             {dealer.isRestricted ? 'Unrestrict' : 'Restrict'}
                                         </button>
@@ -1741,7 +1791,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                    <td className="p-4 text-center">
                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
-                                            <button onClick={() => setLedgerModalData({ title: user.name, entries: user.ledger })} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">View Ledger</button>
+                                            <button onClick={() => setLedgerModalData({ accountId: user.id, accountType: 'USER', accountName: user.name })} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">View Ledger</button>
                                             <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                                 {user.isRestricted ? 'Unrestrict' : 'Restrict'}
                                             </button>
@@ -1767,7 +1817,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
               <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                 {Icons.minus} Withdraw Funds
               </button>
-               <button onClick={() => setLedgerModalData({ title: admin.name, entries: admin.ledger })} className="flex items-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+               <button onClick={() => setLedgerModalData({ accountId: admin.id, accountType: 'ADMIN', accountName: admin.name })} className="flex items-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
                 {Icons.eye} View Admin Ledger
               </button>
             </div>
@@ -1792,7 +1842,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                       </div></td>
                       <td className="p-4 text-slate-400">{dealer.area}</td>
                       <td className="p-4 font-mono text-white text-right">{dealer.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="p-4 text-center"><button onClick={() => setLedgerModalData({ title: dealer.name, entries: dealer.ledger })} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">View Ledger</button></td>
+                      <td className="p-4 text-center"><button onClick={() => setLedgerModalData({ accountId: dealer.id, accountType: 'DEALER', accountName: dealer.name })} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">View Ledger</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -1815,8 +1865,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </Modal>
 
       {ledgerModalData && (
-        <Modal isOpen={!!ledgerModalData} onClose={() => setLedgerModalData(null)} title={`Ledger for ${ledgerModalData.title}`} size="xl">
-            <StatefulLedgerTableWrapper entries={ledgerModalData.entries} />
+        <Modal isOpen={!!ledgerModalData} onClose={() => setLedgerModalData(null)} title={`Ledger for ${ledgerModalData.accountName}`} size="xl">
+            <ProfessionalLedgerView accountId={ledgerModalData.accountId} accountType={ledgerModalData.accountType} admin={admin} dealers={dealers} users={users} />
         </Modal>
       )}
 
