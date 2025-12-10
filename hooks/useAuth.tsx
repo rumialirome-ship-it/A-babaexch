@@ -25,8 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [role, setRole] = useState<Role | null>(null);
     const [account, setAccount] = useState<User | Dealer | Admin | null>(null);
     const [token, setToken] = useState<string | null>(localStorage.getItem('authToken'));
-    // Only show loading screen if a token needs verification. This fixes LCP delay on landing page.
-    const [loading, setLoading] = useState<boolean>(!!token);
+    const [loading, setLoading] = useState<boolean>(true);
 
     const logout = useCallback(() => {
         setRole(null);

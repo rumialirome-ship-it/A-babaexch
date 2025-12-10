@@ -1,15 +1,5 @@
 
 
-export enum LedgerEntryType {
-  InitialDeposit = 'INITIAL_DEPOSIT',
-  Deposit = 'DEPOSIT',
-  Withdrawal = 'WITHDRAWAL',
-  BetPlaced = 'BET_PLACED',
-  WinPayout = 'WIN_PAYOUT',
-  CommissionPayout = 'COMMISSION_PAYOUT',
-  DealerProfit = 'DEALER_PROFIT',
-  AdminAdjustment = 'ADMIN_ADJUSTMENT'
-}
 
 
 export enum Role {
@@ -31,7 +21,6 @@ export interface LedgerEntry {
   debit: number;
   credit: number;
   balance: number;
-  type: LedgerEntryType;
 }
 
 export interface BaseAccount {

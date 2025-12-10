@@ -315,7 +315,7 @@ const LandingPage: React.FC = () => {
     useEffect(() => {
         const fetchGames = async () => {
             try {
-                const response = await fetch(`/api/games?t=${new Date().getTime()}`);
+                const response = await fetch('/api/games');
                 const data = await response.json();
                 setGames(data);
             } catch (error) {
@@ -323,8 +323,6 @@ const LandingPage: React.FC = () => {
             }
         };
         fetchGames();
-        const intervalId = setInterval(fetchGames, 15000); // Poll every 15 seconds
-        return () => clearInterval(intervalId); // Cleanup on component unmount
     }, []);
 
     const handleGameClick = () => {

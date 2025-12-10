@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -55,12 +56,11 @@ app.post('/api/auth/login', (req, res) => {
 
     const { account, role } = database.findAccountForLogin(loginId);
     
-    // More robust check for password, ignoring whitespace and handling nulls.
-    if (!account || !account.password || account.password.trim() !== password.trim()) {
+    if (!account || account.password !== password) {
         return res.status(401).json({ message: 'Invalid credentials.' });
     }
     
-    // Fetch full account details, but WITHOUT the ledger for performance.
+    // Fetch full account details with ledger, etc.
     const fullAccount = database.findAccountById(account.id, role.toLowerCase() + 's');
     
     const token = jwt.sign({ id: account.id, role: role }, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -73,7 +73,6 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
     if (!account) {
         return res.status(404).json({ message: 'Account not found.' });
     }
-    // Do NOT attach the ledger here. It will be fetched on-demand by the ledger view.
     res.json({ account, role });
 });
 
@@ -109,8 +108,9 @@ app.get('/api/user/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.status(403).json({ message: 'Forbidden' });
     const user = database.findAccountById(req.user.id, 'users');
     const games = database.getAllFromTable('games');
+    const bets = database.getAllFromTable('bets').filter(b => b.userId === req.user.id);
     const daily_results = database.getAllFromTable('daily_results');
-    res.json({ games, user, daily_results });
+    res.json({ games, bets, user, daily_results });
 });
 
 app.post('/api/user/bets', authMiddleware, (req, res) => {
@@ -131,8 +131,9 @@ app.get('/api/dealer/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.status(403).json({ message: 'Forbidden' });
     const dealer = database.findAccountById(req.user.id, 'dealers');
     const users = database.findUsersByDealerId(req.user.id);
+    const bets = database.findBetsByDealerId(req.user.id);
     const daily_results = database.getAllFromTable('daily_results');
-    res.json({ dealer, users, daily_results });
+    res.json({ dealer, users, bets, daily_results });
 });
 
 app.post('/api/dealer/users', authMiddleware, (req, res) => {
@@ -174,8 +175,8 @@ app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
         if (!user) return res.status(404).json({ message: "User not found or does not belong to this dealer." });
         
         database.runInTransaction(() => {
-            database.addLedgerEntry(req.user.id, 'DEALER', `Top-Up for User: ${user.name}`, amount, 0, 'Withdrawal');
-            database.addLedgerEntry(userId, 'USER', `Top-Up from Dealer: ${database.findAccountById(req.user.id, 'dealers').name}`, 0, amount, 'Deposit');
+            database.addLedgerEntry(req.user.id, 'DEALER', `Top-Up for User: ${user.name}`, amount, 0);
+            database.addLedgerEntry(userId, 'USER', `Top-Up from Dealer: ${req.user.name}`, 0, amount);
         });
         res.json({ message: 'Top-up successful.' });
     } catch (error) {
@@ -191,8 +192,8 @@ app.post('/api/dealer/withdraw/user', authMiddleware, (req, res) => {
         if (!user) return res.status(404).json({ message: "User not found or does not belong to this dealer." });
 
         database.runInTransaction(() => {
-            database.addLedgerEntry(userId, 'USER', `Withdrawal by Dealer: ${database.findAccountById(req.user.id, 'dealers').name}`, amount, 0, 'Withdrawal');
-            database.addLedgerEntry(req.user.id, 'DEALER', `Withdrawal from User: ${user.name}`, 0, amount, 'Deposit');
+            database.addLedgerEntry(userId, 'USER', `Withdrawal by Dealer: ${req.user.name}`, amount, 0);
+            database.addLedgerEntry(req.user.id, 'DEALER', `Withdrawal from User: ${user.name}`, 0, amount);
         });
         res.json({ message: 'Withdrawal successful.' });
     } catch (error) {
@@ -216,85 +217,17 @@ app.post('/api/dealer/bets/bulk', authMiddleware, (req, res) => {
 });
 
 
-// --- SHARED USER/DEALER ROUTES ---
-app.get('/api/bet-history', authMiddleware, (req, res) => {
-    const { id, role } = req.user;
-    if (role !== 'USER' && role !== 'DEALER') {
-        return res.status(403).json({ message: 'Forbidden' });
-    }
-    try {
-        const options = {
-            accountId: id,
-            accountRole: role,
-            limit: parseInt(req.query.limit, 10) || 25,
-            offset: parseInt(req.query.offset, 10) || 0,
-            startDate: req.query.startDate,
-            endDate: req.query.endDate,
-            searchTerm: req.query.searchTerm,
-        };
-        const history = database.getBetHistory(options);
-        res.json(history);
-    } catch (error) {
-        console.error('Failed to get bet history:', error);
-        res.status(500).json({ message: 'Failed to retrieve bet history.' });
-    }
-});
-
-
 // --- ADMIN ROUTES ---
 app.get('/api/admin/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
     const admin = database.findAccountById(req.user.id, 'admins');
-    const dealers = database.getAllFromTable('dealers', false);
-    const users = database.getAllFromTable('users', false);
+    const dealers = database.getAllFromTable('dealers', true);
+    const users = database.getAllFromTable('users', true);
     const games = database.getAllFromTable('games');
+    const bets = database.getAllFromTable('bets');
     const daily_results = database.getAllFromTable('daily_results');
-    res.json({ admin, dealers, users, games, daily_results });
+    res.json({ admin, dealers, users, games, bets, daily_results });
 });
-
-app.get('/api/ledger/:accountType/:accountId', authMiddleware, (req, res) => {
-    const { accountType, accountId } = req.params;
-    const { role, id } = req.user;
-
-    // Security check
-    if (role === 'ADMIN') {
-        if (accountType !== 'dealer' && accountType !== 'admin') {
-            return res.status(403).json({ message: 'Admins can only view dealer or admin ledgers.' });
-        }
-    } else if (role === 'DEALER') {
-        if (accountType === 'user') {
-            const user = database.findUserByDealer(accountId, id);
-            if (!user) return res.status(404).json({ message: 'User not found or does not belong to this dealer.' });
-        } else if (accountType === 'dealer') {
-            if (accountId !== id) return res.status(403).json({ message: 'Dealers can only view their own ledger.' });
-        } else {
-            return res.status(403).json({ message: 'Forbidden account type.' });
-        }
-    } else if (role === 'USER') {
-        if(accountType !== 'user' || accountId !== id) {
-            return res.status(403).json({ message: 'Users can only view their own ledger.' });
-        }
-    } else {
-        return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    try {
-        const { page = 1, limit = 25, startDate, endDate, searchQuery } = req.query;
-        const result = database.getLedgerForAccountPaginated({
-            accountId,
-            page: parseInt(page, 10),
-            limit: parseInt(limit, 10),
-            startDate,
-            endDate,
-            searchQuery,
-        });
-        res.json(result);
-    } catch (error) {
-        console.error(`Failed to fetch ledger for ${accountType} ${accountId}:`, error);
-        res.status(500).json({ message: 'Failed to retrieve ledger.' });
-    }
-});
-
 
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
@@ -322,8 +255,8 @@ app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
     try {
         const dealer = database.findAccountById(dealerId, 'dealers');
         database.runInTransaction(() => {
-            database.addLedgerEntry(req.user.id, 'ADMIN', `Top-Up for Dealer: ${dealer.name}`, amount, 0, 'Withdrawal');
-            database.addLedgerEntry(dealerId, 'DEALER', 'Top-Up from Admin', 0, amount, 'Deposit');
+            database.addLedgerEntry(req.user.id, 'ADMIN', `Top-Up for Dealer: ${dealer.name}`, amount, 0);
+            database.addLedgerEntry(dealerId, 'DEALER', 'Top-Up from Admin', 0, amount);
         });
         res.json({ message: 'Top-up successful.' });
     } catch (error) {
@@ -337,8 +270,8 @@ app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
     try {
         const dealer = database.findAccountById(dealerId, 'dealers');
         database.runInTransaction(() => {
-            database.addLedgerEntry(dealerId, 'DEALER', 'Withdrawal by Admin', amount, 0, 'Withdrawal');
-            database.addLedgerEntry(req.user.id, 'ADMIN', `Withdrawal from Dealer: ${dealer.name}`, 0, amount, 'Deposit');
+            database.addLedgerEntry(dealerId, 'DEALER', 'Withdrawal by Admin', amount, 0);
+            database.addLedgerEntry(req.user.id, 'ADMIN', `Withdrawal from Dealer: ${dealer.name}`, 0, amount);
         });
         res.json({ message: 'Withdrawal successful.' });
     } catch (error) {

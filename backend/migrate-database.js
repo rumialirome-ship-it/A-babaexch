@@ -91,54 +91,9 @@ function runMigration() {
         // --- Table: ledgers ---
         if (!tableExists('ledgers')) {
             db.exec(`CREATE TABLE ledgers (
-                id TEXT PRIMARY KEY, accountId TEXT NOT NULL, accountType TEXT NOT NULL, timestamp TEXT NOT NULL, description TEXT NOT NULL, debit REAL NOT NULL, credit REAL NOT NULL, balance REAL NOT NULL, type TEXT
+                id TEXT PRIMARY KEY, accountId TEXT NOT NULL, accountType TEXT NOT NULL, timestamp TEXT NOT NULL, description TEXT NOT NULL, debit REAL NOT NULL, credit REAL NOT NULL, balance REAL NOT NULL
             );`);
             console.log('✅ Created table: ledgers');
-        } else {
-            if (!columnExists('ledgers', 'type')) {
-                db.exec('ALTER TABLE ledgers ADD COLUMN type TEXT;');
-                console.log('✅ Added column "type" to "ledgers" table.');
-
-                // Retroactively classify old entries
-                console.log('Attempting to classify existing ledger entries...');
-                const entries = db.prepare('SELECT id, description, credit, debit FROM ledgers WHERE type IS NULL').all();
-                const updateStmt = db.prepare('UPDATE ledgers SET type = ? WHERE id = ?');
-                let updatedCount = 0;
-                
-                for (const entry of entries) {
-                    const desc = entry.description.toLowerCase();
-                    let type = null;
-
-                    if (desc.includes('reprocessed')) {
-                         if (entry.credit > 0) type = 'WinPayout';
-                         else type = 'Withdrawal';
-                    }
-                    else if (entry.credit > 0) {
-                        if (desc.includes('initial')) type = 'InitialDeposit';
-                        else if (desc.includes('top-up from')) type = 'Deposit';
-                        else if (desc.includes('withdrawal from user')) type = 'Deposit';
-                        else if (desc.includes('prize')) type = 'WinPayout';
-                        else if (desc.includes('commission')) type = 'CommissionPayout';
-                        else if (desc.includes('profit from winner')) type = 'DealerProfit';
-                        else if (desc.includes('manual system deposit')) type = 'AdminAdjustment';
-                        else if (desc.includes('user bet:')) type = 'Deposit';
-                        else type = 'Deposit'; 
-                    } 
-                    else if (entry.debit > 0) {
-                        if (desc.includes('bet placed')) type = 'BetPlaced';
-                        else if (desc.includes('top-up for user')) type = 'Withdrawal';
-                        else if (desc.includes('withdrawal by admin')) type = 'Withdrawal';
-                        else if (desc.includes('payout to')) type = 'Withdrawal';
-                        else type = 'Withdrawal';
-                    }
-
-                    if (type) {
-                        updateStmt.run(type, entry.id);
-                        updatedCount++;
-                    }
-                }
-                console.log(`✅ Classified ${updatedCount} of ${entries.length} existing ledger entries.`);
-            }
         }
 
         // --- Table: number_limits ---

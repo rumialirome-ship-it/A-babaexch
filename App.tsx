@@ -1,15 +1,13 @@
 
 
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
+import LandingPage from './components/LandingPage';
+import AdminPanel from './components/AdminPanel';
+import DealerPanel from './components/DealerPanel';
+import UserPanel from './components/UserPanel';
 import { AuthProvider, useAuth } from './hooks/useAuth';
-
-// Lazy load components for code splitting
-const LandingPage = lazy(() => import('./components/LandingPage'));
-const AdminPanel = lazy(() => import('./components/AdminPanel'));
-const DealerPanel = lazy(() => import('./components/DealerPanel'));
-const UserPanel = lazy(() => import('./components/UserPanel'));
 
 const Header: React.FC = () => {
     const { role, account, logout } = useAuth();
@@ -59,6 +57,7 @@ const AppContent: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
+    const [bets, setBets] = useState<Bet[]>([]);
     const [dailyResults, setDailyResults] = useState<DailyResult[]>([]);
 
     const parseAllDates = (data: any) => {
@@ -81,6 +80,7 @@ const AppContent: React.FC = () => {
                 setUsers(parsedData.users);
                 setDealers(parsedData.dealers);
                 setGames(parsedData.games);
+                setBets(parsedData.bets);
                 setDailyResults(parsedData.daily_results || []);
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
@@ -88,6 +88,7 @@ const AppContent: React.FC = () => {
                 data = await response.json();
                 const parsedData = parseAllDates(data);
                 setUsers(parsedData.users);
+                setBets(parsedData.bets);
                 setDailyResults(parsedData.daily_results || []);
                 const gamesResponse = await fetchWithAuth('/api/games');
                 const gamesData = await gamesResponse.json();
@@ -98,6 +99,7 @@ const AppContent: React.FC = () => {
                 data = await response.json();
                 const parsedData = parseAllDates(data);
                 setGames(parsedData.games);
+                setBets(parsedData.bets);
                 setDailyResults(parsedData.daily_results || []);
             }
         } catch (error) {
@@ -124,6 +126,7 @@ const AppContent: React.FC = () => {
             setUsers([]);
             setDealers([]);
             setGames([]);
+            setBets([]);
             setDailyResults([]);
         }
     
@@ -203,6 +206,7 @@ const AppContent: React.FC = () => {
     const onSaveDealer = useCallback(async (dealerData: Dealer, originalId?: string) => {
         let response;
         if (originalId) {
+            // FIX: The body was passing the JSON.stringify function itself, not the result of calling it.
             response = await fetchWithAuth(`/api/admin/dealers/${originalId}`, { method: 'PUT', body: JSON.stringify(dealerData) });
         } else {
             response = await fetchWithAuth('/api/admin/dealers', { method: 'POST', body: JSON.stringify(dealerData) });
@@ -298,70 +302,65 @@ const AppContent: React.FC = () => {
         await fetchData();
     }, [fetchWithAuth, fetchData]);
 
-    return (
-        <Suspense fallback={
+    if (loading) {
+        return (
             <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-                <div className="text-cyan-400 text-xl">Loading Interface...</div>
+                <div className="text-cyan-400 text-xl">Loading Session...</div>
             </div>
-        }>
-            {(() => {
-                if (loading) {
-                    return (
-                        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-                            <div className="text-cyan-400 text-xl">Loading Session...</div>
-                        </div>
-                    );
-                }
+        );
+    }
 
-                if (!role || !account) {
-                    return <LandingPage />;
-                }
+    if (!role || !account) {
+        return <LandingPage />;
+    }
 
-                switch (role) {
-                    case Role.Admin:
-                        return <AdminPanel
-                            admin={account as Admin}
-                            dealers={dealers}
-                            onSaveDealer={onSaveDealer}
-                            users={users}
-                            setUsers={setUsers}
-                            games={games}
-                            dailyResults={dailyResults}
-                            declareWinner={declareWinner}
-                            updateWinner={updateWinner}
-                            approvePayouts={approvePayouts}
-                            topUpDealerWallet={topUpDealerWallet}
-                            withdrawFromDealerWallet={withdrawFromDealerWallet}
-                            toggleAccountRestriction={toggleAccountRestriction}
-                            onPlaceAdminBets={onPlaceAdminBets}
-                            updateGameDrawTime={updateGameDrawTime}
-                            fetchData={fetchData}
-                        />;
-                    case Role.Dealer:
-                        return <DealerPanel
-                            dealer={account as Dealer}
-                            users={users}
-                            onSaveUser={onSaveUser}
-                            topUpUserWallet={topUpUserWallet}
-                            withdrawFromUserWallet={withdrawFromUserWallet}
-                            toggleAccountRestriction={toggleAccountRestriction}
-                            games={games}
-                            dailyResults={dailyResults}
-                            placeBetAsDealer={placeBetAsDealer}
-                        />;
-                    case Role.User:
-                        return <UserPanel
-                            user={account as User}
-                            games={games}
-                            dailyResults={dailyResults}
-                            placeBet={placeBet}
-                        />;
-                    default:
-                        return <div>Error: Unknown user role.</div>;
-                }
-            })()}
-        </Suspense>
-    );
+    switch (role) {
+        case Role.Admin:
+            return <AdminPanel
+                admin={account as Admin}
+                dealers={dealers}
+                onSaveDealer={onSaveDealer}
+                users={users}
+                setUsers={setUsers}
+                games={games}
+                dailyResults={dailyResults}
+                declareWinner={declareWinner}
+                updateWinner={updateWinner}
+                approvePayouts={approvePayouts}
+                topUpDealerWallet={topUpDealerWallet}
+                withdrawFromDealerWallet={withdrawFromDealerWallet}
+                toggleAccountRestriction={toggleAccountRestriction}
+                onPlaceAdminBets={onPlaceAdminBets}
+                updateGameDrawTime={updateGameDrawTime}
+                fetchData={fetchData}
+            />;
+        case Role.Dealer:
+            const dealerUsers = users.filter(u => u.dealerId === account.id);
+            const dealerBets = bets.filter(b => b.dealerId === account.id);
+            return <DealerPanel
+                dealer={account as Dealer}
+                users={dealerUsers}
+                onSaveUser={onSaveUser}
+                topUpUserWallet={topUpUserWallet}
+                withdrawFromUserWallet={withdrawFromUserWallet}
+                toggleAccountRestriction={toggleAccountRestriction}
+                bets={dealerBets}
+                games={games}
+                dailyResults={dailyResults}
+                placeBetAsDealer={placeBetAsDealer}
+            />;
+        case Role.User:
+            const userBets = bets.filter(b => b.userId === account.id);
+            return <UserPanel
+                user={account as User}
+                games={games}
+                bets={userBets}
+                dailyResults={dailyResults}
+                placeBet={placeBet}
+            />;
+        default:
+            return <div>Error: Unknown user role.</div>;
+    }
 };
 
 function App() {
