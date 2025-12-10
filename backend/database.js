@@ -1,3 +1,4 @@
+
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -119,12 +120,12 @@ const findAccountById = (id, table) => {
 
     try {
         // Attach ledger for non-game tables
-        if (table === 'games') {
+        if (table !== 'games' && table !== 'daily_results') {
+            const ledgerStmt = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC');
+            account.ledger = ledgerStmt.all(id);
+        } else if (table === 'games') {
             // Dynamically determine if the game market is open based on time.
             account.isMarketOpen = isGameOpen(account.drawTime);
-        } else {
-            // FIX: Attach ledger to account object. The frontend expects this data.
-            account.ledger = getLedgerForAccount(id);
         }
 
         // Parse JSON fields safely
@@ -184,13 +185,12 @@ const getLedgerForAccount = (accountId) => {
     return db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC').all(accountId);
 };
 
-const getAllFromTable = (table) => {
+const getAllFromTable = (table, withLedger = false) => {
     let accounts = db.prepare(`SELECT * FROM ${table}`).all();
     if (table === 'daily_results') return accounts;
     return accounts.map(acc => {
         try {
-            // FIX: Attach ledger to account objects. The frontend expects this data.
-            if (['admins', 'dealers', 'users'].includes(table)) {
+            if (withLedger && acc.id) {
                 acc.ledger = getLedgerForAccount(acc.id);
             }
             if (table === 'games' && acc.drawTime) {
@@ -1173,8 +1173,8 @@ const reprocessPayoutsForMarketDay = (gameId, date) => {
             return;
         }
         
-        const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
-        const allDealers = Object.fromEntries(getAllFromTable('dealers').map(d => [d.id, d]));
+        const allUsers = Object.fromEntries(getAllFromTable('users', true).map(u => [u.id, u]));
+        const allDealers = Object.fromEntries(getAllFromTable('dealers', true).map(d => [d.id, d]));
         const admin = findAccountById('Guru', 'admins');
 
         let totalPayout = 0;

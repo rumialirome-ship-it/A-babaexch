@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
@@ -66,7 +65,16 @@ const AppContent: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
+    const [bets, setBets] = useState<Bet[]>([]);
     const [dailyResults, setDailyResults] = useState<DailyResult[]>([]);
+
+    const parseAllDates = (data: any) => {
+        const parseLedger = (ledger: LedgerEntry[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
+        if (data.users) data.users = data.users.map((u: User) => ({...u, ledger: parseLedger(u.ledger)}));
+        if (data.dealers) data.dealers = data.dealers.map((d: Dealer) => ({...d, ledger: parseLedger(d.ledger)}));
+        if (data.bets) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
+        return data;
+    };
 
     const fetchData = useCallback(async () => {
         if (!role || !account) return;
@@ -76,16 +84,20 @@ const AppContent: React.FC = () => {
                 const response = await fetchWithAuth('/api/admin/data');
                 if (!response.ok) throw new Error('Failed to fetch admin data');
                 data = await response.json();
-                setUsers(data.users);
-                setDealers(data.dealers);
-                setGames(data.games);
-                setDailyResults(data.daily_results || []);
+                const parsedData = parseAllDates(data);
+                setUsers(parsedData.users);
+                setDealers(parsedData.dealers);
+                setGames(parsedData.games);
+                setBets(parsedData.bets);
+                setDailyResults(parsedData.daily_results || []);
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
                 if (!response.ok) throw new Error('Failed to fetch dealer data');
                 data = await response.json();
-                setUsers(data.users);
-                setDailyResults(data.daily_results || []);
+                const parsedData = parseAllDates(data);
+                setUsers(parsedData.users);
+                setBets(parsedData.bets);
+                setDailyResults(parsedData.daily_results || []);
                 const gamesResponse = await fetchWithAuth('/api/games');
                 const gamesData = await gamesResponse.json();
                 setGames(gamesData);
@@ -93,8 +105,10 @@ const AppContent: React.FC = () => {
                 const response = await fetchWithAuth('/api/user/data');
                 if (!response.ok) throw new Error('Failed to fetch user data');
                 data = await response.json();
-                setGames(data.games);
-                setDailyResults(data.daily_results || []);
+                const parsedData = parseAllDates(data);
+                setGames(parsedData.games);
+                setBets(parsedData.bets);
+                setDailyResults(parsedData.daily_results || []);
             }
         } catch (error) {
             console.error("Failed to fetch data:", error);
@@ -120,6 +134,7 @@ const AppContent: React.FC = () => {
             setUsers([]);
             setDealers([]);
             setGames([]);
+            setBets([]);
             setDailyResults([]);
         }
     
@@ -199,6 +214,7 @@ const AppContent: React.FC = () => {
     const onSaveDealer = useCallback(async (dealerData: Dealer, originalId?: string) => {
         let response;
         if (originalId) {
+            // FIX: The body was passing the JSON.stringify function itself, not the result of calling it.
             response = await fetchWithAuth(`/api/admin/dealers/${originalId}`, { method: 'PUT', body: JSON.stringify(dealerData) });
         } else {
             response = await fetchWithAuth('/api/admin/dealers', { method: 'POST', body: JSON.stringify(dealerData) });
@@ -329,6 +345,7 @@ const AppContent: React.FC = () => {
                 />;
             case Role.Dealer:
                 const dealerUsers = users.filter(u => u.dealerId === account.id);
+                const dealerBets = bets.filter(b => b.dealerId === account.id);
                 return <DealerPanel
                     dealer={account as Dealer}
                     users={dealerUsers}
@@ -336,14 +353,17 @@ const AppContent: React.FC = () => {
                     topUpUserWallet={topUpUserWallet}
                     withdrawFromUserWallet={withdrawFromUserWallet}
                     toggleAccountRestriction={toggleAccountRestriction}
+                    bets={dealerBets}
                     games={games}
                     dailyResults={dailyResults}
                     placeBetAsDealer={placeBetAsDealer}
                 />;
             case Role.User:
+                const userBets = bets.filter(b => b.userId === account.id);
                 return <UserPanel
                     user={account as User}
                     games={games}
+                    bets={userBets}
                     dailyResults={dailyResults}
                     placeBet={placeBet}
                 />;

@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -107,8 +108,9 @@ app.get('/api/user/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.status(403).json({ message: 'Forbidden' });
     const user = database.findAccountById(req.user.id, 'users');
     const games = database.getAllFromTable('games');
+    const bets = database.getAllFromTable('bets').filter(b => b.userId === req.user.id);
     const daily_results = database.getAllFromTable('daily_results');
-    res.json({ games, user, daily_results });
+    res.json({ games, bets, user, daily_results });
 });
 
 app.post('/api/user/bets', authMiddleware, (req, res) => {
@@ -129,8 +131,9 @@ app.get('/api/dealer/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.status(403).json({ message: 'Forbidden' });
     const dealer = database.findAccountById(req.user.id, 'dealers');
     const users = database.findUsersByDealerId(req.user.id);
+    const bets = database.findBetsByDealerId(req.user.id);
     const daily_results = database.getAllFromTable('daily_results');
-    res.json({ dealer, users, daily_results });
+    res.json({ dealer, users, bets, daily_results });
 });
 
 app.post('/api/dealer/users', authMiddleware, (req, res) => {
@@ -218,11 +221,12 @@ app.post('/api/dealer/bets/bulk', authMiddleware, (req, res) => {
 app.get('/api/admin/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
     const admin = database.findAccountById(req.user.id, 'admins');
-    const dealers = database.getAllFromTable('dealers');
-    const users = database.getAllFromTable('users');
+    const dealers = database.getAllFromTable('dealers', true);
+    const users = database.getAllFromTable('users', true);
     const games = database.getAllFromTable('games');
+    const bets = database.getAllFromTable('bets');
     const daily_results = database.getAllFromTable('daily_results');
-    res.json({ admin, dealers, users, games, daily_results });
+    res.json({ admin, dealers, users, games, bets, daily_results });
 });
 
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {

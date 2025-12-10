@@ -110,6 +110,7 @@ const ProfessionalLedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries 
 interface UserPanelProps {
   user: User;
   games: Game[];
+  bets: Bet[];
   dailyResults: DailyResult[];
   placeBet: (details: {
     userId: string;
@@ -118,7 +119,7 @@ interface UserPanelProps {
   }) => Promise<void>;
 }
 
-const UserPanel: React.FC<UserPanelProps> = ({ user, games, placeBet, dailyResults }) => {
+const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet, dailyResults }) => {
     // This is a minimal reconstruction to fix the build error.
     // A full implementation of "Play Games" and "Bet History" would be needed.
     const [activeTab, setActiveTab] = useState('games');

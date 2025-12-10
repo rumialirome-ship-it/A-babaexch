@@ -1,22 +1,11 @@
 
 
+
+
 export enum Role {
   Admin = 'ADMIN',
   Dealer = 'DEALER',
   User = 'USER',
-}
-
-export enum LedgerEntryType {
-    INITIAL_BALANCE = 'INITIAL_BALANCE',
-    DEPOSIT_ADMIN = 'DEPOSIT_ADMIN',
-    WITHDRAWAL_ADMIN = 'WITHDRAWAL_ADMIN',
-    DEPOSIT_DEALER = 'DEPOSIT_DEALER',
-    WITHDRAWAL_DEALER = 'WITHDRAWAL_DEALER',
-    BET_PLACED = 'BET_PLACED',
-    BET_WIN = 'BET_WIN',
-    COMMISSION_EARNED = 'COMMISSION_EARNED',
-    DEALER_PROFIT = 'DEALER_PROFIT',
-    MANUAL_ADJUSTMENT = 'MANUAL_ADJUSTMENT',
 }
 
 export interface PrizeRates {
@@ -32,7 +21,6 @@ export interface LedgerEntry {
   debit: number;
   credit: number;
   balance: number;
-  type: LedgerEntryType;
 }
 
 export interface BaseAccount {
@@ -44,8 +32,7 @@ export interface BaseAccount {
   wallet: number;
   commissionRate: number;
   isRestricted: boolean;
-  // FIX: The ledger property is expected by various components.
-  ledger: LedgerEntry[]; 
+  ledger: LedgerEntry[];
   avatarUrl?: string;
 }
 
@@ -71,7 +58,6 @@ export interface Admin {
   wallet: number; // Represents system earnings
   prizeRates: PrizeRates; // System-wide base rates
   avatarUrl?: string;
-  // FIX: The ledger property is expected by various components.
   ledger: LedgerEntry[];
 }
 
