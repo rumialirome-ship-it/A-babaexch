@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
@@ -65,7 +66,6 @@ const AppContent: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
-    const [bets, setBets] = useState<Bet[]>([]);
     const [dailyResults, setDailyResults] = useState<DailyResult[]>([]);
 
     const fetchData = useCallback(async () => {
@@ -94,7 +94,6 @@ const AppContent: React.FC = () => {
                 if (!response.ok) throw new Error('Failed to fetch user data');
                 data = await response.json();
                 setGames(data.games);
-                setBets(data.bets || []);
                 setDailyResults(data.daily_results || []);
             }
         } catch (error) {
@@ -121,7 +120,6 @@ const AppContent: React.FC = () => {
             setUsers([]);
             setDealers([]);
             setGames([]);
-            setBets([]);
             setDailyResults([]);
         }
     
@@ -346,7 +344,6 @@ const AppContent: React.FC = () => {
                 return <UserPanel
                     user={account as User}
                     games={games}
-                    bets={bets}
                     dailyResults={dailyResults}
                     placeBet={placeBet}
                 />;
