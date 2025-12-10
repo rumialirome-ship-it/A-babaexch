@@ -1,8 +1,4 @@
 
-
-
-
-
 import React, { useState, useMemo } from 'react';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType, DailyResult } from '../types';
 import { Icons } from '../constants';
@@ -287,38 +283,33 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
     );
 };
 
-const UserTransactionForm: React.FC<{ 
-    users: User[]; 
+const SingleUserTransactionForm: React.FC<{ 
+    user: User; 
     onTransaction: (userId: string, amount: number) => Promise<void>; 
     onCancel: () => void;
     type: 'Top-Up' | 'Withdrawal';
-}> = ({ users, onTransaction, onCancel, type }) => {
-    const [selectedUserId, setSelectedUserId] = useState<string>('');
+}> = ({ user, onTransaction, onCancel, type }) => {
     const [amount, setAmount] = useState<number | ''>('');
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
-
-    const selectedUser = useMemo(() => {
-        return users.find(u => u.id === selectedUserId);
-    }, [users, selectedUserId]);
 
     const inputClass = `w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-${themeColor}-500 focus:outline-none text-white`;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        if (!selectedUserId || !amount || amount <= 0) {
-            setError(`Please select a user and enter a valid positive amount.`);
+        if (!amount || amount <= 0) {
+            setError(`Please enter a valid positive amount.`);
             return;
         }
-        const userName = users.find(u => u.id === selectedUserId)?.name || 'the selected user';
+        
         const confirmationAction = type === 'Top-Up' ? 'to' : 'from';
-        if (window.confirm(`Are you sure you want to ${type.toLowerCase()} PKR ${amount} ${confirmationAction} ${userName}'s wallet?`)) {
+        if (window.confirm(`Are you sure you want to ${type.toLowerCase()} PKR ${amount} ${confirmationAction} ${user.name}'s wallet?`)) {
             setIsLoading(true);
             try {
-                await onTransaction(selectedUserId, Number(amount));
-                onCancel(); // Close modal on success
+                await onTransaction(user.id, Number(amount));
+                onCancel();
             } catch (err: any) {
                 setError(err.message || 'An unknown error occurred.');
             } finally {
@@ -330,20 +321,14 @@ const UserTransactionForm: React.FC<{
     return (
         <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
             <div>
-                <label htmlFor="user-select" className="block text-sm font-medium text-slate-400 mb-1">Select User</label>
-                <select id="user-select" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className={inputClass} required >
-                    <option value="" disabled>-- Choose a user --</option>
-                    {users.map(user => <option key={user.id} value={user.id}>{user.name} ({user.id})</option>)}
-                </select>
-                {selectedUser && (
-                    <p className="text-xs text-slate-400 mt-2">
-                        Current Balance: <span className="font-mono font-semibold text-white">{selectedUser.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PKR</span>
-                    </p>
-                )}
+                <p className="text-sm text-slate-400 mb-2">
+                    Current Balance for <span className="font-semibold text-white">{user.name}</span>: 
+                    <span className="font-mono font-semibold text-white ml-2">{user.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PKR</span>
+                </p>
             </div>
             <div>
                 <label htmlFor="amount-input" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
-                <input id="amount-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 1000" className={inputClass} min="1" required />
+                <input id="amount-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 1000" className={inputClass} min="1" required autoFocus />
             </div>
              {error && (
                 <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mt-2" role="alert">
@@ -359,6 +344,7 @@ const UserTransactionForm: React.FC<{
         </form>
     );
 };
+
 
 const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[], dailyResults: DailyResult[] }> = ({ bets, games, users, dailyResults }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
@@ -917,8 +903,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
   const [activeTab, setActiveTab] = useState('users');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
-  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
-  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+  const [transactionState, setTransactionState] = useState<{ user: User; type: 'Top-Up' | 'Withdrawal' } | null>(null);
   const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -997,11 +982,13 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
                                 </div></td>
                                 <td className="p-4 font-mono text-white">{user.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
-                                <td className="p-4 text-center">
-                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
-                                        <button onClick={() => { setSelectedUser(user); setIsUserModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
-                                        <button onClick={() => setViewingUserLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
-                                        <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                <td className="p-4">
+                                    <div className="flex flex-wrap items-center justify-center gap-2">
+                                        <button onClick={() => setTransactionState({ user, type: 'Top-Up' })} className="flex-1 min-w-[80px] bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Top-up</button>
+                                        <button onClick={() => setTransactionState({ user, type: 'Withdrawal' })} className="flex-1 min-w-[80px] bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Withdraw</button>
+                                        <button onClick={() => { setSelectedUser(user); setIsUserModalOpen(true); }} className="flex-1 min-w-[80px] bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
+                                        <button onClick={() => setViewingUserLedgerFor(user)} className="flex-1 min-w-[80px] bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
+                                        <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`flex-1 min-w-[80px] font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                             {user.isRestricted ? 'Unrestrict' : 'Restrict'}
                                         </button>
                                     </div>
@@ -1012,28 +999,27 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
                 </table>
             </div>
           </div>
-          <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
-            <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
-                {Icons.plus} Top-Up User Wallet
-            </button>
-            <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center justify-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
-                {Icons.minus} Withdraw From User
-            </button>
-          </div>
-        </div>
       )}
 
       <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Edit User" : "Create User"}>
           <UserForm user={selectedUser} users={users} onSave={handleSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerId={dealer.id} />
       </Modal>
 
-      <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up User Wallet" themeColor="emerald">
-          <UserTransactionForm type="Top-Up" users={dealerUsers} onTransaction={(userId, amount) => topUpUserWallet(userId, amount)} onCancel={() => setIsTopUpModalOpen(false)} />
-      </Modal>
-
-      <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Withdraw from User Wallet" themeColor="amber">
-          <UserTransactionForm type="Withdrawal" users={dealerUsers} onTransaction={(userId, amount) => withdrawFromUserWallet(userId, amount)} onCancel={() => setIsWithdrawalModalOpen(false)} />
-      </Modal>
+      {transactionState && (
+        <Modal 
+          isOpen={!!transactionState} 
+          onClose={() => setTransactionState(null)} 
+          title={`${transactionState.type} Wallet for ${transactionState.user.name}`}
+          themeColor={transactionState.type === 'Top-Up' ? 'emerald' : 'amber'}
+        >
+          <SingleUserTransactionForm
+            user={transactionState.user}
+            type={transactionState.type}
+            onTransaction={transactionState.type === 'Top-Up' ? topUpUserWallet : withdrawFromUserWallet}
+            onCancel={() => setTransactionState(null)}
+          />
+        </Modal>
+      )}
 
       {viewingUserLedgerFor && (
         <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger for ${viewingUserLedgerFor.name}`} size="xl">
