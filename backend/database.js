@@ -122,6 +122,9 @@ const findAccountById = (id, table) => {
         if (table === 'games') {
             // Dynamically determine if the game market is open based on time.
             account.isMarketOpen = isGameOpen(account.drawTime);
+        } else {
+            // FIX: Attach ledger to account object. The frontend expects this data.
+            account.ledger = getLedgerForAccount(id);
         }
 
         // Parse JSON fields safely
@@ -186,6 +189,10 @@ const getAllFromTable = (table) => {
     if (table === 'daily_results') return accounts;
     return accounts.map(acc => {
         try {
+            // FIX: Attach ledger to account objects. The frontend expects this data.
+            if (['admins', 'dealers', 'users'].includes(table)) {
+                acc.ledger = getLedgerForAccount(acc.id);
+            }
             if (table === 'games' && acc.drawTime) {
                 acc.isMarketOpen = isGameOpen(acc.drawTime);
             }
