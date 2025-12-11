@@ -235,20 +235,23 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
     );
 };
 
-const DealerTransactionForm: React.FC<{ 
-    dealers: Dealer[]; 
-    onTransaction: (dealerId: string, amount: number) => void; 
+const DealerTransactionForm: React.FC<{
+    dealers: Dealer[];
+    onTransaction: (dealerId: string, amount: number) => Promise<void>;
     onCancel: () => void;
     type: 'Top-Up' | 'Withdrawal';
 }> = ({ dealers, onTransaction, onCancel, type }) => {
     const [selectedDealerId, setSelectedDealerId] = useState<string>('');
     const [amount, setAmount] = useState<number | ''>('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
-    
+
     const inputClass = `w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-${themeColor}-500 focus:outline-none text-white`;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
         if (!selectedDealerId || !amount || amount <= 0) {
             alert(`Please select a dealer and enter a valid positive amount.`);
             return;
@@ -256,7 +259,15 @@ const DealerTransactionForm: React.FC<{
         const dealerName = dealers.find(d => d.id === selectedDealerId)?.name || 'the selected dealer';
         const confirmationAction = type === 'Top-Up' ? 'to' : 'from';
         if (window.confirm(`Are you sure you want to ${type.toLowerCase()} PKR ${amount} ${confirmationAction} ${dealerName}'s wallet?`)) {
-            onTransaction(selectedDealerId, Number(amount));
+            setIsLoading(true);
+            try {
+                await onTransaction(selectedDealerId, Number(amount));
+                // On success, the parent component will handle closing the modal and showing a notification.
+            } catch (err: any) {
+                setError(err.message || `An unknown error occurred during the ${type.toLowerCase()}.`);
+            } finally {
+                setIsLoading(false);
+            }
         }
     };
 
@@ -273,10 +284,15 @@ const DealerTransactionForm: React.FC<{
                 <label htmlFor="amount-input" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
                 <input id="amount-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 5000" className={inputClass} min="1" required />
             </div>
+            {error && (
+                <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mt-2" role="alert">
+                    {error}
+                </div>
+            )}
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                <button type="submit" className={`font-bold py-2 px-4 rounded-md transition-colors text-white ${type === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
-                    {type}
+                <button type="submit" disabled={isLoading} className={`font-bold py-2 px-4 rounded-md transition-colors text-white disabled:bg-slate-600 disabled:cursor-wait ${type === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
+                    {isLoading ? 'Processing...' : type}
                 </button>
             </div>
         </form>
@@ -1148,8 +1164,8 @@ interface AdminPanelProps {
   declareWinner: (gameId: string, winningNumber: string) => void;
   updateWinner: (gameId: string, newWinningNumber: string) => void;
   approvePayouts: (gameId: string) => void;
-  topUpDealerWallet: (dealerId: string, amount: number) => void;
-  withdrawFromDealerWallet: (dealerId: string, amount: number) => void;
+  topUpDealerWallet: (dealerId: string, amount: number) => Promise<void>;
+  withdrawFromDealerWallet: (dealerId: string, amount: number) => Promise<void>;
   toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
   onPlaceAdminBets: (details: {
     userId: string;
@@ -1174,6 +1190,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
   const { fetchWithAuth } = useAuth();
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (notification) {
+        const timer = setTimeout(() => {
+            setNotification(null);
+        }, 5000);
+        return () => clearTimeout(timer);
+    }
+  }, [notification]);
   
   const [reprocessState, setReprocessState] = useState({
       gameId: '',
@@ -1412,6 +1438,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+      {notification && (
+          <div className={`fixed top-24 right-4 md:right-8 p-4 rounded-lg shadow-2xl z-[100] border-2 animate-fade-in-down ${notification.type === 'success' ? 'bg-green-600/90 border-green-500' : 'bg-red-600/90 border-red-500'} text-white flex items-center gap-4`}>
+              <span>{notification.message}</span>
+              <button onClick={() => setNotification(null)} className="text-white hover:text-slate-200 font-bold text-lg leading-none">&times;</button>
+          </div>
+      )}
       <h2 className="text-3xl font-bold text-red-400 mb-6 uppercase tracking-widest">Admin Console</h2>
       <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
         {tabs.map(tab => (
@@ -1807,11 +1839,39 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </Modal>
 
       <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up Dealer Wallet" themeColor="emerald">
-          <DealerTransactionForm type="Top-Up" dealers={dealers} onTransaction={(dealerId, amount) => { topUpDealerWallet(dealerId, amount); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
+          <DealerTransactionForm 
+            type="Top-Up" 
+            dealers={dealers} 
+            onTransaction={async (dealerId, amount) => {
+              try {
+                await topUpDealerWallet(dealerId, amount); 
+                setIsTopUpModalOpen(false); 
+                const dealerName = dealers.find(d => d.id === dealerId)?.name || 'dealer';
+                setNotification({ type: 'success', message: `Topped up ${dealerName}'s wallet with PKR ${amount.toLocaleString()}.` });
+              } catch (error) {
+                throw error;
+              }
+            }} 
+            onCancel={() => setIsTopUpModalOpen(false)} 
+          />
       </Modal>
 
       <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Withdraw from Dealer Wallet" themeColor="amber">
-          <DealerTransactionForm type="Withdrawal" dealers={dealers} onTransaction={(dealerId, amount) => { withdrawFromDealerWallet(dealerId, amount); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
+          <DealerTransactionForm 
+            type="Withdrawal" 
+            dealers={dealers} 
+            onTransaction={async (dealerId, amount) => {
+              try {
+                await withdrawFromDealerWallet(dealerId, amount); 
+                setIsWithdrawalModalOpen(false);
+                const dealerName = dealers.find(d => d.id === dealerId)?.name || 'dealer';
+                setNotification({ type: 'success', message: `Withdrew PKR ${amount.toLocaleString()} from ${dealerName}.` });
+              } catch (error) {
+                throw error;
+              }
+            }} 
+            onCancel={() => setIsWithdrawalModalOpen(false)} 
+          />
       </Modal>
 
       {ledgerModalData && (
