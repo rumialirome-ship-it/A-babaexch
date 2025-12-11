@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -221,13 +220,44 @@ app.post('/api/dealer/bets/bulk', authMiddleware, (req, res) => {
 app.get('/api/admin/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
     const admin = database.findAccountById(req.user.id, 'admins');
-    const dealers = database.getAllFromTable('dealers', true);
-    const users = database.getAllFromTable('users', true);
     const games = database.getAllFromTable('games');
     const bets = database.getAllFromTable('bets');
     const daily_results = database.getAllFromTable('daily_results');
-    res.json({ admin, dealers, users, games, bets, daily_results });
+    res.json({ admin, games, bets, daily_results });
 });
+
+app.get('/api/admin/dealers', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
+    try {
+        const result = database.getPaginatedDealers(req.query);
+        res.json(result);
+    } catch (error) {
+        console.error("Error fetching paginated dealers:", error);
+        res.status(500).json({ message: 'Failed to fetch dealers.' });
+    }
+});
+
+app.get('/api/admin/users', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
+    try {
+        const result = database.getPaginatedUsers(req.query);
+        res.json(result);
+    } catch (error) {
+        console.error("Error fetching paginated users:", error);
+        res.status(500).json({ message: 'Failed to fetch users.' });
+    }
+});
+
+app.get('/api/admin/dealers/list', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
+    res.json(database.getDealerList());
+});
+
+app.get('/api/admin/users/list', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
+    res.json(database.getUserList());
+});
+
 
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });

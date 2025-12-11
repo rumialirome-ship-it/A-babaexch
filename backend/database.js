@@ -1,5 +1,3 @@
-
-
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -1216,6 +1214,78 @@ const reprocessPayoutsForMarketDay = (gameId, date) => {
     return resultSummary;
 };
 
+// --- NEW PAGINATION AND LIST FUNCTIONS ---
+const getPaginatedDealers = ({ page = 1, limit = 25, sortKey = 'name', sortDir = 'asc', search = '' }) => {
+    const offset = (page - 1) * limit;
+    const searchPattern = search ? `%${search}%` : null;
+
+    let whereClause = '';
+    const params = [];
+    if (searchPattern) {
+        whereClause = 'WHERE (name LIKE ? OR id LIKE ? OR area LIKE ?)';
+        params.push(searchPattern, searchPattern, searchPattern);
+    }
+    
+    const countStmt = db.prepare(`SELECT COUNT(*) as count FROM dealers ${whereClause}`);
+    const { count } = countStmt.get(...params);
+
+    const validSortKeys = { name: 'name', wallet: 'wallet', status: 'isRestricted' };
+    const orderBy = validSortKeys[sortKey] || 'name';
+    const orderDir = sortDir.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+    const dataStmt = db.prepare(`SELECT id FROM dealers ${whereClause} ORDER BY ${orderBy} ${orderDir} LIMIT ? OFFSET ?`);
+    const dealerIds = dataStmt.all(...params, Number(limit), Number(offset)).map(d => d.id);
+
+    const dealers = dealerIds.map(id => findAccountById(id, 'dealers'));
+
+    return {
+        items: dealers,
+        totalItems: count,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page, 10),
+    };
+};
+
+const getPaginatedUsers = ({ page = 1, limit = 25, sortKey = 'name', sortDir = 'asc', search = '' }) => {
+    const offset = (page - 1) * limit;
+    const searchPattern = search ? `%${search}%` : null;
+
+    let baseQuery = 'SELECT u.id FROM users u';
+    let countBaseQuery = 'SELECT COUNT(DISTINCT u.id) as count FROM users u';
+    let whereClause = '';
+    const params = [];
+
+    if (searchPattern) {
+        const join = ' LEFT JOIN dealers d ON u.dealerId = d.id';
+        baseQuery += join;
+        countBaseQuery += join;
+        whereClause = 'WHERE (u.name LIKE ? OR u.id LIKE ? OR u.area LIKE ? OR d.name LIKE ?)';
+        params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+    }
+    
+    const countStmt = db.prepare(`${countBaseQuery} ${whereClause}`);
+    const { count } = countStmt.get(...params);
+
+    const validSortKeys = { name: 'u.name', wallet: 'u.wallet', status: 'u.isRestricted' };
+    const orderBy = validSortKeys[sortKey] || 'u.name';
+    const orderDir = sortDir.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+    const dataStmt = db.prepare(`${baseQuery} ${whereClause} ORDER BY ${orderBy} ${orderDir} LIMIT ? OFFSET ?`);
+    const userIds = dataStmt.all(...params, Number(limit), Number(offset)).map(u => u.id);
+
+    const users = userIds.map(id => findAccountById(id, 'users'));
+
+    return {
+        items: users,
+        totalItems: count,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page, 10),
+    };
+};
+
+const getDealerList = () => db.prepare('SELECT id, name FROM dealers ORDER BY name ASC').all();
+const getUserList = () => db.prepare('SELECT id, name, dealerId FROM users ORDER BY name ASC').all();
+
 
 module.exports = {
     connect,
@@ -1254,4 +1324,8 @@ module.exports = {
     placeBulkBets,
     updateGameDrawTime,
     resetAllGames,
+    getPaginatedDealers,
+    getPaginatedUsers,
+    getDealerList,
+    getUserList,
 };

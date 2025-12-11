@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
@@ -75,15 +72,30 @@ const AppContent: React.FC = () => {
         try {
             let data;
             if (role === Role.Admin) {
-                const response = await fetchWithAuth('/api/admin/data');
-                if (!response.ok) throw new Error('Failed to fetch admin data');
-                data = await response.json();
-                const parsedData = parseAllDates(data);
-                setUsers(parsedData.users);
-                setDealers(parsedData.dealers);
-                setGames(parsedData.games);
-                setBets(parsedData.bets);
-                setDailyResults(parsedData.daily_results || []);
+                const [adminDataRes, usersRes, dealersRes] = await Promise.all([
+                    fetchWithAuth('/api/admin/data'),
+                    fetchWithAuth('/api/admin/users?limit=10000'), // Fetch all users with full data
+                    fetchWithAuth('/api/admin/dealers?limit=10000'), // Fetch all dealers with full data
+                ]);
+
+                if (!adminDataRes.ok || !usersRes.ok || !dealersRes.ok) {
+                    throw new Error('Failed to fetch full admin dataset');
+                }
+
+                const adminData = await adminDataRes.json();
+                const usersData = await usersRes.json();
+                const dealersData = await dealersRes.json();
+
+                const parsedAdminData = parseAllDates(adminData);
+                setGames(parsedAdminData.games);
+                setBets(parsedAdminData.bets);
+                setDailyResults(parsedAdminData.daily_results || []);
+                
+                const parsedUsers = parseAllDates({ users: usersData.items }).users;
+                setUsers(parsedUsers);
+                
+                const parsedDealers = parseAllDates({ dealers: dealersData.items }).dealers;
+                setDealers(parsedDealers);
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
                 if (!response.ok) throw new Error('Failed to fetch dealer data');
@@ -175,22 +187,6 @@ const AppContent: React.FC = () => {
         await fetchData();
     }, [fetchWithAuth, fetchData]);
 
-    const onPlaceAdminBets = useCallback(async (details: {
-        userId: string;
-        gameId: string;
-        betGroups: any[];
-    }) => {
-        const response = await fetchWithAuth('/api/admin/bulk-bet', {
-            method: 'POST',
-            body: JSON.stringify(details),
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message || 'Failed to place bets.');
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
     const onSaveUser = useCallback(async (userData: User, originalId: string | undefined, initialDeposit?: number) => {
         let response;
         if (originalId) {
@@ -202,60 +198,6 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const onSaveDealer = useCallback(async (dealerData: Dealer, originalId?: string) => {
-        let response;
-        if (originalId) {
-            // FIX: The body was passing the JSON.stringify function itself, not the result of calling it.
-            response = await fetchWithAuth(`/api/admin/dealers/${originalId}`, { method: 'PUT', body: JSON.stringify(dealerData) });
-        } else {
-            response = await fetchWithAuth('/api/admin/dealers', { method: 'POST', body: JSON.stringify(dealerData) });
-        }
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const declareWinner = useCallback(async (gameId: string, winningNumber: string) => {
-        await fetchWithAuth(`/api/admin/games/${gameId}/declare-winner`, {
-            method: 'POST',
-            body: JSON.stringify({ winningNumber })
-        });
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const updateWinner = useCallback(async (gameId: string, newWinningNumber: string) => {
-        await fetchWithAuth(`/api/admin/games/${gameId}/update-winner`, {
-            method: 'PUT',
-            body: JSON.stringify({ newWinningNumber })
-        });
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const approvePayouts = useCallback(async (gameId: string) => {
-        await fetchWithAuth(`/api/admin/games/${gameId}/approve-payouts`, {
-            method: 'POST',
-        });
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const topUpDealerWallet = useCallback(async (dealerId: string, amount: number) => {
-        await fetchWithAuth('/api/admin/topup/dealer', {
-            method: 'POST',
-            body: JSON.stringify({ dealerId, amount })
-        });
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const withdrawFromDealerWallet = useCallback(async (dealerId: string, amount: number) => {
-        await fetchWithAuth('/api/admin/withdraw/dealer', {
-            method: 'POST',
-            body: JSON.stringify({ dealerId, amount })
-        });
         await fetchData();
     }, [fetchWithAuth, fetchData]);
 
@@ -284,20 +226,109 @@ const AppContent: React.FC = () => {
     }, [fetchWithAuth, fetchData]);
 
     const toggleAccountRestriction = useCallback(async (accountId: string, accountType: 'user' | 'dealer') => {
-        if (role === Role.Admin) {
-            await fetchWithAuth(`/api/admin/accounts/${accountType}/${accountId}/toggle-restriction`, { method: 'PUT' });
-        } else if (role === Role.Dealer && accountType === 'user') {
+        if (role === Role.Dealer && accountType === 'user') {
             await fetchWithAuth(`/api/dealer/users/${accountId}/toggle-restriction`, { method: 'PUT' });
+        } else if (role === Role.Admin) {
+            await fetchWithAuth(`/api/admin/accounts/${accountType}/${accountId}/toggle-restriction`, { method: 'PUT' });
         }
         await fetchData();
     }, [fetchWithAuth, fetchData, role]);
 
+    const onSaveDealer = useCallback(async (dealerData: Dealer, originalId?: string) => {
+        let response;
+        if (originalId) {
+            response = await fetchWithAuth(`/api/admin/dealers/${originalId}`, { method: 'PUT', body: JSON.stringify(dealerData) });
+        } else {
+            response = await fetchWithAuth('/api/admin/dealers', { method: 'POST', body: JSON.stringify(dealerData) });
+        }
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message);
+        }
+        await fetchData();
+    }, [fetchWithAuth, fetchData]);
+
+    const declareWinner = useCallback(async (gameId: string, winningNumber: string) => {
+        const response = await fetchWithAuth(`/api/admin/games/${gameId}/declare-winner`, {
+            method: 'POST',
+            body: JSON.stringify({ winningNumber })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message);
+        }
+        await fetchData();
+    }, [fetchWithAuth, fetchData]);
+
+    const updateWinner = useCallback(async (gameId: string, newWinningNumber: string) => {
+        const response = await fetchWithAuth(`/api/admin/games/${gameId}/update-winner`, {
+            method: 'PUT',
+            body: JSON.stringify({ newWinningNumber })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message);
+        }
+        await fetchData();
+    }, [fetchWithAuth, fetchData]);
+
+    const approvePayouts = useCallback(async (gameId: string) => {
+        const response = await fetchWithAuth(`/api/admin/games/${gameId}/approve-payouts`, {
+            method: 'POST'
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message);
+        }
+        await fetchData();
+    }, [fetchWithAuth, fetchData]);
+
+    const topUpDealerWallet = useCallback(async (dealerId: string, amount: number) => {
+        const response = await fetchWithAuth('/api/admin/topup/dealer', {
+            method: 'POST',
+            body: JSON.stringify({ dealerId, amount })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message);
+        }
+        await fetchData();
+    }, [fetchWithAuth, fetchData]);
+
+    const withdrawFromDealerWallet = useCallback(async (dealerId: string, amount: number) => {
+        const response = await fetchWithAuth('/api/admin/withdraw/dealer', {
+            method: 'POST',
+            body: JSON.stringify({ dealerId, amount })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message);
+        }
+        await fetchData();
+    }, [fetchWithAuth, fetchData]);
+
+    const onPlaceAdminBets = useCallback(async (details: {
+        userId: string;
+        gameId: string;
+        betGroups: any[];
+    }) => {
+        const response = await fetchWithAuth('/api/admin/bulk-bet', {
+            method: 'POST',
+            body: JSON.stringify(details)
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message);
+        }
+        await fetchData();
+    }, [fetchWithAuth, fetchData]);
+
     const updateGameDrawTime = useCallback(async (gameId: string, newDrawTime: string) => {
         const response = await fetchWithAuth(`/api/admin/games/${gameId}/draw-time`, {
             method: 'PUT',
-            body: JSON.stringify({ newDrawTime }),
+            body: JSON.stringify({ newDrawTime })
         });
-         if (!response.ok) {
+        if (!response.ok) {
             const err = await response.json();
             throw new Error(err.message);
         }
