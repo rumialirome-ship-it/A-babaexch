@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -120,8 +121,8 @@ app.get('/api/user/data', authMiddleware, async (req, res) => {
     try {
         const user = await database.findAccountById(req.user.id, 'users');
         const games = await database.getAllFromTable('games');
-        const allBets = await database.getAllFromTable('bets');
-        const bets = allBets.filter(b => b.userId === req.user.id);
+        // Optimization: Fetch only bets for this user, limited
+        const bets = await database.findBetsByUserId(req.user.id);
         const daily_results = await database.getAllFromTable('daily_results');
         res.json({ games, bets, user, daily_results });
     } catch (error) {
@@ -149,6 +150,7 @@ app.get('/api/dealer/data', authMiddleware, async (req, res) => {
     try {
         const dealer = await database.findAccountById(req.user.id, 'dealers');
         const users = await database.findUsersByDealerId(req.user.id);
+        // Optimization: Fetch only bets for this dealer's users
         const bets = await database.findBetsByDealerId(req.user.id);
         const daily_results = await database.getAllFromTable('daily_results');
         res.json({ dealer, users, bets, daily_results });
@@ -233,9 +235,9 @@ app.get('/api/admin/data', authMiddleware, async (req, res) => {
     try {
         const admin = await database.findAccountById(req.user.id, 'admins');
         const games = await database.getAllFromTable('games');
-        const bets = await database.getAllFromTable('bets');
+        // Optimization: Admin doesn't need raw bets array on load.
         const daily_results = await database.getAllFromTable('daily_results');
-        res.json({ admin, games, bets, daily_results });
+        res.json({ admin, games, bets: [], daily_results });
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch admin data' });
     }

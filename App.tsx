@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
@@ -72,31 +73,39 @@ const AppContent: React.FC = () => {
         try {
             let data;
             if (role === Role.Admin) {
+                // OPTIMIZATION: Fetch lightweight lists instead of full objects
                 const [adminDataRes, usersRes, dealersRes] = await Promise.all([
                     fetchWithAuth('/api/admin/data'),
-                    fetchWithAuth('/api/admin/users?limit=10000'), // Fetch all users with full data
-                    fetchWithAuth('/api/admin/dealers?limit=10000'), // Fetch all dealers with full data
+                    fetchWithAuth('/api/admin/users/list'), 
+                    fetchWithAuth('/api/admin/dealers/list'), 
                 ]);
 
                 if (!adminDataRes.ok || !usersRes.ok || !dealersRes.ok) {
-                    throw new Error('Failed to fetch full admin dataset');
+                    throw new Error('Failed to fetch dataset');
                 }
 
                 const adminData = await adminDataRes.json();
-                const usersData = await usersRes.json();
-                const dealersData = await dealersRes.json();
+                const usersList = await usersRes.json();
+                const dealersList = await dealersRes.json();
 
                 const parsedAdminData = parseAllDates(adminData);
-                // SAFEGUARDS: Ensure arrays are actually arrays before setting state
                 setGames(Array.isArray(parsedAdminData.games) ? parsedAdminData.games : []);
                 setBets(Array.isArray(parsedAdminData.bets) ? parsedAdminData.bets : []);
                 setDailyResults(Array.isArray(parsedAdminData.daily_results) ? parsedAdminData.daily_results : []);
                 
-                const parsedUsers = parseAllDates({ users: usersData.items }).users;
-                setUsers(Array.isArray(parsedUsers) ? parsedUsers : []);
+                // Map lightweight list to User/Dealer type with defaults to prevent crashes
+                // Full data is now fetched on demand by AdminPanel components
+                const mappedUsers = Array.isArray(usersList) ? usersList.map((u: any) => ({
+                    ...u,
+                    wallet: 0, commissionRate: 0, isRestricted: false, ledger: [], prizeRates: {}, betLimits: {}
+                })) : [];
+                setUsers(mappedUsers);
                 
-                const parsedDealers = parseAllDates({ dealers: dealersData.items }).dealers;
-                setDealers(Array.isArray(parsedDealers) ? parsedDealers : []);
+                const mappedDealers = Array.isArray(dealersList) ? dealersList.map((d: any) => ({
+                    ...d,
+                    wallet: 0, commissionRate: 0, isRestricted: false, ledger: [], prizeRates: {}
+                })) : [];
+                setDealers(mappedDealers);
 
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
@@ -134,15 +143,13 @@ const AppContent: React.FC = () => {
             fetchData(); // Initial fetch on login/account change
     
             if (role === Role.User) {
-                intervalId = setInterval(fetchData, 7000); // Poll every 7 seconds for users
+                intervalId = setInterval(fetchData, 7000); 
             } else if (role === Role.Dealer) {
-                intervalId = setInterval(fetchData, 10000); // Poll every 10 seconds for dealers
+                intervalId = setInterval(fetchData, 10000); 
             } else if (role === Role.Admin) {
-                // Admin panel has heavy data loads, poll less frequently. Specific views have their own faster polling.
-                intervalId = setInterval(fetchData, 30000); // Poll every 30 seconds for admin
+                intervalId = setInterval(fetchData, 30000); 
             }
         } else {
-            // Clear data on logout
             setUsers([]);
             setDealers([]);
             setGames([]);
@@ -150,7 +157,6 @@ const AppContent: React.FC = () => {
             setDailyResults([]);
         }
     
-        // Cleanup interval on component unmount or when dependencies change
         return () => {
             if (intervalId) {
                 clearInterval(intervalId);
