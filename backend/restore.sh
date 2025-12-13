@@ -1,54 +1,39 @@
-#!/bin/bash
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+console.log("\x1b[36m%s\x1b[0m", "--- A-BABA EXCHANGE RESTORATION TOOL ---");
 
-echo -e "${YELLOW}==============================================${NC}"
-echo -e "${YELLOW}   A-Baba Exchange - Data Restoration Tool    ${NC}"
-echo -e "${YELLOW}==============================================${NC}"
+try {
+    // 1. Install Base Dependencies
+    console.log("\n\x1b[33m1. Installing project dependencies...\x1b[0m");
+    execSync('npm install', { stdio: 'inherit' });
 
-# Check if we are in the backend directory
-if [ ! -f "package.json" ]; then
-    echo -e "${RED}Error: Please run this script from inside the 'backend' directory.${NC}"
-    exit 1
-fi
+    // 2. Install SQLite adapter (needed to read the old DB file)
+    console.log("\n\x1b[33m2. Installing SQLite adapter (better-sqlite3)...\x1b[0m");
+    // We install this specifically because it might not be in the base package.json if migrating to pure MySQL later
+    execSync('npm install better-sqlite3', { stdio: 'inherit' });
 
-# Check for the SQLite file
-if [ ! -f "database.sqlite" ]; then
-    echo -e "${RED}Error: 'database.sqlite' not found.${NC}"
-    echo "Please upload your backup 'database.sqlite' file to this folder before running this script."
-    exit 1
-fi
+    // 3. Setup MySQL Schema
+    console.log("\n\x1b[33m3. Initializing MySQL Database & Tables...\x1b[0m");
+    execSync('node setup-mysql.js', { stdio: 'inherit' });
 
-echo -e "\n${YELLOW}[Step 1/3] Installing Dependencies...${NC}"
-# We explicitly install better-sqlite3 to ensure the migration script can read the old file
-npm install
-npm install better-sqlite3
+    // 4. Migrate Data
+    const sqlitePath = path.join(__dirname, 'database.sqlite');
+    if (fs.existsSync(sqlitePath)) {
+        console.log("\n\x1b[33m4. Found 'database.sqlite'. Starting migration to MySQL...\x1b[0m");
+        execSync('node migrate-data.js', { stdio: 'inherit' });
+    } else {
+        console.log("\n\x1b[33m4. 'database.sqlite' not found. Skipping data migration.\x1b[0m");
+        console.log("   (If you have an old database file, upload it to the backend folder and run this again.)");
+    }
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Dependency installation failed.${NC}"
-    exit 1
-fi
+    console.log("\n\x1b[32m✅ RESTORATION COMPLETE!\x1b[0m");
+    console.log("You can now start the server using: \x1b[36mnpm start\x1b[0m");
 
-echo -e "\n${YELLOW}[Step 2/3] Setting up MySQL Tables...${NC}"
-node setup-mysql.js
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}MySQL Setup failed. Check your .env file credentials.${NC}"
-    exit 1
-fi
-
-echo -e "\n${YELLOW}[Step 3/3] Migrating Data from SQLite to MySQL...${NC}"
-node migrate-data.js
-
-if [ $? -eq 0 ]; then
-    echo -e "\n${GREEN}==============================================${NC}"
-    echo -e "${GREEN}   RESTORE COMPLETED SUCCESSFULLY!            ${NC}"
-    echo -e "${GREEN}==============================================${NC}"
-    echo -e "You can now start your server using: ${YELLOW}pm2 start server.js --name ababa-backend${NC}"
-else
-    echo -e "\n${RED}Migration failed. Please check the errors above.${NC}"
-fi
+} catch (error) {
+    console.error("\n\x1b[31m❌ RESTORATION FAILED\x1b[0m");
+    console.error("Error details:");
+    console.error(error.message);
+    process.exit(1);
+}
