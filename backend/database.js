@@ -451,7 +451,9 @@ const updateWinningNumber = async (gameId, newWinningNumberInput) => {
 
         if (game.name === 'AK') {
              if (!/^\d$/.test(newWinningNumber)) throw { status: 400, message: 'AK must be 1 digit' };
-             const full = newWinningNumber + (game.winningNumber && game.winningNumber.length === 2 ? game.winningNumber[1] : '_');
+             // Use current winningNumber to build full if exists
+             const currentClose = (game.winningNumber && game.winningNumber.length === 2) ? game.winningNumber[1] : '_';
+             const full = newWinningNumber + currentClose;
              await conn.execute('UPDATE games SET winningNumber = ? WHERE id = ?', [full, gameId]);
         } else if (game.name === 'AKC') {
              if (!/^\d$/.test(newWinningNumber)) throw { status: 400, message: 'AKC must be 1 digit' };
@@ -461,7 +463,8 @@ const updateWinningNumber = async (gameId, newWinningNumberInput) => {
              // Update AK
              const [akRows] = await conn.execute("SELECT * FROM games WHERE name = 'AK'");
              if(akRows[0] && akRows[0].winningNumber) {
-                 const newAkFull = akRows[0].winningNumber[0] + newWinningNumber;
+                 const currentOpen = akRows[0].winningNumber[0] || '_';
+                 const newAkFull = currentOpen + newWinningNumber;
                  await conn.execute("UPDATE games SET winningNumber = ? WHERE id = ?", [newAkFull, akRows[0].id]);
                  const akDate = getMarketDateForDeclaration(akRows[0].drawTime);
                  await conn.execute(upsertSql, [uuidv4(), akRows[0].id, akDate, newAkFull]);
