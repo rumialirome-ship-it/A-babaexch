@@ -7,7 +7,8 @@
     "start": "node server.js",
     "db:setup": "node setup-mysql.js",
     "db:manage": "node backup-manager.js",
-    "db:migrate": "node migrate-data.js"
+    "db:migrate": "node migrate-data.js",
+    "db:restore": "npm install && npm install better-sqlite3 && node setup-mysql.js && node migrate-data.js"
   },
   "dependencies": {
     "@google/genai": "^0.12.0",
