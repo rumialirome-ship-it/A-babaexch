@@ -27,16 +27,100 @@ try {
 const SQLITE_PATH = path.join(__dirname, 'database.sqlite');
 
 // Fix: Node.js 17+ resolves 'localhost' to IPv6 (::1). MySQL often binds to IPv4 (127.0.0.1).
-// We explicitly use 127.0.0.1 if localhost is specified to avoid ECONNREFUSED ::1:3306.
 const dbHost = (process.env.DB_HOST === 'localhost' || !process.env.DB_HOST) ? '127.0.0.1' : process.env.DB_HOST;
+const dbName = process.env.DB_NAME || 'ababa_db';
 
+// Config WITHOUT database selected initially
 const mysqlConfig = {
     host: dbHost,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'ababa_db',
     decimalNumbers: true
 };
+
+const SCHEMA_QUERIES = [
+    `CREATE TABLE IF NOT EXISTS admins (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        wallet DECIMAL(15,2) NOT NULL,
+        prizeRates JSON NOT NULL,
+        avatarUrl TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS dealers (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        area VARCHAR(255),
+        contact VARCHAR(255),
+        wallet DECIMAL(15,2) NOT NULL,
+        commissionRate DECIMAL(5,2) NOT NULL,
+        isRestricted BOOLEAN DEFAULT FALSE,
+        prizeRates JSON NOT NULL,
+        avatarUrl TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        dealerId VARCHAR(255) NOT NULL,
+        area VARCHAR(255),
+        contact VARCHAR(255),
+        wallet DECIMAL(15,2) NOT NULL,
+        commissionRate DECIMAL(5,2) NOT NULL,
+        isRestricted BOOLEAN DEFAULT FALSE,
+        prizeRates JSON NOT NULL,
+        betLimits JSON,
+        avatarUrl TEXT,
+        FOREIGN KEY (dealerId) REFERENCES dealers(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS games (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        drawTime VARCHAR(10) NOT NULL,
+        winningNumber VARCHAR(10),
+        payoutsApproved BOOLEAN DEFAULT FALSE
+    )`,
+    `CREATE TABLE IF NOT EXISTS bets (
+        id VARCHAR(255) PRIMARY KEY,
+        userId VARCHAR(255) NOT NULL,
+        dealerId VARCHAR(255) NOT NULL,
+        gameId VARCHAR(255) NOT NULL,
+        subGameType VARCHAR(50) NOT NULL,
+        numbers JSON NOT NULL,
+        amountPerNumber DECIMAL(10,2) NOT NULL,
+        totalAmount DECIMAL(15,2) NOT NULL,
+        timestamp DATETIME NOT NULL,
+        FOREIGN KEY (userId) REFERENCES users(id),
+        FOREIGN KEY (dealerId) REFERENCES dealers(id),
+        FOREIGN KEY (gameId) REFERENCES games(id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS ledgers (
+        id VARCHAR(255) PRIMARY KEY,
+        accountId VARCHAR(255) NOT NULL,
+        accountType VARCHAR(50) NOT NULL,
+        timestamp DATETIME NOT NULL,
+        description TEXT NOT NULL,
+        debit DECIMAL(15,2) NOT NULL,
+        credit DECIMAL(15,2) NOT NULL,
+        balance DECIMAL(15,2) NOT NULL,
+        INDEX (accountId)
+    )`,
+    `CREATE TABLE IF NOT EXISTS daily_results (
+        id VARCHAR(255) PRIMARY KEY,
+        gameId VARCHAR(255) NOT NULL,
+        date DATE NOT NULL,
+        winningNumber VARCHAR(10) NOT NULL,
+        UNIQUE KEY (gameId, date)
+    )`,
+    `CREATE TABLE IF NOT EXISTS number_limits (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        gameType VARCHAR(50) NOT NULL,
+        numberValue VARCHAR(10) NOT NULL,
+        limitAmount DECIMAL(15,2) NOT NULL,
+        UNIQUE KEY (gameType, numberValue)
+    )`
+];
 
 async function migrate() {
     console.log("--- STARTING DATA MIGRATION (SQLite -> MySQL) ---");
@@ -51,14 +135,28 @@ async function migrate() {
     let conn;
 
     try {
-        // 1. Connect to both databases
+        // 1. Connect to SQLite
         sqlite = new Database(SQLITE_PATH, { readonly: true });
         console.log("✅ Connected to old SQLite database.");
 
+        // 2. Connect to MySQL Server (No DB selected yet)
         conn = await mysql.createConnection(mysqlConfig);
-        console.log(`✅ Connected to new MySQL database at ${mysqlConfig.host}.`);
+        console.log(`✅ Connected to MySQL server at ${mysqlConfig.host}.`);
 
-        // 2. Disable Foreign Key checks temporarily to allow bulk inserting out of order
+        // 3. Create and Select Database
+        console.log(`⏳ ensuring database '${dbName}' exists...`);
+        await conn.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
+        await conn.query(`USE ${dbName}`);
+        console.log(`✅ Database '${dbName}' selected.`);
+
+        // 4. Create Tables (Schema)
+        console.log(`⏳ Verifying table structure...`);
+        for (const query of SCHEMA_QUERIES) {
+            await conn.query(query);
+        }
+        console.log(`✅ Table structure verified.`);
+
+        // 5. Disable Foreign Key checks for bulk insert
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
 
         // --- HELPER TO COPY TABLES ---
@@ -100,8 +198,8 @@ async function migrate() {
                             return '{}';
                         }
                     }
-                    // SQLite stores dates as strings, MySQL accepts them fine usually.
-                    // SQLite booleans are 0/1, MySQL tinyint is 0/1. Compatible.
+                    // Fix: SQLite dates might be ISO strings, MySQL needs proper handling if strict,
+                    // but usually standard ISO strings work fine.
                     return val;
                 });
 
@@ -117,32 +215,17 @@ async function migrate() {
 
         // --- EXECUTE MIGRATION ---
 
-        // 1. Admins
         await copyTable('admins', ['prizeRates']);
-
-        // 2. Dealers
         await copyTable('dealers', ['prizeRates']);
-
-        // 3. Users
         await copyTable('users', ['prizeRates', 'betLimits']);
-
-        // 4. Games
-        // Games might have static IDs, check logic
         await copyTable('games');
-
-        // 5. Daily Results
         await copyTable('daily_results');
-
-        // 6. Number Limits
         await copyTable('number_limits');
-
-        // 7. Bets
         await copyTable('bets', ['numbers']);
-
-        // 8. Ledgers
         await copyTable('ledgers');
 
         console.log("\n--- MIGRATION COMPLETE ---");
+        console.log("You can now start the server: pm2 restart ababa-backend");
 
     } catch (err) {
         console.error("\n❌ MIGRATION FAILED:", err);
