@@ -336,6 +336,7 @@ app.post('/api/admin/games/:id/declare-winner', authMiddleware, async (req, res)
         const game = await database.declareWinnerForGame(req.params.id, req.body.winningNumber);
         res.json(game);
     } catch (error) {
+        console.error("Declare Winner Error:", error); // Improved logging
         res.status(error.status || 500).json({ message: error.message || 'Failed to declare winner.' });
     }
 });
