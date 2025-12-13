@@ -8,7 +8,7 @@ try {
     Database = require('better-sqlite3');
 } catch (e) {
     console.error('\n\x1b[31m%s\x1b[0m', '❌ MISSING DEPENDENCY: better-sqlite3');
-    console.error('Run: npm install better-sqlite3');
+    console.error('The restore.sh script should have installed this. Try running "npm install" manually.');
     process.exit(1);
 }
 
@@ -17,7 +17,7 @@ try {
     mysql = require('mysql2/promise');
 } catch (e) {
     console.error('\n\x1b[31m%s\x1b[0m', '❌ MISSING DEPENDENCY: mysql2');
-    console.error('Run: npm install mysql2');
+    console.error('The restore.sh script should have installed this. Try running "npm install" manually.');
     process.exit(1);
 }
 
@@ -44,12 +44,11 @@ async function migrate() {
         sqlite = new Database(SQLITE_PATH, { readonly: true });
         console.log("✅ Connected to old SQLite database.");
 
-        // 2. Connect to MySQL Server (Explicitly NO database selected)
+        // 2. Connect to MySQL Server (Explicitly NO database selected initially)
         const connectionConfig = {
             host: dbHost,
             user: process.env.DB_USER || 'root',
             password: process.env.DB_PASSWORD || '',
-            database: null, // Explicitly null to avoid 'Unknown database' error
             decimalNumbers: true
         };
 
@@ -63,7 +62,8 @@ async function migrate() {
         await conn.query(`USE \`${dbName}\``);
         console.log(`✅ Database '${dbName}' selected.`);
 
-        // 4. Create Tables (If they don't exist yet)
+        // 4. Create Tables (If they don't exist yet) - This ensures structure matches
+        // We run the creation queries just in case 'db:setup' wasn't run perfectly.
         const schemaQueries = [
             `CREATE TABLE IF NOT EXISTS admins (
                 id VARCHAR(255) PRIMARY KEY,
@@ -148,7 +148,6 @@ async function migrate() {
             )`
         ];
 
-        console.log(`⏳ Verifying table structure...`);
         for (const query of schemaQueries) {
             await conn.query(query);
         }
@@ -180,11 +179,13 @@ async function migrate() {
             const placeholders = columns.map(() => '?').join(', ');
             
             // Construct query: INSERT ... ON DUPLICATE KEY UPDATE if requested
-            let sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+            let sql;
             if (updateOnDup) {
+                // For tables like 'admins', 'dealers', 'users', if ID exists, update fields (like wallet, password)
                 const updates = columns.map(col => `${col} = VALUES(${col})`).join(', ');
-                sql += ` ON DUPLICATE KEY UPDATE ${updates}`;
+                sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
             } else {
+                // For 'bets', 'ledgers', we just insert missing ones. ID collision means it's already there.
                 sql = `INSERT IGNORE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
             }
 
@@ -193,6 +194,7 @@ async function migrate() {
             for (const row of rows) {
                 const values = columns.map(col => {
                     let val = row[col];
+                    // Convert JSON strings to proper format if needed (though MySQL driver handles strings, we ensure it's valid)
                     if (jsonColumns.includes(col) && typeof val === 'string') {
                         try {
                             // Ensure it's valid JSON for MySQL
@@ -202,7 +204,7 @@ async function migrate() {
                         }
                     }
                     if (typeof val === 'boolean') {
-                        return val ? 1 : 0; // SQLite usually has 0/1 anyway, but JS might read as bool
+                        return val ? 1 : 0; 
                     }
                     return val;
                 });
@@ -218,15 +220,15 @@ async function migrate() {
         };
 
         // --- EXECUTE MIGRATION ---
-        // We use 'updateOnDup = true' for critical tables so old data overrides empty default data
+        // We use 'updateOnDup = true' for critical account tables so old data overrides any empty placeholders
         await copyTable('admins', ['prizeRates'], true);
         await copyTable('dealers', ['prizeRates'], true);
         await copyTable('users', ['prizeRates', 'betLimits'], true);
         
-        // Games: Keep old data if exists
+        // Games: Update existing game definitions
         await copyTable('games', [], true);
         
-        // Transactional data
+        // Transactional data: Insert Ignore (don't overwrite if UUID exists)
         await copyTable('daily_results');
         await copyTable('number_limits');
         await copyTable('bets', ['numbers']);
