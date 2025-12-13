@@ -11,7 +11,6 @@ try {
 
     // 2. Install SQLite adapter (needed to read the old DB file)
     console.log("\n\x1b[33m2. Installing SQLite adapter (better-sqlite3)...\x1b[0m");
-    // We install this specifically because it might not be in the base package.json if migrating to pure MySQL later
     execSync('npm install better-sqlite3', { stdio: 'inherit' });
 
     // 3. Setup MySQL Schema
