@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "db:setup": "node setup-mysql.js"
+    "db:setup": "node setup-mysql.js",
+    "db:manage": "node backup-manager.js"
   },
   "dependencies": {
     "@google/genai": "^0.12.0",

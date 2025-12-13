@@ -6,19 +6,19 @@ try {
 } catch (err) {
     console.error('\n\x1b[31m%s\x1b[0m', '❌ CRITICAL ERROR: Missing Dependencies');
     console.error('The "mysql2" package is not installed.');
-    console.error('Please run the following command in this directory to fix it:\n');
-    console.error('    \x1b[36m%s\x1b[0m', 'npm install');
-    console.error('\nAfter installing, run this script again.\n');
+    console.error('Please run: npm install');
     process.exit(1);
 }
 
 // Fix: Node.js 17+ resolves 'localhost' to IPv6 (::1). MySQL often binds to IPv4 (127.0.0.1).
 const dbHost = (process.env.DB_HOST === 'localhost' || !process.env.DB_HOST) ? '127.0.0.1' : process.env.DB_HOST;
+const dbName = process.env.DB_NAME || 'ababa_db';
 
 const config = {
     host: dbHost,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
+    database: null // Important: Connect without selecting a DB first
 };
 
 async function main() {
@@ -29,19 +29,16 @@ async function main() {
         conn = await mysql.createConnection(config);
     } catch (err) {
         console.error('\n\x1b[31m%s\x1b[0m', '❌ CONNECTION FAILED');
-        console.error('Could not connect to MySQL server.');
         console.error('Error:', err.message);
-        console.error('\nCheck your .env file and ensure:');
-        console.error('1. MySQL Server is installed and running.');
-        console.error('2. DB_HOST, DB_USER, and DB_PASSWORD are correct.');
         process.exit(1);
     }
 
     try {
-        await conn.query(`CREATE DATABASE IF NOT EXISTS ${process.env.DB_NAME || 'ababa_db'}`);
-        await conn.query(`USE ${process.env.DB_NAME || 'ababa_db'}`);
+        console.log(`Creating database '${dbName}' if it doesn't exist...`);
+        await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
+        await conn.query(`USE \`${dbName}\``);
         
-        console.log("Database created/selected.");
+        console.log("Database selected. Creating tables...");
 
         const queries = [
             `CREATE TABLE IF NOT EXISTS admins (
@@ -141,6 +138,8 @@ async function main() {
                 ['Guru', 'Guru', 'Pak@4646', 900000, JSON.stringify({ oneDigitOpen: 90, oneDigitClose: 90, twoDigit: 900 }), 'https://i.pravatar.cc/150?u=Guru']
             );
             console.log("Admin seeded.");
+        } else {
+            console.log("Admin already exists.");
         }
 
     } catch (e) {
