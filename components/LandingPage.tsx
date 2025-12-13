@@ -316,10 +316,25 @@ const LandingPage: React.FC = () => {
         const fetchGames = async () => {
             try {
                 const response = await fetch('/api/games');
+                // Safeguard: Check if response is okay
+                if (!response.ok) {
+                    console.error("Server returned an error:", response.status, response.statusText);
+                    setGames([]); // Ensure it's an empty array on error
+                    return;
+                }
                 const data = await response.json();
-                setGames(data);
+                
+                // CRITICAL FIX: Ensure 'data' is actually an array before setting state.
+                // If API returns { message: "Error" }, mapped functions will crash.
+                if (Array.isArray(data)) {
+                    setGames(data);
+                } else {
+                    console.error("API did not return an array of games:", data);
+                    setGames([]); 
+                }
             } catch (error) {
                 console.error("Failed to fetch games:", error);
+                setGames([]);
             }
         };
         fetchGames();
@@ -343,6 +358,11 @@ const LandingPage: React.FC = () => {
                         {games.map(game => (
                             <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
                         ))}
+                        {games.length === 0 && (
+                            <div className="col-span-full text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700">
+                                <p className="text-slate-400">Connecting to server...</p>
+                            </div>
+                        )}
                     </div>
                 </section>
 

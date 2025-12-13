@@ -10,7 +10,6 @@ try {
     process.exit(1);
 }
 
-// Fix: Node.js 17+ resolves 'localhost' to IPv6 (::1). MySQL often binds to IPv4 (127.0.0.1).
 const dbHost = (process.env.DB_HOST === 'localhost' || !process.env.DB_HOST) ? '127.0.0.1' : process.env.DB_HOST;
 const dbName = process.env.DB_NAME || 'ababa_db';
 
@@ -18,27 +17,28 @@ const config = {
     host: dbHost,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: null // Important: Connect without selecting a DB first
+    database: null 
 };
 
 async function main() {
-    console.log(`Connecting to MySQL at ${config.host} as ${config.user}...`);
+    console.log(`\n🔌 Connecting to MySQL at ${config.host}...`);
     
     let conn;
     try {
         conn = await mysql.createConnection(config);
     } catch (err) {
         console.error('\n\x1b[31m%s\x1b[0m', '❌ CONNECTION FAILED');
-        console.error('Error:', err.message);
+        console.error(`Could not connect to MySQL. Check your .env file.`);
+        console.error(`Error: ${err.message}`);
         process.exit(1);
     }
 
     try {
-        console.log(`Creating database '${dbName}' if it doesn't exist...`);
+        console.log(`🛠️  Checking database '${dbName}'...`);
         await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
         await conn.query(`USE \`${dbName}\``);
         
-        console.log("Database selected. Creating tables...");
+        console.log("📝 Creating tables...");
 
         const queries = [
             `CREATE TABLE IF NOT EXISTS admins (
@@ -128,24 +128,25 @@ async function main() {
             await conn.query(q);
         }
         
-        console.log("Tables created successfully.");
+        console.log("✅ Tables verified.");
         
-        // Seed Admin if not exists
-        const [rows] = await conn.query("SELECT * FROM admins WHERE id = 'Guru'");
-        if (rows.length === 0) {
+        // --- DATA SEEDING ---
+
+        // 1. Admin
+        const [adminRows] = await conn.query("SELECT * FROM admins WHERE id = 'Guru'");
+        if (adminRows.length === 0) {
             await conn.query(
                 `INSERT INTO admins (id, name, password, wallet, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?)`,
                 ['Guru', 'Guru', 'Pak@4646', 900000, JSON.stringify({ oneDigitOpen: 90, oneDigitClose: 90, twoDigit: 900 }), 'https://i.pravatar.cc/150?u=Guru']
             );
-            console.log("✅ Admin seeded.");
-        } else {
-            console.log("ℹ️ Admin already exists.");
+            console.log("👤 Admin 'Guru' created.");
         }
 
-        // Seed Games if not exists (NEW LOGIC)
+        // 2. Games
+        // Check if ANY games exist. If not, seed them.
         const [gameRows] = await conn.query("SELECT id FROM games LIMIT 1");
         if (gameRows.length === 0) {
-            console.log("Seeding default games...");
+            console.log("🎲 Seeding default games...");
             const games = [
                 { id: "g1", name: "Ali Baba", drawTime: "18:15" },
                 { id: "g2", name: "GSM", drawTime: "18:45" },
@@ -164,13 +165,14 @@ async function main() {
                     [g.id, g.name, g.drawTime]
                 );
             }
-            console.log("✅ Games seeded.");
-        } else {
-            console.log("ℹ️ Games already exist.");
+            console.log("✅ Default Games inserted.");
         }
 
+        console.log('\n\x1b[32m%s\x1b[0m', '🎉 DATABASE SETUP COMPLETE!');
+        console.log('You can now restart your backend server: pm2 restart ababa-backend');
+
     } catch (e) {
-        console.error("Setup Failed:", e);
+        console.error("\n❌ SETUP FAILED:", e);
     } finally {
         conn.end();
     }
