@@ -68,21 +68,37 @@ function createBackup() {
     });
 }
 
-function restoreBackup() {
+function listBackups() {
     const files = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith('.sql'));
+    
+    if (files.length === 0) {
+        console.log('\n\x1b[33m%s\x1b[0m', 'ℹ️  No backups found.');
+    } else {
+        console.log('\n📂 Available Backups:');
+        files.forEach((file, index) => {
+            const stats = fs.statSync(path.join(BACKUP_DIR, file));
+            const size = (stats.size / 1024 / 1024).toFixed(2) + ' MB';
+            console.log(`[${index + 1}] ${file}  \x1b[2m(${size})\x1b[0m`);
+        });
+    }
+    return files;
+}
+
+function viewBackups() {
+    listBackups();
+    askToContinue();
+}
+
+function restoreBackup() {
+    const files = listBackups();
 
     if (files.length === 0) {
-        console.log('\n\x1b[33m%s\x1b[0m', '⚠️ No .sql backup files found in backend/backups/');
-        console.log('Place your backup file in this folder to restore it.');
+        console.log('Place your .sql backup file in backend/backups/ to restore it.');
         askToContinue();
         return;
     }
 
-    console.log('\nAvailable Backups:');
-    files.forEach((file, index) => {
-        console.log(`[${index + 1}] ${file}`);
-    });
-    console.log('[0] Cancel');
+    console.log('\n[0] Cancel');
 
     rl.question('\nSelect a file number to restore: ', (answer) => {
         const index = parseInt(answer) - 1;
@@ -147,8 +163,9 @@ function askToContinue() {
 function mainMenu() {
     printHeader();
     console.log('1. \x1b[32mCreate New Backup\x1b[0m');
-    console.log('2. \x1b[33mRestore Backup\x1b[0m');
-    console.log('3. Exit');
+    console.log('2. \x1b[36mList Available Backups\x1b[0m');
+    console.log('3. \x1b[33mRestore Backup\x1b[0m');
+    console.log('4. Exit');
     
     rl.question('\nChoose an option: ', (answer) => {
         switch (answer) {
@@ -156,9 +173,12 @@ function mainMenu() {
                 createBackup();
                 break;
             case '2':
-                restoreBackup();
+                viewBackups();
                 break;
             case '3':
+                restoreBackup();
+                break;
+            case '4':
                 console.log('Goodbye!');
                 rl.close();
                 process.exit(0);

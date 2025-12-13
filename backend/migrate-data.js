@@ -8,7 +8,7 @@ try {
     Database = require('better-sqlite3');
 } catch (e) {
     console.error('\n\x1b[31m%s\x1b[0m', '❌ MISSING DEPENDENCY: better-sqlite3');
-    console.error('The restore.sh script should have installed this. Try running "npm install" manually.');
+    console.error('The restore.sh script should have installed this. Try running "npm install better-sqlite3" manually.');
     process.exit(1);
 }
 
@@ -17,7 +17,7 @@ try {
     mysql = require('mysql2/promise');
 } catch (e) {
     console.error('\n\x1b[31m%s\x1b[0m', '❌ MISSING DEPENDENCY: mysql2');
-    console.error('The restore.sh script should have installed this. Try running "npm install" manually.');
+    console.error('Try running "npm install mysql2" manually.');
     process.exit(1);
 }
 
@@ -44,115 +44,25 @@ async function migrate() {
         sqlite = new Database(SQLITE_PATH, { readonly: true });
         console.log("✅ Connected to old SQLite database.");
 
-        // 2. Connect to MySQL Server (Explicitly NO database selected initially)
+        // 2. Connect to MySQL Server
         const connectionConfig = {
             host: dbHost,
             user: process.env.DB_USER || 'root',
             password: process.env.DB_PASSWORD || '',
-            decimalNumbers: true
+            decimalNumbers: true,
+            multipleStatements: true
         };
 
         console.log(`⏳ Connecting to MySQL at ${dbHost}...`);
         conn = await mysql.createConnection(connectionConfig);
         console.log(`✅ Connected to MySQL server.`);
 
-        // 3. Create and Select Database
-        console.log(`⏳ Ensuring database '${dbName}' exists...`);
+        // 3. Select Database
         await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
         await conn.query(`USE \`${dbName}\``);
         console.log(`✅ Database '${dbName}' selected.`);
 
-        // 4. Create Tables (If they don't exist yet) - This ensures structure matches
-        // We run the creation queries just in case 'db:setup' wasn't run perfectly.
-        const schemaQueries = [
-            `CREATE TABLE IF NOT EXISTS admins (
-                id VARCHAR(255) PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                wallet DECIMAL(15,2) NOT NULL,
-                prizeRates JSON NOT NULL,
-                avatarUrl TEXT
-            )`,
-            `CREATE TABLE IF NOT EXISTS dealers (
-                id VARCHAR(255) PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                area VARCHAR(255),
-                contact VARCHAR(255),
-                wallet DECIMAL(15,2) NOT NULL,
-                commissionRate DECIMAL(5,2) NOT NULL,
-                isRestricted BOOLEAN DEFAULT FALSE,
-                prizeRates JSON NOT NULL,
-                avatarUrl TEXT
-            )`,
-            `CREATE TABLE IF NOT EXISTS users (
-                id VARCHAR(255) PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                dealerId VARCHAR(255) NOT NULL,
-                area VARCHAR(255),
-                contact VARCHAR(255),
-                wallet DECIMAL(15,2) NOT NULL,
-                commissionRate DECIMAL(5,2) NOT NULL,
-                isRestricted BOOLEAN DEFAULT FALSE,
-                prizeRates JSON NOT NULL,
-                betLimits JSON,
-                avatarUrl TEXT,
-                FOREIGN KEY (dealerId) REFERENCES dealers(id)
-            )`,
-            `CREATE TABLE IF NOT EXISTS games (
-                id VARCHAR(255) PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                drawTime VARCHAR(10) NOT NULL,
-                winningNumber VARCHAR(10),
-                payoutsApproved BOOLEAN DEFAULT FALSE
-            )`,
-            `CREATE TABLE IF NOT EXISTS bets (
-                id VARCHAR(255) PRIMARY KEY,
-                userId VARCHAR(255) NOT NULL,
-                dealerId VARCHAR(255) NOT NULL,
-                gameId VARCHAR(255) NOT NULL,
-                subGameType VARCHAR(50) NOT NULL,
-                numbers JSON NOT NULL,
-                amountPerNumber DECIMAL(10,2) NOT NULL,
-                totalAmount DECIMAL(15,2) NOT NULL,
-                timestamp DATETIME NOT NULL,
-                FOREIGN KEY (userId) REFERENCES users(id),
-                FOREIGN KEY (dealerId) REFERENCES dealers(id),
-                FOREIGN KEY (gameId) REFERENCES games(id)
-            )`,
-            `CREATE TABLE IF NOT EXISTS ledgers (
-                id VARCHAR(255) PRIMARY KEY,
-                accountId VARCHAR(255) NOT NULL,
-                accountType VARCHAR(50) NOT NULL,
-                timestamp DATETIME NOT NULL,
-                description TEXT NOT NULL,
-                debit DECIMAL(15,2) NOT NULL,
-                credit DECIMAL(15,2) NOT NULL,
-                balance DECIMAL(15,2) NOT NULL,
-                INDEX (accountId)
-            )`,
-            `CREATE TABLE IF NOT EXISTS daily_results (
-                id VARCHAR(255) PRIMARY KEY,
-                gameId VARCHAR(255) NOT NULL,
-                date DATE NOT NULL,
-                winningNumber VARCHAR(10) NOT NULL,
-                UNIQUE KEY (gameId, date)
-            )`,
-            `CREATE TABLE IF NOT EXISTS number_limits (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                gameType VARCHAR(50) NOT NULL,
-                numberValue VARCHAR(10) NOT NULL,
-                limitAmount DECIMAL(15,2) NOT NULL,
-                UNIQUE KEY (gameType, numberValue)
-            )`
-        ];
-
-        for (const query of schemaQueries) {
-            await conn.query(query);
-        }
-        
-        // 5. Disable Foreign Key checks for bulk insert
+        // 4. Disable Foreign Key checks for bulk insert
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
 
         // --- HELPER TO COPY TABLES ---
@@ -178,31 +88,34 @@ async function migrate() {
             const columns = Object.keys(firstRow);
             const placeholders = columns.map(() => '?').join(', ');
             
-            // Construct query: INSERT ... ON DUPLICATE KEY UPDATE if requested
+            // Construct query
             let sql;
             if (updateOnDup) {
-                // For tables like 'admins', 'dealers', 'users', if ID exists, update fields (like wallet, password)
+                // If row exists (e.g., default admin), UPDATE it with values from SQLite (Wallet balance, password, etc)
                 const updates = columns.map(col => `${col} = VALUES(${col})`).join(', ');
                 sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
             } else {
-                // For 'bets', 'ledgers', we just insert missing ones. ID collision means it's already there.
+                // Otherwise just insert, ignore if exists (keep historical logs intact)
                 sql = `INSERT IGNORE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
             }
 
             let successCount = 0;
             
+            // Batch insert could be faster but line-by-line is safer for debugging data types
             for (const row of rows) {
                 const values = columns.map(col => {
                     let val = row[col];
-                    // Convert JSON strings to proper format if needed (though MySQL driver handles strings, we ensure it's valid)
+                    // Convert JSON strings to proper format
                     if (jsonColumns.includes(col) && typeof val === 'string') {
                         try {
-                            // Ensure it's valid JSON for MySQL
-                            return JSON.stringify(JSON.parse(val));
+                            // Validate JSON
+                            JSON.parse(val);
+                            return val; 
                         } catch (e) {
                             return '{}';
                         }
                     }
+                    // SQLite booleans are 0/1 integers, MySQL treats them similarly but ensure consistency
                     if (typeof val === 'boolean') {
                         return val ? 1 : 0; 
                     }
@@ -220,15 +133,15 @@ async function migrate() {
         };
 
         // --- EXECUTE MIGRATION ---
-        // We use 'updateOnDup = true' for critical account tables so old data overrides any empty placeholders
+        // We use 'updateOnDup = true' for accounts so the SQLite wallet balance overwrites the default 0 balance
         await copyTable('admins', ['prizeRates'], true);
         await copyTable('dealers', ['prizeRates'], true);
         await copyTable('users', ['prizeRates', 'betLimits'], true);
         
-        // Games: Update existing game definitions
+        // Games: Update existing game definitions (winning numbers etc)
         await copyTable('games', [], true);
         
-        // Transactional data: Insert Ignore (don't overwrite if UUID exists)
+        // Transactional data: Insert Ignore (don't overwrite if UUID exists, ledgers are immutable logs)
         await copyTable('daily_results');
         await copyTable('number_limits');
         await copyTable('bets', ['numbers']);
