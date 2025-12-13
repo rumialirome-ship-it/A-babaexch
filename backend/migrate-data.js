@@ -1,8 +1,28 @@
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3'); // For reading old DB
-const mysql = require('mysql2/promise'); // For writing new DB
 require('dotenv').config();
+
+// Check for required dependencies and provide helpful error messages
+let Database;
+try {
+    Database = require('better-sqlite3');
+} catch (e) {
+    console.error('\n\x1b[31m%s\x1b[0m', '❌ MISSING DEPENDENCY: better-sqlite3');
+    console.error('To read your old data, you need to install the SQLite driver temporarily.');
+    console.error('\nPlease run the following command in the backend folder:');
+    console.error('\x1b[36m%s\x1b[0m', '    npm install better-sqlite3');
+    console.error('\nThen run this script again.\n');
+    process.exit(1);
+}
+
+let mysql;
+try {
+    mysql = require('mysql2/promise');
+} catch (e) {
+    console.error('\n\x1b[31m%s\x1b[0m', '❌ MISSING DEPENDENCY: mysql2');
+    console.error('Please run: npm install mysql2');
+    process.exit(1);
+}
 
 const SQLITE_PATH = path.join(__dirname, 'database.sqlite');
 
