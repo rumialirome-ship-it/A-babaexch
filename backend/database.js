@@ -2,9 +2,12 @@ const mysql = require('mysql2/promise');
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
+// Fix: Node.js 17+ resolves 'localhost' to IPv6 (::1). MySQL often binds to IPv4 (127.0.0.1).
+const dbHost = (process.env.DB_HOST === 'localhost' || !process.env.DB_HOST) ? '127.0.0.1' : process.env.DB_HOST;
+
 // MySQL Connection Pool
 const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
+    host: dbHost,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'ababa_db',

@@ -26,8 +26,12 @@ try {
 
 const SQLITE_PATH = path.join(__dirname, 'database.sqlite');
 
+// Fix: Node.js 17+ resolves 'localhost' to IPv6 (::1). MySQL often binds to IPv4 (127.0.0.1).
+// We explicitly use 127.0.0.1 if localhost is specified to avoid ECONNREFUSED ::1:3306.
+const dbHost = (process.env.DB_HOST === 'localhost' || !process.env.DB_HOST) ? '127.0.0.1' : process.env.DB_HOST;
+
 const mysqlConfig = {
-    host: process.env.DB_HOST || 'localhost',
+    host: dbHost,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'ababa_db',
@@ -52,7 +56,7 @@ async function migrate() {
         console.log("✅ Connected to old SQLite database.");
 
         conn = await mysql.createConnection(mysqlConfig);
-        console.log("✅ Connected to new MySQL database.");
+        console.log(`✅ Connected to new MySQL database at ${mysqlConfig.host}.`);
 
         // 2. Disable Foreign Key checks temporarily to allow bulk inserting out of order
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
