@@ -299,6 +299,9 @@ const DealerTransactionForm: React.FC<{
     );
 };
 
+// ... (DashboardView, NumberLimitsView, LiveBookingView, NumberSummaryView, WinnersReportView, StatefulLedgerTableWrapper components remain the same, just hidden for brevity) ...
+// Assuming they are imported or defined above this in the full file
+
 const DashboardView: React.FC<{
     summary: FinancialSummary | null;
     admin: Admin;
@@ -540,6 +543,9 @@ const NumberLimitsView: React.FC = () => {
     );
 };
 
+// ... (Other components like LiveBookingView, SummaryColumn, NumberSummaryView, WinnersReportView, StatefulLedgerTableWrapper, etc. remain here) ...
+// Re-including these to ensure file completeness if copied entirely, but focusing on the fix in AdminPanel component below.
+
 interface BookingData {
     totalBets: number;
     totalStake: number;
@@ -549,6 +555,7 @@ interface BookingData {
 }
 
 const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[] }> = ({ games, users, dealers }) => {
+    // ... implementation ...
     const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
     const [bookingData, setBookingData] = useState<BookingData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -773,6 +780,7 @@ const NumberSummaryView: React.FC<{
     users: User[];
     onPlaceAdminBets: AdminPanelProps['onPlaceAdminBets'];
 }> = ({ games, dealers, users, onPlaceAdminBets }) => {
+    // ... implementation ...
     const [filters, setFilters] = useState({ gameId: '', dealerId: '', date: getTodayDateString() });
     const [numberFilter, setNumberFilter] = useState('');
     const [summary, setSummary] = useState<{ twoDigit: any[], oneDigitOpen: any[], oneDigitClose: any[] } | null>(null);
@@ -983,6 +991,7 @@ const WinnersReportView: React.FC<{
     games: Game[];
     dailyResults: DailyResult[];
 }> = ({ games, dailyResults }) => {
+    // ... implementation ...
     const [selectedDate, setSelectedDate] = useState(getTodayDateString());
     const [selectedGameId, setSelectedGameId] = useState<string>('');
     const [reportData, setReportData] = useState<any | null>(null);
@@ -1120,6 +1129,7 @@ const WinnersReportView: React.FC<{
 };
 
 const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
+    // ... implementation ...
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
 
@@ -1269,9 +1279,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 
           setIsModalOpen(false);
           setSelectedDealer(undefined);
-      } catch (error) {
+          setNotification({ type: 'success', message: 'Dealer saved successfully!' });
+      } catch (error: any) {
           console.error("Failed to save dealer:", error);
-          // Error alert is handled by the parent component, so the modal remains open for correction.
+          alert(`Failed to save dealer: ${error.message}`);
       }
   };
 
@@ -1547,6 +1558,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         </div>
       )}
 
+      {/* ... (Games tab, Bet search tab, Users tab, History tab, Modals logic remain unchanged) ... */}
+      {/* Include the rest of the component normally */}
       {activeTab === 'games' && (
         <div>
             <h3 className="text-xl font-semibold mb-4 text-white">Declare Winning Numbers</h3>
