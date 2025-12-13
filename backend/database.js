@@ -571,16 +571,25 @@ const getPaginatedDealers = async ({ page = 1, limit = 25, search = '' }) => {
     
     query += " LIMIT ? OFFSET ?";
     
-    // FIX: Destructure countRow correctly. execute() returns [rows], so countRow is the first row object.
-    const [countRow] = await execute(countQuery, params.slice(0, 2)); 
-    const rows = await execute(query, [...params, limit.toString(), offset.toString()]);
+    try {
+        // Safe Execution: Check existence before access
+        const countRows = await execute(countQuery, params.slice(0, 2));
+        // Force conversion to Number to avoid BigInt serialization errors
+        const totalItems = (countRows && countRows.length > 0) ? Number(countRows[0].count) : 0;
 
-    return {
-        items: rows,
-        totalItems: countRow.count,
-        totalPages: Math.ceil(countRow.count / limit),
-        currentPage: parseInt(page),
-    };
+        const rows = await execute(query, [...params, limit.toString(), offset.toString()]);
+
+        return {
+            items: rows,
+            totalItems: totalItems,
+            totalPages: Math.ceil(totalItems / limit),
+            currentPage: parseInt(page),
+        };
+    } catch (err) {
+        console.error("Pagination Error (Dealers):", err);
+        // Fail gracefully instead of crashing
+        return { items: [], totalItems: 0, totalPages: 0, currentPage: 1 };
+    }
 };
 
 const getPaginatedUsers = async ({ page = 1, limit = 25, search = '' }) => {
@@ -598,16 +607,23 @@ const getPaginatedUsers = async ({ page = 1, limit = 25, search = '' }) => {
     
     query += " LIMIT ? OFFSET ?";
     
-    // FIX: Destructure countRow correctly.
-    const [countRow] = await execute(countQuery, params.slice(0, 2));
-    const rows = await execute(query, [...params, limit.toString(), offset.toString()]);
+    try {
+        // Safe Execution
+        const countRows = await execute(countQuery, params.slice(0, 2));
+        const totalItems = (countRows && countRows.length > 0) ? Number(countRows[0].count) : 0;
 
-    return {
-        items: rows,
-        totalItems: countRow.count,
-        totalPages: Math.ceil(countRow.count / limit),
-        currentPage: parseInt(page),
-    };
+        const rows = await execute(query, [...params, limit.toString(), offset.toString()]);
+
+        return {
+            items: rows,
+            totalItems: totalItems,
+            totalPages: Math.ceil(totalItems / limit),
+            currentPage: parseInt(page),
+        };
+    } catch (err) {
+        console.error("Pagination Error (Users):", err);
+        return { items: [], totalItems: 0, totalPages: 0, currentPage: 1 };
+    }
 };
 
 const findBetsByDealerId = async (id) => {
