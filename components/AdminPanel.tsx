@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin, DailyResult } from '../types';
 import { Icons } from '../constants';
@@ -299,6 +298,81 @@ const DealerTransactionForm: React.FC<{
     );
 };
 
+const AIAnalystWidget: React.FC<{ selectedDate: string }> = ({ selectedDate }) => {
+    const [prompt, setPrompt] = useState('');
+    const [response, setResponse] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const { fetchWithAuth } = useAuth();
+
+    const handleAskAI = async (customPrompt?: string) => {
+        const question = customPrompt || prompt;
+        if (!question.trim()) return;
+
+        setIsLoading(true);
+        setResponse(null);
+        try {
+            const res = await fetchWithAuth('/api/admin/ai-insight', {
+                method: 'POST',
+                body: JSON.stringify({ date: selectedDate, userPrompt: question })
+            });
+            if (!res.ok) throw new Error("AI Request Failed");
+            const data = await res.json();
+            setResponse(data.insight);
+        } catch (error) {
+            setResponse("Sorry, I couldn't analyze the data right now.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="bg-gradient-to-br from-indigo-900/50 to-slate-900/50 p-6 rounded-lg border border-indigo-500/30 mb-8 shadow-lg">
+            <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-indigo-500/20 rounded-full border border-indigo-400/50">
+                    {React.cloneElement(Icons.sparkles, { className: "h-6 w-6 text-indigo-300" })}
+                </div>
+                <h3 className="text-xl font-bold text-white">AI Business Analyst</h3>
+            </div>
+            
+            <div className="flex flex-col md:flex-row gap-4 mb-4">
+                <input 
+                    type="text" 
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAskAI()}
+                    placeholder="Ask about profit, risk, or trends..."
+                    className="flex-grow bg-slate-800/80 p-3 rounded-md border border-slate-600 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-white placeholder-slate-400"
+                />
+                <button 
+                    onClick={() => handleAskAI()}
+                    disabled={isLoading}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-md transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                    {isLoading ? 'Analyzing...' : 'Ask AI'}
+                </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4">
+                {['Summarize today\'s performance', 'Are there any high-risk games?', 'What is the profit margin?'].map((q) => (
+                    <button 
+                        key={q} 
+                        onClick={() => { setPrompt(q); handleAskAI(q); }}
+                        className="text-xs bg-slate-700/50 hover:bg-indigo-500/20 text-indigo-200 py-1 px-3 rounded-full border border-slate-600 transition-colors"
+                    >
+                        {q}
+                    </button>
+                ))}
+            </div>
+
+            {response && (
+                <div className="bg-slate-800/80 p-4 rounded-md border-l-4 border-indigo-500 animate-fade-in-down">
+                    <p className="text-slate-200 whitespace-pre-wrap leading-relaxed">{response}</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const DashboardView: React.FC<{
     summary: FinancialSummary | null;
     admin: Admin;
@@ -315,7 +389,7 @@ const DashboardView: React.FC<{
     
     return (
         <div>
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                  <h3 className="text-xl font-semibold text-white">Financial Dashboard</h3>
                  <div className="w-full md:w-auto">
                     <label className="block text-sm font-medium text-slate-400 mb-1">Select Market Date</label>
@@ -327,6 +401,8 @@ const DashboardView: React.FC<{
                     />
                  </div>
             </div>
+
+            <AIAnalystWidget selectedDate={selectedDate} />
             
             {!summary ? (
                  <div className="text-center p-8 text-slate-400">Loading financial summary...</div>
