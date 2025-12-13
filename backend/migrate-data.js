@@ -32,6 +32,7 @@ async function migrate() {
 
     if (!fs.existsSync(SQLITE_PATH)) {
         console.error(`❌ Error: Old database file not found at ${SQLITE_PATH}`);
+        console.error("Please upload your 'database.sqlite' file to the 'backend' folder.");
         process.exit(1);
     }
 
@@ -156,7 +157,7 @@ async function migrate() {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
 
         // --- HELPER TO COPY TABLES ---
-        const copyTable = async (tableName, jsonColumns = []) => {
+        const copyTable = async (tableName, jsonColumns = [], updateOnDup = false) => {
             console.log(`\n⏳ Migrating table: ${tableName}...`);
             
             let rows;
@@ -175,7 +176,15 @@ async function migrate() {
             const firstRow = rows[0];
             const columns = Object.keys(firstRow);
             const placeholders = columns.map(() => '?').join(', ');
-            const sql = `INSERT IGNORE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+            
+            // Construct query: INSERT ... ON DUPLICATE KEY UPDATE if requested
+            let sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+            if (updateOnDup) {
+                const updates = columns.map(col => `${col} = VALUES(${col})`).join(', ');
+                sql += ` ON DUPLICATE KEY UPDATE ${updates}`;
+            } else {
+                sql = `INSERT IGNORE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+            }
 
             let successCount = 0;
             
@@ -184,6 +193,7 @@ async function migrate() {
                     let val = row[col];
                     if (jsonColumns.includes(col) && typeof val === 'string') {
                         try {
+                            // Ensure it's valid JSON for MySQL
                             return JSON.stringify(JSON.parse(val));
                         } catch (e) {
                             return '{}';
@@ -203,10 +213,15 @@ async function migrate() {
         };
 
         // --- EXECUTE MIGRATION ---
-        await copyTable('admins', ['prizeRates']);
-        await copyTable('dealers', ['prizeRates']);
-        await copyTable('users', ['prizeRates', 'betLimits']);
-        await copyTable('games');
+        // We use 'updateOnDup = true' for critical tables so old data overrides empty default data
+        await copyTable('admins', ['prizeRates'], true);
+        await copyTable('dealers', ['prizeRates'], true);
+        await copyTable('users', ['prizeRates', 'betLimits'], true);
+        
+        // Games: Keep old data if exists
+        await copyTable('games', [], true);
+        
+        // Transactional data: usually INSERT IGNORE is fine as IDs shouldn't clash unless identical
         await copyTable('daily_results');
         await copyTable('number_limits');
         await copyTable('bets', ['numbers']);
