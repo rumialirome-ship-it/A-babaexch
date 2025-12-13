@@ -137,9 +137,36 @@ async function main() {
                 `INSERT INTO admins (id, name, password, wallet, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?)`,
                 ['Guru', 'Guru', 'Pak@4646', 900000, JSON.stringify({ oneDigitOpen: 90, oneDigitClose: 90, twoDigit: 900 }), 'https://i.pravatar.cc/150?u=Guru']
             );
-            console.log("Admin seeded.");
+            console.log("✅ Admin seeded.");
         } else {
-            console.log("Admin already exists.");
+            console.log("ℹ️ Admin already exists.");
+        }
+
+        // Seed Games if not exists (NEW LOGIC)
+        const [gameRows] = await conn.query("SELECT id FROM games LIMIT 1");
+        if (gameRows.length === 0) {
+            console.log("Seeding default games...");
+            const games = [
+                { id: "g1", name: "Ali Baba", drawTime: "18:15" },
+                { id: "g2", name: "GSM", drawTime: "18:45" },
+                { id: "g3", name: "OYO TV", drawTime: "20:15" },
+                { id: "g4", name: "LS1", drawTime: "20:45" },
+                { id: "g5", name: "OLA TV", drawTime: "21:15" },
+                { id: "g6", name: "AK", drawTime: "21:55" },
+                { id: "g7", name: "LS2", drawTime: "23:45" },
+                { id: "g8", "name": "AKC", drawTime: "00:55" },
+                { id: "g9", "name": "LS3", drawTime: "02:10" }
+            ];
+
+            for (const g of games) {
+                await conn.query(
+                    `INSERT INTO games (id, name, drawTime) VALUES (?, ?, ?)`,
+                    [g.id, g.name, g.drawTime]
+                );
+            }
+            console.log("✅ Games seeded.");
+        } else {
+            console.log("ℹ️ Games already exist.");
         }
 
     } catch (e) {
