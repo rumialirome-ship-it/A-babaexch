@@ -490,49 +490,6 @@ app.post('/api/ai/lucky-pick', authMiddleware, async (req, res) => {
     }
 });
 
-// --- NEW SMART API USAGE ENDPOINT ---
-app.post('/api/admin/ai-insight', authMiddleware, async (req, res) => {
-    if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
-    const { date, userPrompt } = req.body;
-
-    if (!process.env.API_KEY) {
-        return res.status(503).json({ message: "AI services unavailable. API Key not configured." });
-    }
-
-    try {
-        // 1. Gather Context (Smart usage: only fetch aggregated data, not raw rows)
-        const summary = database.getFinancialSummary(date);
-        
-        // 2. Construct Prompt
-        const prompt = `
-            You are a sharp financial analyst for "A-Baba Exchange", a digital lottery platform.
-            
-            Current Data Context for ${date}:
-            - Total System Stake: ${summary.totals.totalStake.toFixed(2)}
-            - Total Payouts: ${summary.totals.totalPayouts.toFixed(2)}
-            - Net System Profit: ${summary.totals.netProfit.toFixed(2)}
-            - Game Performance Breakdown: ${JSON.stringify(summary.games.map(g => ({ name: g.gameName, stake: g.totalStake, profit: g.netProfit })))}
-            
-            User Question: "${userPrompt}"
-            
-            Provide a concise, professional, and strategic answer. Highlight risks or opportunities if relevant.
-            Do not mention technical terms like "JSON" or "database". Focus on business value.
-        `;
-
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-
-        res.json({ insight: response.text });
-
-    } catch (error) {
-        console.error("AI Insight Error:", error);
-        res.status(500).json({ message: "Failed to generate AI insight." });
-    }
-});
-
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
