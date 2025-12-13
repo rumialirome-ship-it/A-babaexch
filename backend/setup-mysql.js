@@ -1,5 +1,16 @@
-const mysql = require('mysql2/promise');
 require('dotenv').config();
+let mysql;
+
+try {
+    mysql = require('mysql2/promise');
+} catch (err) {
+    console.error('\n\x1b[31m%s\x1b[0m', '❌ CRITICAL ERROR: Missing Dependencies');
+    console.error('The "mysql2" package is not installed.');
+    console.error('Please run the following command in this directory to fix it:\n');
+    console.error('    \x1b[36m%s\x1b[0m', 'npm install');
+    console.error('\nAfter installing, run this script again.\n');
+    process.exit(1);
+}
 
 const config = {
     host: process.env.DB_HOST || 'localhost',
@@ -8,7 +19,21 @@ const config = {
 };
 
 async function main() {
-    const conn = await mysql.createConnection(config);
+    console.log(`Connecting to MySQL at ${config.host} as ${config.user}...`);
+    
+    let conn;
+    try {
+        conn = await mysql.createConnection(config);
+    } catch (err) {
+        console.error('\n\x1b[31m%s\x1b[0m', '❌ CONNECTION FAILED');
+        console.error('Could not connect to MySQL server.');
+        console.error('Error:', err.message);
+        console.error('\nCheck your .env file and ensure:');
+        console.error('1. MySQL Server is installed and running.');
+        console.error('2. DB_HOST, DB_USER, and DB_PASSWORD are correct.');
+        process.exit(1);
+    }
+
     try {
         await conn.query(`CREATE DATABASE IF NOT EXISTS ${process.env.DB_NAME || 'ababa_db'}`);
         await conn.query(`USE ${process.env.DB_NAME || 'ababa_db'}`);
