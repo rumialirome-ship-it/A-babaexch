@@ -391,7 +391,10 @@ const getMarketDateForDeclaration = (drawTime) => {
     return marketDate;
 };
 
-const declareWinnerForGame = async (gameId, winningNumber) => {
+const declareWinnerForGame = async (gameId, winningNumberInput) => {
+    const winningNumber = String(winningNumberInput).trim(); // Ensure string type
+    console.log(`[DB] Declaring winner for game ${gameId}: "${winningNumber}"`);
+    
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
@@ -424,16 +427,19 @@ const declareWinnerForGame = async (gameId, winningNumber) => {
         }
         
         await conn.commit();
+        console.log(`[DB] Success: Winner for ${game.name} set to ${winningNumber}`);
         return await findAccountById(gameId, 'games');
     } catch (e) {
         await conn.rollback();
+        console.error(`[DB] Fail: Declare winner error for ${gameId}:`, e);
         throw e;
     } finally {
         conn.release();
     }
 };
 
-const updateWinningNumber = async (gameId, newWinningNumber) => {
+const updateWinningNumber = async (gameId, newWinningNumberInput) => {
+    const newWinningNumber = String(newWinningNumberInput).trim();
     const conn = await pool.getConnection();
     try {
         await conn.beginTransaction();
@@ -564,13 +570,15 @@ const getPaginatedDealers = async ({ page = 1, limit = 25, search = '' }) => {
     }
     
     query += " LIMIT ? OFFSET ?";
-    const [countRows] = await execute(countQuery, params.slice(0, 2));
-    const [rows] = await execute(query, [...params, limit.toString(), offset.toString()]);
+    
+    // FIX: Destructure countRow correctly. execute() returns [rows], so countRow is the first row object.
+    const [countRow] = await execute(countQuery, params.slice(0, 2)); 
+    const rows = await execute(query, [...params, limit.toString(), offset.toString()]);
 
     return {
         items: rows,
-        totalItems: countRows[0].count,
-        totalPages: Math.ceil(countRows[0].count / limit),
+        totalItems: countRow.count,
+        totalPages: Math.ceil(countRow.count / limit),
         currentPage: parseInt(page),
     };
 };
@@ -589,13 +597,15 @@ const getPaginatedUsers = async ({ page = 1, limit = 25, search = '' }) => {
     }
     
     query += " LIMIT ? OFFSET ?";
-    const [countRows] = await execute(countQuery, params.slice(0, 2));
-    const [rows] = await execute(query, [...params, limit.toString(), offset.toString()]);
+    
+    // FIX: Destructure countRow correctly.
+    const [countRow] = await execute(countQuery, params.slice(0, 2));
+    const rows = await execute(query, [...params, limit.toString(), offset.toString()]);
 
     return {
         items: rows,
-        totalItems: countRows[0].count,
-        totalPages: Math.ceil(countRows[0].count / limit),
+        totalItems: countRow.count,
+        totalPages: Math.ceil(countRow.count / limit),
         currentPage: parseInt(page),
     };
 };
