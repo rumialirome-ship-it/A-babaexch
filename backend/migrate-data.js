@@ -8,7 +8,7 @@ try {
     Database = require('better-sqlite3');
 } catch (e) {
     console.error('\n\x1b[31m%s\x1b[0m', '❌ MISSING DEPENDENCY: better-sqlite3');
-    console.error('The restore.sh script should have installed this. Try running "npm install better-sqlite3" manually.');
+    console.error('The restore script should have installed this. Try running "npm install better-sqlite3" manually.');
     process.exit(1);
 }
 
@@ -26,6 +26,13 @@ const SQLITE_PATH = path.join(__dirname, 'database.sqlite');
 // Fix: Node.js 17+ resolves 'localhost' to IPv6 (::1). MySQL often binds to IPv4 (127.0.0.1).
 const dbHost = (process.env.DB_HOST === 'localhost' || !process.env.DB_HOST) ? '127.0.0.1' : process.env.DB_HOST;
 const dbName = process.env.DB_NAME || 'ababa_db';
+
+// Known mappings for legacy schemas
+const COLUMN_MAPPINGS = {
+    bets: { 'type': 'subGameType' },
+    ledgers: { 'type': 'accountType' }, // Just in case
+    // Add others if needed
+};
 
 async function migrate() {
     console.log("--- STARTING DATA MIGRATION (SQLite -> MySQL) ---");
@@ -82,40 +89,71 @@ async function migrate() {
                 return;
             }
 
-            console.log(`   Found ${rows.length} rows in ${tableName}. Inserting...`);
+            console.log(`   Found ${rows.length} rows in ${tableName}. analyzing structure...`);
 
+            // 1. Get MySQL Table Definition
+            const [mysqlColumnsResult] = await conn.query(`SHOW COLUMNS FROM \`${tableName}\``);
+            const mysqlColumnNames = new Set(mysqlColumnsResult.map(c => c.Field));
+
+            // 2. Map SQLite columns to MySQL columns
             const firstRow = rows[0];
-            const columns = Object.keys(firstRow);
-            const placeholders = columns.map(() => '?').join(', ');
-            
+            const sourceKeys = Object.keys(firstRow);
+            const columnsToMap = []; // Array of { source: 'type', target: 'subGameType' }
+            const usedTargets = new Set();
+
+            sourceKeys.forEach(sourceKey => {
+                let targetKey = sourceKey;
+                // Check if mapping exists
+                if (COLUMN_MAPPINGS[tableName] && COLUMN_MAPPINGS[tableName][sourceKey]) {
+                    targetKey = COLUMN_MAPPINGS[tableName][sourceKey];
+                }
+
+                // Only include if MySQL table has this column
+                if (mysqlColumnNames.has(targetKey)) {
+                    // Prevent duplicate targets (e.g. if source has both 'type' and 'subGameType' mapping to 'subGameType')
+                    if (!usedTargets.has(targetKey)) {
+                        columnsToMap.push({ source: sourceKey, target: targetKey });
+                        usedTargets.add(targetKey);
+                    }
+                } else {
+                    // console.log(`      Ignored extra column: ${sourceKey}`);
+                }
+            });
+
+            if (columnsToMap.length === 0) {
+                console.log(`   ❌ No matching columns found between SQLite and MySQL for ${tableName}. Skipping.`);
+                return;
+            }
+
+            const targetColsStr = columnsToMap.map(c => `\`${c.target}\``).join(', ');
+            const placeholders = columnsToMap.map(() => '?').join(', ');
+
             // Construct query
             let sql;
             if (updateOnDup) {
-                // If row exists (e.g., default admin), UPDATE it with values from SQLite (Wallet balance, password, etc)
-                const updates = columns.map(col => `${col} = VALUES(${col})`).join(', ');
-                sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
+                const updates = columnsToMap.map(c => `\`${c.target}\` = VALUES(\`${c.target}\`)`).join(', ');
+                sql = `INSERT INTO \`${tableName}\` (${targetColsStr}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`;
             } else {
-                // Otherwise just insert, ignore if exists (keep historical logs intact)
-                sql = `INSERT IGNORE INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+                sql = `INSERT IGNORE INTO \`${tableName}\` (${targetColsStr}) VALUES (${placeholders})`;
             }
 
             let successCount = 0;
             
-            // Batch insert could be faster but line-by-line is safer for debugging data types
+            // Insert data
             for (const row of rows) {
-                const values = columns.map(col => {
-                    let val = row[col];
-                    // Convert JSON strings to proper format
-                    if (jsonColumns.includes(col) && typeof val === 'string') {
+                const values = columnsToMap.map(colMap => {
+                    let val = row[colMap.source];
+                    
+                    // Convert JSON strings to proper format if needed
+                    if (jsonColumns.includes(colMap.target) && typeof val === 'string') {
                         try {
-                            // Validate JSON
                             JSON.parse(val);
                             return val; 
                         } catch (e) {
                             return '{}';
                         }
                     }
-                    // SQLite booleans are 0/1 integers, MySQL treats them similarly but ensure consistency
+                    // SQLite booleans are 0/1, ensure MySQL compatibility
                     if (typeof val === 'boolean') {
                         return val ? 1 : 0; 
                     }
@@ -126,7 +164,7 @@ async function migrate() {
                     await conn.execute(sql, values);
                     successCount++;
                 } catch (e) {
-                    console.error(`   ❌ Failed to insert row ID ${row.id}: ${e.message}`);
+                    console.error(`   ❌ Failed to insert row (source ID ${row.id || '?' }): ${e.message}`);
                 }
             }
             console.log(`   ✅ Successfully migrated ${successCount}/${rows.length} rows.`);
@@ -138,10 +176,10 @@ async function migrate() {
         await copyTable('dealers', ['prizeRates'], true);
         await copyTable('users', ['prizeRates', 'betLimits'], true);
         
-        // Games: Update existing game definitions (winning numbers etc)
+        // Games: Update existing game definitions
         await copyTable('games', [], true);
         
-        // Transactional data: Insert Ignore (don't overwrite if UUID exists, ledgers are immutable logs)
+        // Transactional data: Insert Ignore
         await copyTable('daily_results');
         await copyTable('number_limits');
         await copyTable('bets', ['numbers']);
