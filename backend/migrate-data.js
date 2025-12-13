@@ -173,6 +173,8 @@ async function migrate() {
                 return;
             }
 
+            console.log(`   Found ${rows.length} rows in ${tableName}. Inserting...`);
+
             const firstRow = rows[0];
             const columns = Object.keys(firstRow);
             const placeholders = columns.map(() => '?').join(', ');
@@ -199,6 +201,9 @@ async function migrate() {
                             return '{}';
                         }
                     }
+                    if (typeof val === 'boolean') {
+                        return val ? 1 : 0; // SQLite usually has 0/1 anyway, but JS might read as bool
+                    }
                     return val;
                 });
 
@@ -209,7 +214,7 @@ async function migrate() {
                     console.error(`   ❌ Failed to insert row ID ${row.id}: ${e.message}`);
                 }
             }
-            console.log(`   ✅ Migrated ${successCount}/${rows.length} rows.`);
+            console.log(`   ✅ Successfully migrated ${successCount}/${rows.length} rows.`);
         };
 
         // --- EXECUTE MIGRATION ---
@@ -221,14 +226,14 @@ async function migrate() {
         // Games: Keep old data if exists
         await copyTable('games', [], true);
         
-        // Transactional data: usually INSERT IGNORE is fine as IDs shouldn't clash unless identical
+        // Transactional data
         await copyTable('daily_results');
         await copyTable('number_limits');
         await copyTable('bets', ['numbers']);
         await copyTable('ledgers');
 
         console.log("\n--- MIGRATION COMPLETE ---");
-        console.log("You can now start the server.");
+        console.log("Your old users and data should now be restored.");
 
     } catch (err) {
         console.error("\n❌ MIGRATION FAILED:", err);
