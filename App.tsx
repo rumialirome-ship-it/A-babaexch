@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
-import { Icons, GAME_LOGOS } from './constants';
+import { Role, User, Dealer, Admin, Game, Bet, SubGameType, DailyResult } from './types';
+import { Icons } from './constants';
 import LandingPage from './components/LandingPage';
 import AdminPanel from './components/AdminPanel';
-// FIX: Switched to a named import to match the export change in DealerPanel.tsx and resolve the module error.
 import { DealerPanel } from './components/DealerPanel';
 import UserPanel from './components/UserPanel';
-import { AuthProvider, useAuth } from './hooks/useAuth';
+import { useAuth } from './hooks/useAuth';
 
 const Header: React.FC = () => {
     const { role, account, logout } = useAuth();
@@ -53,50 +52,24 @@ const Header: React.FC = () => {
 
 const AppContent: React.FC = () => {
     const { role, account, loading, fetchWithAuth } = useAuth();
+    // State for Dealer and User roles, Admin state is now managed within AdminPanel
     const [users, setUsers] = useState<User[]>([]);
-    const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
     const [dailyResults, setDailyResults] = useState<DailyResult[]>([]);
 
     const parseAllDates = (data: any) => {
-        const parseLedger = (ledger: LedgerEntry[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
+        const parseLedger = (ledger: any[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
         if (data.users) data.users = data.users.map((u: User) => ({...u, ledger: parseLedger(u.ledger)}));
-        if (data.dealers) data.dealers = data.dealers.map((d: Dealer) => ({...d, ledger: parseLedger(d.ledger)}));
         if (data.bets) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
         return data;
     };
 
     const fetchData = useCallback(async () => {
-        if (!role || !account) return;
+        if (!role || !account || role === Role.Admin) return; // Admin panel handles its own data
         try {
             let data;
-            if (role === Role.Admin) {
-                const [adminDataRes, usersRes, dealersRes] = await Promise.all([
-                    fetchWithAuth('/api/admin/data'),
-                    fetchWithAuth('/api/admin/users?limit=10000'), // Fetch all users with full data
-                    fetchWithAuth('/api/admin/dealers?limit=10000'), // Fetch all dealers with full data
-                ]);
-
-                if (!adminDataRes.ok || !usersRes.ok || !dealersRes.ok) {
-                    throw new Error('Failed to fetch full admin dataset');
-                }
-
-                const adminData = await adminDataRes.json();
-                const usersData = await usersRes.json();
-                const dealersData = await dealersRes.json();
-
-                const parsedAdminData = parseAllDates(adminData);
-                setGames(parsedAdminData.games);
-                setBets(parsedAdminData.bets);
-                setDailyResults(parsedAdminData.daily_results || []);
-                
-                const parsedUsers = parseAllDates({ users: usersData.items }).users;
-                setUsers(parsedUsers);
-                
-                const parsedDealers = parseAllDates({ dealers: dealersData.items }).dealers;
-                setDealers(parsedDealers);
-            } else if (role === Role.Dealer) {
+            if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
                 if (!response.ok) throw new Error('Failed to fetch dealer data');
                 data = await response.json();
@@ -124,45 +97,27 @@ const AppContent: React.FC = () => {
     useEffect(() => {
         let intervalId: ReturnType<typeof setInterval> | undefined;
     
-        if (account) {
-            fetchData(); // Initial fetch on login/account change
-    
-            if (role === Role.User) {
-                intervalId = setInterval(fetchData, 7000); // Poll every 7 seconds for users
-            } else if (role === Role.Dealer) {
-                intervalId = setInterval(fetchData, 10000); // Poll every 10 seconds for dealers
-            } else if (role === Role.Admin) {
-                // Admin panel has heavy data loads, poll less frequently. Specific views have their own faster polling.
-                intervalId = setInterval(fetchData, 30000); // Poll every 30 seconds for admin
-            }
-        } else {
-            // Clear data on logout
+        if (account && role !== Role.Admin) {
+            fetchData();
+            intervalId = setInterval(fetchData, role === Role.User ? 7000 : 10000);
+        } else if (!account) {
             setUsers([]);
-            setDealers([]);
             setGames([]);
             setBets([]);
             setDailyResults([]);
         }
     
-        // Cleanup interval on component unmount or when dependencies change
         return () => {
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
+            if (intervalId) clearInterval(intervalId);
         };
     }, [account, role, fetchData]);
 
-    const placeBet = useCallback(async (details: {
-        userId: string;
-        gameId: string;
-        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-    }): Promise<void> => {
+    // --- CALLBACKS for USER & DEALER PANELS ---
+
+    const placeBet = useCallback(async (details: { userId: string; gameId: string; betGroups: any[]; }) => {
         const response = await fetchWithAuth('/api/user/bets', {
             method: 'POST',
-            body: JSON.stringify({
-                gameId: details.gameId,
-                betGroups: details.betGroups,
-            })
+            body: JSON.stringify(details)
         });
         if (!response.ok) {
             const err = await response.json();
@@ -171,11 +126,7 @@ const AppContent: React.FC = () => {
         await fetchData();
     }, [fetchWithAuth, fetchData]);
 
-    const placeBetAsDealer = useCallback(async (details: {
-        userId: string;
-        gameId: string;
-        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-    }) => {
+    const placeBetAsDealer = useCallback(async (details: { userId: string; gameId: string; betGroups: any[]; }) => {
         const response = await fetchWithAuth('/api/dealer/bets/bulk', {
             method: 'POST',
             body: JSON.stringify(details)
@@ -187,7 +138,7 @@ const AppContent: React.FC = () => {
         await fetchData();
     }, [fetchWithAuth, fetchData]);
 
-    const onSaveUser = useCallback(async (userData: User, originalId: string | undefined, initialDeposit?: number) => {
+    const onSaveUser = useCallback(async (userData: User, originalId?: string, initialDeposit?: number) => {
         let response;
         if (originalId) {
             response = await fetchWithAuth(`/api/dealer/users/${originalId}`, { method: 'PUT', body: JSON.stringify(userData) });
@@ -224,116 +175,14 @@ const AppContent: React.FC = () => {
         }
         await fetchData();
     }, [fetchWithAuth, fetchData]);
-
-    const toggleAccountRestriction = useCallback(async (accountId: string, accountType: 'user' | 'dealer') => {
-        if (role === Role.Dealer && accountType === 'user') {
-            await fetchWithAuth(`/api/dealer/users/${accountId}/toggle-restriction`, { method: 'PUT' });
-        } else if (role === Role.Admin) {
-            await fetchWithAuth(`/api/admin/accounts/${accountType}/${accountId}/toggle-restriction`, { method: 'PUT' });
+    
+    const toggleAccountRestriction = useCallback(async (userId: string) => {
+        if (role === Role.Dealer) {
+            await fetchWithAuth(`/api/dealer/users/${userId}/toggle-restriction`, { method: 'PUT' });
+            await fetchData();
         }
-        await fetchData();
     }, [fetchWithAuth, fetchData, role]);
 
-    const onSaveDealer = useCallback(async (dealerData: Dealer, originalId?: string) => {
-        let response;
-        if (originalId) {
-            response = await fetchWithAuth(`/api/admin/dealers/${originalId}`, { method: 'PUT', body: JSON.stringify(dealerData) });
-        } else {
-            response = await fetchWithAuth('/api/admin/dealers', { method: 'POST', body: JSON.stringify(dealerData) });
-        }
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const declareWinner = useCallback(async (gameId: string, winningNumber: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/declare-winner`, {
-            method: 'POST',
-            body: JSON.stringify({ winningNumber })
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const updateWinner = useCallback(async (gameId: string, newWinningNumber: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/update-winner`, {
-            method: 'PUT',
-            body: JSON.stringify({ newWinningNumber })
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const approvePayouts = useCallback(async (gameId: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/approve-payouts`, {
-            method: 'POST'
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const topUpDealerWallet = useCallback(async (dealerId: string, amount: number) => {
-        const response = await fetchWithAuth('/api/admin/topup/dealer', {
-            method: 'POST',
-            body: JSON.stringify({ dealerId, amount })
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const withdrawFromDealerWallet = useCallback(async (dealerId: string, amount: number) => {
-        const response = await fetchWithAuth('/api/admin/withdraw/dealer', {
-            method: 'POST',
-            body: JSON.stringify({ dealerId, amount })
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const onPlaceAdminBets = useCallback(async (details: {
-        userId: string;
-        gameId: string;
-        betGroups: any[];
-    }) => {
-        const response = await fetchWithAuth('/api/admin/bulk-bet', {
-            method: 'POST',
-            body: JSON.stringify(details)
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
-
-    const updateGameDrawTime = useCallback(async (gameId: string, newDrawTime: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/draw-time`, {
-            method: 'PUT',
-            body: JSON.stringify({ newDrawTime })
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
 
     if (loading) {
         return (
@@ -349,24 +198,8 @@ const AppContent: React.FC = () => {
 
     switch (role) {
         case Role.Admin:
-            return <AdminPanel
-                admin={account as Admin}
-                dealers={dealers}
-                onSaveDealer={onSaveDealer}
-                users={users}
-                setUsers={setUsers}
-                games={games}
-                dailyResults={dailyResults}
-                declareWinner={declareWinner}
-                updateWinner={updateWinner}
-                approvePayouts={approvePayouts}
-                topUpDealerWallet={topUpDealerWallet}
-                withdrawFromDealerWallet={withdrawFromDealerWallet}
-                toggleAccountRestriction={toggleAccountRestriction}
-                onPlaceAdminBets={onPlaceAdminBets}
-                updateGameDrawTime={updateGameDrawTime}
-                fetchData={fetchData}
-            />;
+            // AdminPanel now fetches its own data. We only need to pass the initial admin account object.
+            return <AdminPanel initialAdmin={account as Admin} />;
         case Role.Dealer:
             const dealerUsers = users.filter(u => u.dealerId === account.id);
             const dealerBets = bets.filter(b => b.dealerId === account.id);
