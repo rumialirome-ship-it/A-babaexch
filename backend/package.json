@@ -5,16 +5,15 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "db:setup": "node setup-database.js",
-    "db:migrate": "node migrate-database.js"
+    "db:setup": "node setup-mysql.js"
   },
   "dependencies": {
     "@google/genai": "^0.12.0",
-    "better-sqlite3": "^11.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.9.7",
     "uuid": "^9.0.1"
   }
 }
