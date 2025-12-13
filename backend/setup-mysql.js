@@ -1,11 +1,13 @@
 require('dotenv').config();
 let mysql;
+let uuidv4;
 
 try {
     mysql = require('mysql2/promise');
+    uuidv4 = require('uuid').v4;
 } catch (err) {
     console.error('\n\x1b[31m%s\x1b[0m', '❌ CRITICAL ERROR: Missing Dependencies');
-    console.error('The "mysql2" package is not installed.');
+    console.error('The "mysql2" or "uuid" package is not installed.');
     console.error('Please run: npm install');
     process.exit(1);
 }
@@ -143,7 +145,6 @@ async function main() {
         }
 
         // 2. Games
-        // Check if ANY games exist. If not, seed them.
         const [gameRows] = await conn.query("SELECT id FROM games LIMIT 1");
         if (gameRows.length === 0) {
             console.log("🎲 Seeding default games...");
@@ -155,8 +156,8 @@ async function main() {
                 { id: "g5", name: "OLA TV", drawTime: "21:15" },
                 { id: "g6", name: "AK", drawTime: "21:55" },
                 { id: "g7", name: "LS2", drawTime: "23:45" },
-                { id: "g8", "name": "AKC", drawTime: "00:55" },
-                { id: "g9", "name": "LS3", drawTime: "02:10" }
+                { id: "g8", name: "AKC", drawTime: "00:55" },
+                { id: "g9", name: "LS3", drawTime: "02:10" }
             ];
 
             for (const g of games) {
@@ -166,6 +167,42 @@ async function main() {
                 );
             }
             console.log("✅ Default Games inserted.");
+        }
+
+        // 3. Default Dealer
+        const [dealerRows] = await conn.query("SELECT * FROM dealers WHERE id = 'dealer01'");
+        if (dealerRows.length === 0) {
+            console.log("Creating default dealer (dealer01)...");
+            await conn.query(
+                `INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, isRestricted, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ['dealer01', 'ABD-001', 'Pak@123', 'KHI', '03323022123', 50000, 10, 0, JSON.stringify({ oneDigitOpen: 80, oneDigitClose: 80, twoDigit: 800 }), 'https://i.pravatar.cc/150?u=dealer01']
+            );
+            
+            // Add initial ledger for dealer
+            const ts = new Date().toISOString();
+            await conn.query(
+                'INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [uuidv4(), 'dealer01', 'DEALER', ts, 'Initial Balance', 0, 50000, 50000]
+            );
+            console.log("✅ Default Dealer 'ABD-001' created.");
+        }
+
+        // 4. Default User
+        const [userRows] = await conn.query("SELECT * FROM users WHERE id = 'user01'");
+        if (userRows.length === 0) {
+            console.log("Creating default user (user01)...");
+            await conn.query(
+                `INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ['user01', 'ADU-001', 'Pak@123', 'dealer01', 'KHI', '03323022123', 2000, 5, 0, JSON.stringify({ oneDigitOpen: 70, oneDigitClose: 70, twoDigit: 700 }), JSON.stringify({oneDigit: 500, twoDigit: 1000}), 'https://i.pravatar.cc/150?u=user01']
+            );
+
+            // Add initial ledger for user
+            const ts = new Date().toISOString();
+            await conn.query(
+                'INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                [uuidv4(), 'user01', 'USER', ts, 'Initial Balance', 0, 2000, 2000]
+            );
+            console.log("✅ Default User 'ADU-001' created.");
         }
 
         console.log('\n\x1b[32m%s\x1b[0m', '🎉 DATABASE SETUP COMPLETE!');
