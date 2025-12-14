@@ -1,3 +1,4 @@
+
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -667,7 +668,17 @@ const updateDealer = (dealerData, originalId) => {
 };
 
 const findUsersByDealerId = (dealerId) => {
-    return db.prepare('SELECT * FROM users WHERE dealerId = ?').all(dealerId).map(u => findAccountById(u.id, 'users'));
+    // OPTIMIZED: Do NOT fetch ledger for user list to save bandwidth.
+    const users = db.prepare('SELECT * FROM users WHERE dealerId = ?').all(dealerId);
+    return users.map(u => {
+        try {
+            if (u.prizeRates && typeof u.prizeRates === 'string') u.prizeRates = JSON.parse(u.prizeRates);
+            if (u.betLimits && typeof u.betLimits === 'string') u.betLimits = JSON.parse(u.betLimits);
+            if ('isRestricted' in u) u.isRestricted = !!u.isRestricted;
+            u.ledger = []; // Ledger not fetched for performance
+        } catch (e) { console.error(e); }
+        return u;
+    });
 };
 
 const findBetsByDealerId = (dealerId) => {
@@ -697,6 +708,23 @@ const findBetsByGameId = (gameId) => {
     });
 
     return liveBets.map(b => {
+        try {
+            if (b.numbers && typeof b.numbers === 'string') {
+                b.numbers = JSON.parse(b.numbers);
+            }
+        } catch (e) {
+            console.error(`Failed to parse numbers for bet id ${b.id}`, e);
+        }
+        return b;
+    });
+};
+
+// --- NEW FUNCTION: OPTIMIZED BET FETCHING ---
+const getBetsByUserId = (userId) => {
+    // Direct index scan on userId (via idx_bets_userId)
+    const stmt = db.prepare('SELECT * FROM bets WHERE userId = ? ORDER BY timestamp DESC');
+    const bets = stmt.all(userId);
+    return bets.map(b => {
         try {
             if (b.numbers && typeof b.numbers === 'string') {
                 b.numbers = JSON.parse(b.numbers);
@@ -1319,6 +1347,7 @@ module.exports = {
     getCurrentStakeForNumber,
     findBetsByDealerId,
     findBetsByGameId,
+    getBetsByUserId, // Export the new function
     getNumberStakeSummary,
     searchBetsByNumber,
     placeBulkBets,

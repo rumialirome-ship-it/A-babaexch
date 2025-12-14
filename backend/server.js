@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -107,7 +108,8 @@ app.get('/api/user/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.status(403).json({ message: 'Forbidden' });
     const user = database.findAccountById(req.user.id, 'users');
     const games = database.getAllFromTable('games');
-    const bets = database.getAllFromTable('bets').filter(b => b.userId === req.user.id);
+    // OPTIMIZED: Use specific query instead of fetching all bets and filtering in JS
+    const bets = database.getBetsByUserId(req.user.id);
     const daily_results = database.getAllFromTable('daily_results');
     res.json({ games, bets, user, daily_results });
 });
@@ -221,9 +223,9 @@ app.get('/api/admin/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ message: 'Forbidden' });
     const admin = database.findAccountById(req.user.id, 'admins');
     const games = database.getAllFromTable('games');
-    const bets = database.getAllFromTable('bets');
+    // OPTIMIZED: Removed 'bets' from here. It's too large and not needed for initial admin load.
     const daily_results = database.getAllFromTable('daily_results');
-    res.json({ admin, games, bets, daily_results });
+    res.json({ admin, games, daily_results });
 });
 
 app.get('/api/admin/dealers', authMiddleware, (req, res) => {
