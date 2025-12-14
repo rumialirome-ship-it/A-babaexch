@@ -397,15 +397,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   };
 
   // Update Winner Handler
-  const handleUpdateWinner = async (gameId: string, gameName: string, isApproved: boolean) => {
+  const handleUpdateWinner = async (gameId: string, gameName: string) => {
     if (!editingGame || editingGame.id !== gameId) return;
-    
-    if (isApproved) {
-        if (!window.confirm("WARNING: This game has already been approved and payouts processed.\n\nChanging the winning number now will cause inconsistencies. You may need to manually reprocess payouts.\n\nAre you sure you want to change it?")) {
-            return;
-        }
-    }
-
     const num = editingGame.number;
     const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
     const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
@@ -496,7 +489,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                     const isEditingTime = editingDrawTime?.gameId === game.id;
 
                     return (
-                    <div key={game.id} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 relative shadow-md hover:shadow-lg transition-shadow">
+                    <div key={game.id} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 relative">
                         <div className="flex justify-between items-start mb-2">
                             <h4 className="font-bold text-lg text-white">{game.name}</h4>
                             {game.payoutsApproved && (
@@ -542,11 +535,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                     </div>
                                     <button 
                                         onClick={() => handleEditGame(game.id, game.winningNumber!)}
-                                        className="flex items-center px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 rounded border border-slate-600 transition-colors text-xs font-semibold"
+                                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-cyan-400 rounded-md transition-colors"
                                         title="Edit Result"
                                     >
                                         {Icons.pencil}
-                                        <span className="ml-1">Edit</span>
                                     </button>
                                 </div>
                                 {!game.payoutsApproved && (
@@ -580,7 +572,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                 {isEditing ? (
                                     <>
                                         <button 
-                                            onClick={() => handleUpdateWinner(game.id, game.name, !!game.payoutsApproved)} 
+                                            onClick={() => handleUpdateWinner(game.id, game.name)} 
                                             disabled={isDeclaring}
                                             className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
                                         >

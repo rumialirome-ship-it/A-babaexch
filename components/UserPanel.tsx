@@ -264,23 +264,16 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
     const isMarketClosedForDisplay = !game.isMarketOpen;
 
     return (
-        <div className={`bg-slate-800/50 rounded-lg shadow-lg p-4 flex flex-col justify-between transition duration-300 border border-slate-700 ${!isPlayable ? 'opacity-60' : 'hover:shadow-cyan-500/20 hover:-translate-y-1 hover:border-cyan-500/50'}`}>
+        <div className={`bg-slate-800/50 rounded-lg shadow-lg p-4 flex flex-col justify-between transition-all duration-300 border border-slate-700 ${!isPlayable ? 'opacity-60' : 'hover:shadow-cyan-500/20 hover:-translate-y-1 hover:border-cyan-500/50'}`}>
             <div>
                 <div className="flex items-center mb-3">
-                    <img 
-                        src={game.logo} 
-                        alt={game.name} 
-                        width={48} 
-                        height={48} 
-                        className="w-12 h-12 rounded-full mr-4 border-2 border-slate-600" 
-                    />
+                    <img src={game.logo} alt={game.name} className="w-12 h-12 rounded-full mr-4 border-2 border-slate-600" />
                     <div>
                         <h3 className="text-xl text-white uppercase tracking-wider">{game.name}</h3>
                         <p className="text-sm text-slate-400">Draw at {formatTime12h(game.drawTime)}</p>
                     </div>
                 </div>
-                {/* Min-height added to prevent CLS */}
-                <div className={`text-center my-4 p-2 rounded-lg bg-slate-900/50 border-t border-slate-700 min-h-[90px] flex flex-col justify-center`}>
+                <div className={`text-center my-4 p-2 rounded-lg bg-slate-900/50 border-t border-slate-700`}>
                     {isMarketClosedForDisplay ? (
                         <>
                             <div className="text-xs uppercase tracking-wider text-slate-400">STATUS</div>
@@ -300,7 +293,7 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
                 </div>
             </div>
              {game.winningNumber && isMarketClosedForDisplay && <div className="text-center font-bold text-lg text-emerald-400 mt-2">Previous Winner: {game.winningNumber}</div>}
-            <button onClick={() => onPlay(game)} disabled={!isPlayable} className="w-full mt-2 bg-sky-600 text-white font-bold py-2.5 px-4 rounded-md transition duration-300 enabled:hover:bg-sky-500 enabled:hover:shadow-lg enabled:hover:shadow-sky-500/30 disabled:bg-slate-700 disabled:cursor-not-allowed">
+            <button onClick={() => onPlay(game)} disabled={!isPlayable} className="w-full mt-2 bg-sky-600 text-white font-bold py-2.5 px-4 rounded-md transition-all duration-300 enabled:hover:bg-sky-500 enabled:hover:shadow-lg enabled:hover:shadow-sky-500/30 disabled:bg-slate-700 disabled:cursor-not-allowed">
                 PLAY NOW
             </button>
         </div>
@@ -1047,7 +1040,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet, dail
         betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[],
     } | {
         isMultiGame: true,
-        multiGameBets: Map<string, { gameName: string, betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>;
+        multiGameBets: Map<string, { gameName: string, betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>
     }) => {
     setBettingError(null);
     let confirmationDetails: BetConfirmationDetails;
@@ -1157,13 +1150,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet, dail
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-800/50 p-4 rounded-lg mb-8 border border-slate-700 gap-4">
         <div className="flex items-center">
             {user.avatarUrl ? (
-                <img 
-                    src={user.avatarUrl} 
-                    alt={user.name} 
-                    width={64}
-                    height={64}
-                    className="w-16 h-16 rounded-full mr-5 border-2 border-sky-400 object-cover"
-                />
+                <img src={user.avatarUrl} alt={user.name} className="w-16 h-16 rounded-full mr-5 border-2 border-sky-400 object-cover"/>
             ) : (
                 <div className="w-16 h-16 rounded-full mr-5 border-2 border-sky-400 bg-slate-700 flex items-center justify-center">
                     <span className="text-3xl font-bold">{user.name.charAt(0)}</span>

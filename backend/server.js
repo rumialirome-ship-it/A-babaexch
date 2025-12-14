@@ -40,6 +40,7 @@ function scheduleNextGameReset() {
     }, delay);
 }
 
+
 // --- DATABASE INITIALIZATION ---
 // Note: verifySchema is async now but we don't block startup for it, just log errors.
 database.verifySchema().then(() => {
@@ -107,9 +108,6 @@ app.post('/api/auth/reset-password', async (req, res) => {
 // --- PUBLIC ROUTES ---
 app.get('/api/games', async (req, res) => {
     try {
-        // LCP Optimization: Cache public game data to reduce delay
-        // This ensures the "Winning Number" section loads instantly on repeat visits
-        res.set('Cache-Control', 'public, max-age=5');
         const games = await database.getAllFromTable('games');
         res.json(games);
     } catch (error) {

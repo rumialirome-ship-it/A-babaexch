@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Game } from '../types';
 import { useCountdown } from '../hooks/useCountdown';
@@ -23,7 +22,7 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
     return (
         <button
             onClick={onClick}
-            className={`relative group bg-slate-800/50 p-6 flex flex-col items-center justify-between text-center transition duration-300 ease-in-out border border-slate-700 w-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-${themeColor}-500`}
+            className={`relative group bg-slate-800/50 p-6 flex flex-col items-center justify-between text-center transition-all duration-300 ease-in-out border border-slate-700 w-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-${themeColor}-500`}
             style={{
                 clipPath: 'polygon(0 15px, 15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%)',
             }}
@@ -33,18 +32,11 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
             {/* Main content */}
             <div className="relative z-10 w-full flex flex-col h-full">
                 <div className="flex-grow">
-                    <img 
-                        src={logo} 
-                        alt={`${game.name} logo`} 
-                        width={96}
-                        height={96}
-                        className="w-24 h-24 rounded-full mb-4 border-4 border-slate-700 group-hover:border-cyan-400 transition-colors" 
-                    />
+                    <img src={logo} alt={`${game.name} logo`} className="w-24 h-24 rounded-full mb-4 border-4 border-slate-700 group-hover:border-cyan-400 transition-colors" />
                     <h3 className="text-2xl text-white mb-1 uppercase tracking-wider">{game.name}</h3>
                     <p className="text-slate-400 text-sm">Draw @ {formatTime12h(game.drawTime)}</p>
                 </div>
-                {/* Min-height added to prevent CLS when text changes */}
-                <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor}-400/20 min-h-[110px] flex flex-col justify-center`}>
+                <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor}-400/20`}>
                     {hasWinner && isMarketClosedForDisplay ? (
                         <>
                             <div className="text-xs uppercase tracking-widest text-slate-400">PREVIOUS WINNER</div>
@@ -112,7 +104,7 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg shadow-2xl border border-slate-700 overflow-hidden">
             <div className="p-1.5 flex items-center space-x-2 bg-black/20">
                 {roles.map(role => (
-                    <button key={role.name} onClick={() => handleTabClick(role.name)} className={`flex-1 py-2 px-4 text-sm uppercase tracking-widest rounded-md transition duration-300 ${activeTab === role.name ? `bg-slate-700 ${activeRole.theme.text} shadow-lg` : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`} aria-pressed={activeTab === role.name}>
+                    <button key={role.name} onClick={() => handleTabClick(role.name)} className={`flex-1 py-2 px-4 text-sm uppercase tracking-widest rounded-md transition-all duration-300 ${activeTab === role.name ? `bg-slate-700 ${activeRole.theme.text} shadow-lg` : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`} aria-pressed={activeTab === role.name}>
                         {role.name}
                     </button>
                 ))}
@@ -136,7 +128,7 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
                         </div>
                     </div>
                     {error && <p id="error-message" role="alert" className="text-sm text-red-300 bg-red-500/20 p-3 rounded-md border border-red-500/30">{error}</p>}
-                    <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-md transition duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/20 bg-gradient-to-r ${activeRole.theme.button} ${activeRole.theme.buttonHover}`}>
+                    <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/20 bg-gradient-to-r ${activeRole.theme.button} ${activeRole.theme.buttonHover}`}>
                         LOGIN
                     </button>
                 </form>
@@ -201,7 +193,7 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
                             </div>
                         </div>
                         {error && <p className="text-sm text-red-300 bg-red-500/20 p-3 rounded-md border border-red-500/30">{error}</p>}
-                        <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-md transition duration-300 transform hover:scale-105 bg-gradient-to-r ${theme.button} ${theme.buttonHover}`}>
+                        <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 bg-gradient-to-r ${theme.button} ${theme.buttonHover}`}>
                             Authenticate
                         </button>
                     </form>
@@ -377,7 +369,7 @@ const LandingPage: React.FC = () => {
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
                     <LoginPanel onForgotPassword={() => setIsResetModalOpen(true)} />
                      <div className="mt-6">
-                        <button onClick={() => setIsAdminModalOpen(true)} className="w-full text-white font-bold py-3 px-4 rounded-md transition duration-300 transform hover:scale-105 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500">
+                        <button onClick={() => setIsAdminModalOpen(true)} className="w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500">
                             ADMINISTRATOR ACCESS
                         </button>
                     </div>
