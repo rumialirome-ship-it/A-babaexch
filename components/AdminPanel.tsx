@@ -336,13 +336,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [ledgerModalData, setLedgerModalData] = useState<{ title: string; entries: LedgerEntry[] } | null>(null);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
   const [dashboardDate, setDashboardDate] = useState(getTodayDateString());
-  // Added editingGame state here
+  
+  // State for Editing
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
   const [declaringGameId, setDeclaringGameId] = useState<string | null>(null);
+  const [approvingGameId, setApprovingGameId] = useState<string | null>(null);
+
   const { fetchWithAuth } = useAuth();
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Unused state placeholders to satisfy compiler if needed by placeholders
   const [reprocessState, setReprocessState] = useState({ gameId: '', date: getTodayDateString(), isLoading: false, error: null as string | null, success: null as string | null });
   const [betSearchState, setBetSearchState] = useState<{ query: string; isLoading: boolean; results: any[]; summary: { number: string; count: number; totalStake: number } | null; }>({ query: '', isLoading: false, results: [], summary: null });
   const [dealerSortKey, setDealerSortKey] = useState<SortKey>('name');
@@ -369,16 +373,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     fetchSummary();
   }, [activeTab, dashboardDate, fetchWithAuth]);
 
-  // Simplified handlers for brevity
-  const handleSaveDealer = async (dealerData: Dealer, originalId?: string) => { /* ... */ };
-  const handleReprocessChange = (e: any) => { /* ... */ };
-  const handleReprocessSubmit = async () => { /* ... */ };
-  const handleBetSearch = async () => { /* ... */ };
-  const handleDealerSort = (key: SortKey) => { /* ... */ };
-  const handleUserSort = (key: SortKey) => { /* ... */ };
-  const sortedDealers = useMemo(() => dealers, [dealers]);
-  const sortedUsers = useMemo(() => users, [users]);
-
   // Declare Winner Handler
   const handleDeclareWinner = async (gameId: string, gameName: string) => {
     const num = winningNumbers[gameId];
@@ -402,9 +396,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     }
   };
 
-  // NEW: Update Winner Handler
-  const handleUpdateWinner = async (gameId: string, gameName: string) => {
+  // Update Winner Handler
+  const handleUpdateWinner = async (gameId: string, gameName: string, isApproved: boolean) => {
     if (!editingGame || editingGame.id !== gameId) return;
+    
+    if (isApproved) {
+        if (!window.confirm("WARNING: This game has already been approved and payouts processed.\n\nChanging the winning number now will cause inconsistencies. You may need to manually reprocess payouts.\n\nAre you sure you want to change it?")) {
+            return;
+        }
+    }
+
     const num = editingGame.number;
     const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
     const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
@@ -432,6 +433,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       setEditingGame({ id: gameId, number: cleanNumber });
   };
 
+  const handleUpdateDrawTime = async () => {
+        if (!editingDrawTime) return;
+        try {
+            await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time);
+            setEditingDrawTime(null);
+            setNotification({ type: 'success', message: 'Draw time updated successfully.' });
+        } catch (err: any) {
+            setNotification({ type: 'error', message: err.message });
+        }
+  };
+
+  const handleApprovePayouts = async (gameId: string, gameName: string) => {
+      if(window.confirm(`Are you sure you want to approve payouts for ${gameName}? This will distribute prizes to all winners.`)) {
+          setApprovingGameId(gameId);
+          try {
+              await approvePayouts(gameId);
+              setNotification({ type: 'success', message: `Payouts approved for ${gameName}` });
+          } catch(err: any) {
+              setNotification({ type: 'error', message: err.message });
+          } finally {
+              setApprovingGameId(null);
+          }
+      }
+  }
+
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
     { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
@@ -448,7 +474,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
           </div>
       )}
       
-      {/* ... (Tabs Render) ... */}
+      {/* Tab Navigation */}
       <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
@@ -459,7 +485,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 
       {activeTab === 'games' && (
         <div>
-            <h3 className="text-xl font-semibold mb-4 text-white">Manage Winning Numbers</h3>
+            <h3 className="text-xl font-semibold mb-4 text-white">Declare Winning Numbers</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {games.map(game => {
                     const isAK = game.name === 'AK';
@@ -467,29 +493,74 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                     const isSingleDigitGame = isAK || isAKC;
                     const isDeclaring = declaringGameId === game.id;
                     const isEditing = editingGame?.id === game.id;
+                    const isEditingTime = editingDrawTime?.gameId === game.id;
 
                     return (
-                    <div key={game.id} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 relative">
-                        <h4 className="font-bold text-lg text-white">{game.name}</h4>
-                        <p className="text-xs text-slate-400 mb-2">Draw: {game.drawTime}</p>
-                        
-                        {game.winningNumber && !isEditing ? (
-                            <div className="flex items-center justify-between my-2 bg-slate-900/50 p-3 rounded-md border border-slate-700">
-                                <div>
-                                    <p className="text-xs text-slate-400 uppercase tracking-wider">Winner</p>
-                                    <p className="text-2xl font-bold text-emerald-400 tracking-widest">{game.winningNumber}</p>
+                    <div key={game.id} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 relative shadow-md hover:shadow-lg transition-shadow">
+                        <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-lg text-white">{game.name}</h4>
+                            {game.payoutsApproved && (
+                                <span className="bg-green-500/20 text-green-400 text-xs font-bold px-2 py-1 rounded-full flex items-center">
+                                    {Icons.checkCircle} <span className="ml-1">Approved</span>
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Draw Time Section */}
+                        <div className="flex items-center text-xs text-slate-400 mb-4">
+                            {isEditingTime ? (
+                                <div className="flex items-center space-x-1">
+                                    <input 
+                                        type="time" 
+                                        value={editingDrawTime.time} 
+                                        onChange={(e) => setEditingDrawTime({...editingDrawTime, time: e.target.value})}
+                                        className="bg-slate-900 text-white p-1 rounded border border-slate-600 w-24"
+                                    />
+                                    <button onClick={handleUpdateDrawTime} className="bg-emerald-600 text-white px-2 py-1 rounded">✓</button>
+                                    <button onClick={() => setEditingDrawTime(null)} className="bg-slate-600 text-white px-2 py-1 rounded">✕</button>
                                 </div>
-                                <button 
-                                    onClick={() => handleEditGame(game.id, game.winningNumber!)}
-                                    className="p-2 text-slate-400 hover:text-cyan-400 transition-colors"
-                                    title="Edit Result"
-                                >
-                                    {/* Pencil Icon */}
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                                    </svg>
-                                </button>
-                            </div>
+                            ) : (
+                                <>
+                                    <span>Draw Time: {game.drawTime}</span>
+                                    <button 
+                                        onClick={() => setEditingDrawTime({ gameId: game.id, time: game.drawTime })}
+                                        className="ml-2 px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-[10px]"
+                                    >
+                                        Edit
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                        
+                        {/* Winning Number Section */}
+                        {game.winningNumber && !isEditing ? (
+                            <>
+                                <div className="flex items-center justify-between my-3 bg-slate-900/50 p-3 rounded-md border border-slate-700">
+                                    <div>
+                                        <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Winner Declared</p>
+                                        <p className="text-3xl font-bold text-emerald-400 tracking-widest">{game.winningNumber}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => handleEditGame(game.id, game.winningNumber!)}
+                                        className="flex items-center px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 rounded border border-slate-600 transition-colors text-xs font-semibold"
+                                        title="Edit Result"
+                                    >
+                                        {Icons.pencil}
+                                        <span className="ml-1">Edit</span>
+                                    </button>
+                                </div>
+                                {!game.payoutsApproved && (
+                                    <button 
+                                        onClick={() => handleApprovePayouts(game.id, game.name)}
+                                        disabled={approvingGameId === game.id}
+                                        className="w-full mt-2 bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-md transition-colors flex items-center justify-center disabled:bg-slate-600 disabled:cursor-wait"
+                                    >
+                                        {approvingGameId === game.id ? 'Approving...' : (
+                                            <> {Icons.checkCircle} <span className="ml-2">Approve Payouts</span> </>
+                                        )}
+                                    </button>
+                                )}
+                            </>
                         ) : (
                             <div className="flex items-center space-x-2 my-2">
                                 <input 
@@ -501,7 +572,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                         if (isEditing) setEditingGame({ ...editingGame!, number: val });
                                         else setWinningNumbers({...winningNumbers, [game.id]: val});
                                     }}
-                                    className="w-20 bg-slate-800 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 text-white placeholder-slate-600" 
+                                    className="w-24 bg-slate-800 p-2 text-center text-2xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 text-white placeholder-slate-600" 
                                     placeholder={isSingleDigitGame ? '0' : '00'} 
                                     disabled={isDeclaring}
                                     autoFocus={isEditing}
@@ -509,7 +580,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                 {isEditing ? (
                                     <>
                                         <button 
-                                            onClick={() => handleUpdateWinner(game.id, game.name)} 
+                                            onClick={() => handleUpdateWinner(game.id, game.name, !!game.payoutsApproved)} 
                                             disabled={isDeclaring}
                                             className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
                                         >
@@ -520,7 +591,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                             disabled={isDeclaring}
                                             className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
                                         >
-                                            X
+                                            ✕
                                         </button>
                                     </>
                                 ) : (
@@ -534,6 +605,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                 )}
                             </div>
                         )}
+                        {game.name === 'AK' && <p className="text-[10px] text-slate-500 mt-2">Note: The AKC result provides the 'close' digit for the AK game.</p>}
+                        {game.name === 'AKC' && <p className="text-[10px] text-slate-500 mt-2">Note: The AKC result provides the 'close' digit for the AK game.</p>}
                     </div>
                 )})}
             </div>
