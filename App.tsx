@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates, DailyResult } from './types';
 import { Icons, GAME_LOGOS } from './constants';
@@ -61,10 +60,10 @@ const AppContent: React.FC = () => {
     const [dailyResults, setDailyResults] = useState<DailyResult[]>([]);
 
     const parseAllDates = (data: any) => {
-        const parseLedger = (ledger: LedgerEntry[] = []) => ledger ? ledger.map(e => ({...e, timestamp: new Date(e.timestamp)})) : [];
-        if (data.users && Array.isArray(data.users)) data.users = data.users.map((u: User) => ({...u, ledger: parseLedger(u.ledger)}));
-        if (data.dealers && Array.isArray(data.dealers)) data.dealers = data.dealers.map((d: Dealer) => ({...d, ledger: parseLedger(d.ledger)}));
-        if (data.bets && Array.isArray(data.bets)) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
+        const parseLedger = (ledger: LedgerEntry[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
+        if (data.users) data.users = data.users.map((u: User) => ({...u, ledger: parseLedger(u.ledger)}));
+        if (data.dealers) data.dealers = data.dealers.map((d: Dealer) => ({...d, ledger: parseLedger(d.ledger)}));
+        if (data.bets) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
         return data;
     };
 
@@ -73,63 +72,49 @@ const AppContent: React.FC = () => {
         try {
             let data;
             if (role === Role.Admin) {
-                // OPTIMIZATION: Fetch lightweight lists instead of full objects
                 const [adminDataRes, usersRes, dealersRes] = await Promise.all([
                     fetchWithAuth('/api/admin/data'),
-                    fetchWithAuth('/api/admin/users/list'), 
-                    fetchWithAuth('/api/admin/dealers/list'), 
+                    fetchWithAuth('/api/admin/users?limit=10000'), // Fetch all users with full data
+                    fetchWithAuth('/api/admin/dealers?limit=10000'), // Fetch all dealers with full data
                 ]);
 
                 if (!adminDataRes.ok || !usersRes.ok || !dealersRes.ok) {
-                    throw new Error('Failed to fetch dataset');
+                    throw new Error('Failed to fetch full admin dataset');
                 }
 
                 const adminData = await adminDataRes.json();
-                const usersList = await usersRes.json();
-                const dealersList = await dealersRes.json();
+                const usersData = await usersRes.json();
+                const dealersData = await dealersRes.json();
 
                 const parsedAdminData = parseAllDates(adminData);
-                setGames(Array.isArray(parsedAdminData.games) ? parsedAdminData.games : []);
-                setBets(Array.isArray(parsedAdminData.bets) ? parsedAdminData.bets : []);
-                setDailyResults(Array.isArray(parsedAdminData.daily_results) ? parsedAdminData.daily_results : []);
+                setGames(parsedAdminData.games);
+                setBets(parsedAdminData.bets);
+                setDailyResults(parsedAdminData.daily_results || []);
                 
-                // Map lightweight list to User/Dealer type with defaults to prevent crashes
-                // Full data is now fetched on demand by AdminPanel components
-                const mappedUsers = Array.isArray(usersList) ? usersList.map((u: any) => ({
-                    ...u,
-                    wallet: 0, commissionRate: 0, isRestricted: false, ledger: [], prizeRates: {}, betLimits: {}
-                })) : [];
-                setUsers(mappedUsers);
+                const parsedUsers = parseAllDates({ users: usersData.items }).users;
+                setUsers(parsedUsers);
                 
-                const mappedDealers = Array.isArray(dealersList) ? dealersList.map((d: any) => ({
-                    ...d,
-                    wallet: 0, commissionRate: 0, isRestricted: false, ledger: [], prizeRates: {}
-                })) : [];
-                setDealers(mappedDealers);
-
+                const parsedDealers = parseAllDates({ dealers: dealersData.items }).dealers;
+                setDealers(parsedDealers);
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
                 if (!response.ok) throw new Error('Failed to fetch dealer data');
                 data = await response.json();
                 const parsedData = parseAllDates(data);
-                
-                setUsers(Array.isArray(parsedData.users) ? parsedData.users : []);
-                setBets(Array.isArray(parsedData.bets) ? parsedData.bets : []);
-                setDailyResults(Array.isArray(parsedData.daily_results) ? parsedData.daily_results : []);
-                
+                setUsers(parsedData.users);
+                setBets(parsedData.bets);
+                setDailyResults(parsedData.daily_results || []);
                 const gamesResponse = await fetchWithAuth('/api/games');
                 const gamesData = await gamesResponse.json();
-                setGames(Array.isArray(gamesData) ? gamesData : []);
-
+                setGames(gamesData);
             } else if (role === Role.User) {
                 const response = await fetchWithAuth('/api/user/data');
                 if (!response.ok) throw new Error('Failed to fetch user data');
                 data = await response.json();
                 const parsedData = parseAllDates(data);
-                
-                setGames(Array.isArray(parsedData.games) ? parsedData.games : []);
-                setBets(Array.isArray(parsedData.bets) ? parsedData.bets : []);
-                setDailyResults(Array.isArray(parsedData.daily_results) ? parsedData.daily_results : []);
+                setGames(parsedData.games);
+                setBets(parsedData.bets);
+                setDailyResults(parsedData.daily_results || []);
             }
         } catch (error) {
             console.error("Failed to fetch data:", error);
@@ -143,13 +128,15 @@ const AppContent: React.FC = () => {
             fetchData(); // Initial fetch on login/account change
     
             if (role === Role.User) {
-                intervalId = setInterval(fetchData, 7000); 
+                intervalId = setInterval(fetchData, 7000); // Poll every 7 seconds for users
             } else if (role === Role.Dealer) {
-                intervalId = setInterval(fetchData, 10000); 
+                intervalId = setInterval(fetchData, 10000); // Poll every 10 seconds for dealers
             } else if (role === Role.Admin) {
-                intervalId = setInterval(fetchData, 30000); 
+                // Admin panel has heavy data loads, poll less frequently. Specific views have their own faster polling.
+                intervalId = setInterval(fetchData, 30000); // Poll every 30 seconds for admin
             }
         } else {
+            // Clear data on logout
             setUsers([]);
             setDealers([]);
             setGames([]);
@@ -157,6 +144,7 @@ const AppContent: React.FC = () => {
             setDailyResults([]);
         }
     
+        // Cleanup interval on component unmount or when dependencies change
         return () => {
             if (intervalId) {
                 clearInterval(intervalId);
