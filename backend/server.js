@@ -14,6 +14,16 @@ app.use(express.json());
 database.connect();
 database.verifySchema();
 
+// --- PUBLIC ENDPOINTS ---
+app.get('/api/games', (req, res) => {
+    try {
+        const games = database.getAllFromTable('games');
+        res.json(games);
+    } catch (e) {
+        res.status(500).json({ error: "Failed to fetch games" });
+    }
+});
+
 // --- AUTH ---
 app.post('/api/auth/login', (req, res) => {
     const { loginId, password } = req.body;
@@ -45,24 +55,6 @@ app.post('/api/admin/games/:id/approve', authMiddleware, (req, res) => {
 app.get('/api/admin/summary', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).send();
     res.json(database.getFinancialSummary(req.query.date));
-});
-
-// --- AI INSIGHTS ---
-app.get('/api/admin/ai-insights', authMiddleware, async (req, res) => {
-    if (req.user.role !== 'ADMIN') return res.status(403).send();
-    if (!process.env.API_KEY) return res.status(500).json({ error: "AI Key missing" });
-
-    try {
-        const summary = database.getFinancialSummary(new Date().toISOString().split('T')[0]);
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Analyze this lottery betting data for today and identify high-risk numbers or games that could cause massive payouts: ${JSON.stringify(summary)}. Return a short, punchy 3-sentence risk assessment.`,
-        });
-        res.json({ insights: response.text });
-    } catch (e) {
-        res.status(500).json({ error: "AI Analysis failed" });
-    }
 });
 
 // --- DATA SYNC ---
