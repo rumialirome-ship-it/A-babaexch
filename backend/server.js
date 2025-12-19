@@ -5,6 +5,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('./authMiddleware');
 const database = require('./database');
+const { GoogleGenAI } = require('@google/genai');
 
 const app = express();
 app.use(cors());
@@ -28,45 +29,46 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
     res.json({ account, role: req.user.role });
 });
 
-// --- NEW: High-performance history fetch ---
-app.get('/api/ledger/:id', authMiddleware, (req, res) => {
-    const ledger = database.getLedgerForAccount(req.params.id, 500);
-    res.json(ledger);
-});
-
-// --- DATA SYNC (LIGHTWEIGHT) ---
-app.get('/api/user/data', authMiddleware, (req, res) => {
-    if (req.user.role !== 'USER') return res.status(403).send();
-    const user = database.findAccountById(req.user.id, 'users', false);
-    const games = database.getAllFromTable('games');
-    const bets = database.getBetsByUserId(req.user.id);
-    res.json({ games, bets, user, daily_results: [] });
-});
-
-app.get('/api/dealer/data', authMiddleware, (req, res) => {
-    if (req.user.role !== 'DEALER') return res.status(403).send();
-    const dealer = database.findAccountById(req.user.id, 'dealers', false);
-    const games = database.getAllFromTable('games');
-    res.json({ dealer, games });
-});
-
-// --- PAGINATED LISTS ---
-app.get('/api/admin/users', authMiddleware, (req, res) => {
+// --- ADMIN GAME MANAGEMENT ---
+app.post('/api/admin/games/:id/declare', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).send();
-    res.json(database.getPaginatedUsers(req.query));
+    const game = database.declareWinnerForGame(req.params.id, req.body.winningNumber);
+    res.json(game);
 });
 
-app.get('/api/dealer/users', authMiddleware, (req, res) => {
-    if (req.user.role !== 'DEALER') return res.status(403).send();
-    res.json(database.getPaginatedUsers({ ...req.query, dealerId: req.user.id }));
+app.post('/api/admin/games/:id/approve', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).send();
+    database.approvePayoutsForGame(req.params.id);
+    res.json({ message: 'Payouts approved' });
 });
 
-// ... Preserved existing POST/PUT routes for winners, bets, etc. ...
-app.post('/api/user/bets', authMiddleware, (req, res) => {
+app.get('/api/admin/summary', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).send();
+    res.json(database.getFinancialSummary(req.query.date));
+});
+
+// --- AI INSIGHTS ---
+app.get('/api/admin/ai-insights', authMiddleware, async (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).send();
+    if (!process.env.API_KEY) return res.status(500).json({ error: "AI Key missing" });
+
     try {
-        const result = database.placeBulkBets(req.user.id, req.body.gameId, req.body.betGroups);
-        res.status(201).json(result);
-    } catch (e) { res.status(e.status || 500).json(e); }
+        const summary = database.getFinancialSummary(new Date().toISOString().split('T')[0]);
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Analyze this lottery betting data for today and identify high-risk numbers or games that could cause massive payouts: ${JSON.stringify(summary)}. Return a short, punchy 3-sentence risk assessment.`,
+        });
+        res.json({ insights: response.text });
+    } catch (e) {
+        res.status(500).json({ error: "AI Analysis failed" });
+    }
+});
+
+// --- DATA SYNC ---
+app.get('/api/user/data', authMiddleware, (req, res) => {
+    const user = database.findAccountById(req.user.id, 'users', false);
+    res.json({ user, games: database.getAllFromTable('games'), bets: database.getBetsByUserId(req.user.id) });
 });
 
 const PORT = process.env.PORT || 3001;
