@@ -310,6 +310,7 @@ const AdminResetInfoModal: React.FC<{ isOpen: boolean; onClose: () => void; }> =
 
 const LandingPage: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
+    const [apiError, setApiError] = useState<string | null>(null);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
@@ -321,12 +322,17 @@ const LandingPage: React.FC = () => {
                 const data = await response.json();
                 if (Array.isArray(data)) {
                     setGames(data);
+                    setApiError(null);
+                } else if (data.error) {
+                    setApiError(data.error);
+                    setGames([]);
                 } else {
                     console.error("Games API did not return an array:", data);
                     setGames([]);
                 }
             } catch (error) {
                 console.error("Failed to fetch games:", error);
+                setApiError("Network error: Could not reach the server.");
                 setGames([]);
             }
         };
@@ -347,15 +353,29 @@ const LandingPage: React.FC = () => {
 
                 <section id="games" className="mb-20">
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Today's Games</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-                        {games.length > 0 ? games.map(game => (
-                            <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
-                        )) : (
-                            <div className="col-span-full text-center text-slate-500 p-12">
-                                No games available at the moment.
+                    
+                    {apiError ? (
+                        <div className="max-w-2xl mx-auto bg-red-900/30 border border-red-500/50 p-8 rounded-lg text-center backdrop-blur-md">
+                            <div className="text-red-400 mb-4 flex justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
                             </div>
-                        )}
-                    </div>
+                            <h3 className="text-2xl font-bold text-white mb-2">SYSTEM MAINTENANCE</h3>
+                            <p className="text-slate-300 mb-4">{apiError}</p>
+                            <p className="text-sm text-slate-400 italic">Please try again in a few minutes. Our engineers are working to restore service.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+                            {games.length > 0 ? games.map(game => (
+                                <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
+                            )) : (
+                                <div className="col-span-full text-center text-slate-500 p-12">
+                                    Loading games...
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </section>
 
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
@@ -374,7 +394,6 @@ const LandingPage: React.FC = () => {
             
             <AdminLoginModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} onForgotPassword={() => { setIsAdminModalOpen(false); setIsAdminResetModalOpen(true); }} />
             <ResetPasswordModal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} />
-            {/* Fix: changed isAdminResetModalOpen prop to isOpen to match the component's defined props. */}
             <AdminResetInfoModal isOpen={isAdminResetModalOpen} onClose={() => setIsAdminResetModalOpen(false)} />
         </div>
     );
