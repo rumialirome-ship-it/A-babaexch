@@ -8,9 +8,11 @@ const DB_PATH = path.join(__dirname, 'database.sqlite');
 const JSON_DB_PATH = path.join(__dirname, 'db.json');
 
 function main() {
-    // FORCE RESTORE: If the database exists, delete it so we can re-seed from db.json
+    console.log('>>> Starting SQL Database Setup & Migration <<<');
+
+    // FORCE RESTORE: If the database exists, delete it so we can re-seed from db.json as requested
     if (fs.existsSync(DB_PATH)) {
-        console.log('Existing database found. Deleting for restoration...');
+        console.log('Existing database.sqlite found. Deleting for full restoration...');
         try {
             fs.unlinkSync(DB_PATH);
             console.log('Existing database deleted.');
@@ -21,7 +23,7 @@ function main() {
     }
 
     if (!fs.existsSync(JSON_DB_PATH)) {
-        console.error('db.json not found. Cannot migrate data.');
+        console.error('CRITICAL: db.json not found. Cannot seed the database.');
         process.exit(1);
     }
 
@@ -115,7 +117,7 @@ function main() {
             CREATE INDEX idx_bets_userId ON bets(userId);
             CREATE INDEX idx_users_dealerId ON users(dealerId);
         `);
-        console.log('Database schema created.');
+        console.log('Database schema created successfully.');
     };
     
     const migrateData = () => {
@@ -123,7 +125,6 @@ function main() {
         const insertDealer = db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, isRestricted, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const insertUser = db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const insertGame = db.prepare('INSERT INTO games (id, name, drawTime, winningNumber, payoutsApproved) VALUES (?, ?, ?, ?, ?)');
-        const insertBet = db.prepare('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const insertLedger = db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
 
         db.transaction(() => {
@@ -154,15 +155,8 @@ function main() {
             jsonData.games.forEach(game => {
                 insertGame.run(game.id, game.name, game.drawTime, game.winningNumber || null, game.payoutsApproved ? 1 : 0);
             });
-
-            // Bets
-            if (jsonData.bets) {
-                jsonData.bets.forEach(bet => {
-                    insertBet.run(bet.id, bet.userId, bet.dealerId, bet.gameId, bet.subGameType, JSON.stringify(bet.numbers), bet.amountPerNumber, bet.totalAmount, new Date(bet.timestamp).toISOString());
-                });
-            }
             
-            console.log('Data migration from db.json complete.');
+            console.log('Seeded data from db.json.');
         })();
     };
 
@@ -170,13 +164,11 @@ function main() {
         createSchema();
         migrateData();
         console.log('\n--- RESTORATION SUCCESSFUL ---');
-        console.log('Database re-created and seeded from db.json.');
-        console.log('You should now restart your backend process (pm2 restart ababa-backend).');
+        console.log('Database restored as seed from db.json.');
+        console.log('Action: pm2 restart ababa-backend');
     } catch (error) {
-        console.error('An error occurred during database setup:', error);
-        if (fs.existsSync(DB_PATH)) {
-            fs.unlinkSync(DB_PATH); // Clean up failed DB creation
-        }
+        console.error('Database setup failed:', error);
+        if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
     } finally {
         if (db) db.close();
     }
