@@ -7,12 +7,12 @@ let _db = null;
 
 /**
  * Initializes the database connection.
- * Explicitly handles the common better-sqlite3 native module errors.
+ * Explicitly handles native module errors.
  */
 const connect = () => {
     if (_db) return _db;
     try {
-        console.log(`[DB] Connecting to database at: ${DB_PATH}`);
+        console.log(`[DB] Attempting connection: ${DB_PATH}`);
         _db = new Database(DB_PATH, { timeout: 10000 });
         _db.pragma('journal_mode = WAL');
         _db.pragma('foreign_keys = ON');
@@ -20,10 +20,11 @@ const connect = () => {
         return _db;
     } catch (e) {
         console.error("--- CRITICAL DATABASE ERROR ---");
-        console.error("[DB] Failed to initialize better-sqlite3.");
-        console.error("[DB] Error Message:", e.message);
-        if (e.message.includes('NODE_MODULE_VERSION')) {
-            console.error("[DB] DIAGNOSIS: Node.js version mismatch. Re-run 'npm install' in the backend folder.");
+        if (e.code === 'ERR_DLOPEN_FAILED' || e.message.includes('NODE_MODULE_VERSION')) {
+            console.error("[DB] DIAGNOSIS: Node.js version mismatch detected.");
+            console.error("[DB] FIX: Run 'npm install' or 'npm rebuild' in the backend folder.");
+        } else {
+            console.error("[DB] Error Message:", e.message);
         }
         throw e;
     }
@@ -92,15 +93,20 @@ const findAccountById = (id, table) => {
 module.exports = {
     connect,
     verifySchema: () => {
-        const db = getDB();
-        const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='games'").get();
-        if (!tableCheck) {
-            console.error("[DB] CRITICAL: 'games' table is missing from database!");
+        try {
+            const db = getDB();
+            const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='games'").get();
+            if (!tableCheck) {
+                console.error("[DB] CRITICAL: 'games' table is missing!");
+                return false;
+            }
+            const count = db.prepare("SELECT COUNT(*) as total FROM games").get();
+            console.log(`[DB] Schema Verified. Games found: ${count.total}`);
+            return true;
+        } catch (e) {
+            console.error("[DB] Schema verification failed:", e.message);
             return false;
         }
-        const count = db.prepare("SELECT COUNT(*) as total FROM games").get();
-        console.log(`[DB] Schema Verified. Total games in DB: ${count.total}`);
-        return true;
     },
     getAllFromTable,
     findAccountForLogin,

@@ -12,26 +12,39 @@ app.use(express.json());
 
 // Initialize Database connection
 let dbReady = false;
+let dbError = null;
+
 try {
     database.connect();
     if (database.verifySchema()) {
         dbReady = true;
-        console.log("[SERVER] Database is ready and populated.");
+        console.log("[SERVER] Database is ready.");
     } else {
-        console.error("[SERVER] Database connected but schema is incomplete.");
+        dbError = "Schema incomplete. Please run setup-database.js.";
+        console.error("[SERVER] " + dbError);
     }
 } catch (e) {
-    console.error("[SERVER] FATAL: Database initialization failed.");
-    console.error("[SERVER] Error:", e.message);
+    dbError = e.message;
+    console.error("[SERVER] FATAL: Database failed to start.");
 }
 
-// Global JSON response header middleware
+// API Health Check / Status
+app.get('/api/status', (req, res) => {
+    res.json({ 
+        status: dbReady ? "online" : "error", 
+        database: dbReady ? "connected" : "failed",
+        error: dbError 
+    });
+});
+
+// Global JSON response header and DB check middleware
 app.use('/api', (req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
     if (!dbReady) {
         return res.status(503).json({ 
-            error: "Database Uninitialized", 
-            details: "The database is not ready. Please run npm run db:setup." 
+            error: "Database Offline", 
+            details: dbError,
+            fix: "Run 'npm install' in the backend folder and restart PM2."
         });
     }
     next();
@@ -41,10 +54,8 @@ app.use('/api', (req, res, next) => {
 app.get('/api/games', (req, res) => {
     try {
         const games = database.getAllFromTable('games');
-        console.log(`[API] Served ${games.length} games to ${req.ip}`);
         res.json(games);
     } catch (e) {
-        console.error("[API] Error - /api/games:", e.message);
         res.status(500).json({ error: "Query failed", details: e.message });
     }
 });
@@ -61,7 +72,6 @@ app.post('/api/auth/login', (req, res) => {
         }
         res.status(401).json({ message: "Invalid credentials" });
     } catch (e) {
-        console.error("[API] Login Error:", e.message);
         res.status(500).json({ message: "Internal login error", error: e.message });
     }
 });
