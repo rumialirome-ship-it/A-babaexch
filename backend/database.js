@@ -82,11 +82,11 @@ const getAllFromTable = (table) => {
     const items = db.prepare(`SELECT * FROM ${table}`).all();
     return items.map(i => {
         if (i.prizeRates) i.prizeRates = JSON.parse(i.prizeRates);
+        if (i.betLimits) i.betLimits = JSON.parse(i.betLimits);
         if (table === 'games') {
             const { openTime, closeTime } = getGameCycle(i.drawTime);
             const now = new Date();
             i.isMarketOpen = now >= openTime && now < closeTime;
-            // Inject logo mapping for frontend if not present
             i.logo = i.logo || ''; 
         }
         return i;
@@ -104,14 +104,8 @@ const declareWinnerForGame = (gameId, winningNumber) => {
 };
 
 const approvePayoutsForGame = (gameId) => {
-    db.transaction(() => {
-        const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId);
-        const marketDate = getMarketDateString(new Date());
-        const bets = db.prepare('SELECT * FROM bets WHERE gameId = ? AND date(timestamp) = ?').all(gameId, marketDate);
-        
-        db.prepare('UPDATE games SET payoutsApproved = 1 WHERE id = ?').run(gameId);
-        // ... (rest of payout logic preserved)
-    })();
+    // Basic implementation for now to satisfy existing server.js calls
+    db.prepare('UPDATE games SET payoutsApproved = 1 WHERE id = ?').run(gameId);
 };
 
 const getFinancialSummary = (date) => {
@@ -137,5 +131,6 @@ module.exports = {
     approvePayoutsForGame,
     getFinancialSummary,
     getBetsByUserId: (id) => db.prepare('SELECT * FROM bets WHERE userId = ? ORDER BY timestamp DESC LIMIT 100').all(id).map(b => ({...b, numbers: JSON.parse(b.numbers), timestamp: new Date(b.timestamp)})),
-    resetAllGames: () => db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0').run()
+    resetAllGames: () => db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0').run(),
+    getDailyResults: (limit = 100) => db.prepare('SELECT * FROM daily_results ORDER BY date DESC LIMIT ?').all(limit)
 };
