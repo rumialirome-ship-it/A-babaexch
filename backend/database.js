@@ -12,18 +12,18 @@ let _db = null;
 const connect = () => {
     if (_db) return _db;
     try {
-        console.log(`Connecting to database at: ${DB_PATH}`);
+        console.log(`[DB] Connecting to database at: ${DB_PATH}`);
         _db = new Database(DB_PATH, { timeout: 10000 });
         _db.pragma('journal_mode = WAL');
         _db.pragma('foreign_keys = ON');
-        console.log('Successfully connected to SQLite database.');
+        console.log('[DB] Connection successful.');
         return _db;
     } catch (e) {
         console.error("--- CRITICAL DATABASE ERROR ---");
-        console.error("Failed to initialize better-sqlite3.");
-        console.error("Error Message:", e.message);
+        console.error("[DB] Failed to initialize better-sqlite3.");
+        console.error("[DB] Error Message:", e.message);
         if (e.message.includes('NODE_MODULE_VERSION')) {
-            console.error("DIAGNOSIS: Node.js version mismatch. You must run 'npm install' in the backend folder to re-compile binaries.");
+            console.error("[DB] DIAGNOSIS: Node.js version mismatch. Re-run 'npm install' in the backend folder.");
         }
         throw e;
     }
@@ -54,17 +54,14 @@ const getAllFromTable = (table) => {
             if (item.numbers) item.numbers = safeParse(item.numbers);
             
             if (table === 'games') {
-                // Pakistan Time Calculation
                 const now = new Date();
                 const pktHour = (now.getUTCHours() + PKT_OFFSET) % 24;
-                
-                // Market Logic: Open from 4:00 PM (16) until roughly 2:00 AM (02)
                 item.isMarketOpen = (pktHour >= OPEN_HOUR_PKT || pktHour < 2);
             }
             return item;
         });
     } catch (err) {
-        console.error(`Error querying table ${table}:`, err.message);
+        console.error(`[DB] Error querying table ${table}:`, err.message);
         throw err;
     }
 };
@@ -96,7 +93,14 @@ module.exports = {
     connect,
     verifySchema: () => {
         const db = getDB();
-        return db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'").get();
+        const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='games'").get();
+        if (!tableCheck) {
+            console.error("[DB] CRITICAL: 'games' table is missing from database!");
+            return false;
+        }
+        const count = db.prepare("SELECT COUNT(*) as total FROM games").get();
+        console.log(`[DB] Schema Verified. Total games in DB: ${count.total}`);
+        return true;
     },
     getAllFromTable,
     findAccountForLogin,

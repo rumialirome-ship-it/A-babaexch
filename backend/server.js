@@ -14,21 +14,24 @@ app.use(express.json());
 let dbReady = false;
 try {
     database.connect();
-    database.verifySchema();
-    dbReady = true;
-    console.log("Backend successfully connected and verified database.");
+    if (database.verifySchema()) {
+        dbReady = true;
+        console.log("[SERVER] Database is ready and populated.");
+    } else {
+        console.error("[SERVER] Database connected but schema is incomplete.");
+    }
 } catch (e) {
-    console.error("FATAL: Backend cannot operate without a functional database binary.");
-    console.error("Action Required: Check your 'better-sqlite3' installation.");
+    console.error("[SERVER] FATAL: Database initialization failed.");
+    console.error("[SERVER] Error:", e.message);
 }
 
 // Global JSON response header middleware
 app.use('/api', (req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
     if (!dbReady) {
-        return res.status(500).json({ 
-            error: "Database is offline.", 
-            details: "Node.js environment mismatch or binary error. Please rebuild node_modules." 
+        return res.status(503).json({ 
+            error: "Database Uninitialized", 
+            details: "The database is not ready. Please run npm run db:setup." 
         });
     }
     next();
@@ -38,9 +41,10 @@ app.use('/api', (req, res, next) => {
 app.get('/api/games', (req, res) => {
     try {
         const games = database.getAllFromTable('games');
+        console.log(`[API] Served ${games.length} games to ${req.ip}`);
         res.json(games);
     } catch (e) {
-        console.error("API Error - /api/games:", e.message);
+        console.error("[API] Error - /api/games:", e.message);
         res.status(500).json({ error: "Query failed", details: e.message });
     }
 });
@@ -57,7 +61,7 @@ app.post('/api/auth/login', (req, res) => {
         }
         res.status(401).json({ message: "Invalid credentials" });
     } catch (e) {
-        console.error("Login Error:", e.message);
+        console.error("[API] Login Error:", e.message);
         res.status(500).json({ message: "Internal login error", error: e.message });
     }
 });
@@ -106,9 +110,9 @@ app.get('/api/user/data', authMiddleware, (req, res) => {
     }
 });
 
-// Final error catch-all to prevent Nginx HTML error pages
+// Final error catch-all
 app.use((err, req, res, next) => {
-    console.error("Global Error Caught:", err.stack);
+    console.error("[SERVER] Global Error:", err.stack);
     res.status(500).json({ 
         message: "Internal Server Error", 
         error: err.message 
@@ -116,4 +120,4 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`[SERVER] Running on port ${PORT}`));
