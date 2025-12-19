@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -7,9 +8,16 @@ const DB_PATH = path.join(__dirname, 'database.sqlite');
 const JSON_DB_PATH = path.join(__dirname, 'db.json');
 
 function main() {
+    // FORCE RESTORE: If the database exists, delete it so we can re-seed from db.json
     if (fs.existsSync(DB_PATH)) {
-        console.error('Database file already exists. Aborting setup.');
-        return;
+        console.log('Existing database found. Deleting for restoration...');
+        try {
+            fs.unlinkSync(DB_PATH);
+            console.log('Existing database deleted.');
+        } catch (err) {
+            console.error('Failed to delete existing database:', err);
+            process.exit(1);
+        }
     }
 
     if (!fs.existsSync(JSON_DB_PATH)) {
@@ -17,8 +25,14 @@ function main() {
         process.exit(1);
     }
 
-    const db = new Database(DB_PATH);
-    console.error('Created new SQLite database at:', DB_PATH);
+    let db;
+    try {
+        db = new Database(DB_PATH);
+        console.log('Created new SQLite database at:', DB_PATH);
+    } catch (err) {
+        console.error('Failed to create database instance:', err);
+        process.exit(1);
+    }
 
     const jsonData = JSON.parse(fs.readFileSync(JSON_DB_PATH, 'utf-8'));
 
@@ -101,7 +115,7 @@ function main() {
             CREATE INDEX idx_bets_userId ON bets(userId);
             CREATE INDEX idx_users_dealerId ON users(dealerId);
         `);
-        console.error('Database schema created.');
+        console.log('Database schema created.');
     };
     
     const migrateData = () => {
@@ -116,18 +130,24 @@ function main() {
             // Admin
             const admin = jsonData.admin;
             insertAdmin.run(admin.id, admin.name, admin.password, admin.wallet, JSON.stringify(admin.prizeRates), admin.avatarUrl);
-            admin.ledger.forEach(l => insertLedger.run(uuidv4(), admin.id, 'ADMIN', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+            if (admin.ledger) {
+                admin.ledger.forEach(l => insertLedger.run(uuidv4(), admin.id, 'ADMIN', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+            }
             
             // Dealers
             jsonData.dealers.forEach(dealer => {
                 insertDealer.run(dealer.id, dealer.name, dealer.password, dealer.area, dealer.contact, dealer.wallet, dealer.commissionRate, dealer.isRestricted ? 1 : 0, JSON.stringify(dealer.prizeRates), dealer.avatarUrl);
-                dealer.ledger.forEach(l => insertLedger.run(uuidv4(), dealer.id, 'DEALER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+                if (dealer.ledger) {
+                    dealer.ledger.forEach(l => insertLedger.run(uuidv4(), dealer.id, 'DEALER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+                }
             });
 
             // Users
             jsonData.users.forEach(user => {
                 insertUser.run(user.id, user.name, user.password, user.dealerId, user.area, user.contact, user.wallet, user.commissionRate, user.isRestricted ? 1 : 0, JSON.stringify(user.prizeRates), user.betLimits ? JSON.stringify(user.betLimits) : null, user.avatarUrl);
-                user.ledger.forEach(l => insertLedger.run(uuidv4(), user.id, 'USER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+                if (user.ledger) {
+                    user.ledger.forEach(l => insertLedger.run(uuidv4(), user.id, 'USER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+                }
             });
 
             // Games
@@ -136,25 +156,29 @@ function main() {
             });
 
             // Bets
-            jsonData.bets.forEach(bet => {
-                insertBet.run(bet.id, bet.userId, bet.dealerId, bet.gameId, bet.subGameType, JSON.stringify(bet.numbers), bet.amountPerNumber, bet.totalAmount, new Date(bet.timestamp).toISOString());
-            });
+            if (jsonData.bets) {
+                jsonData.bets.forEach(bet => {
+                    insertBet.run(bet.id, bet.userId, bet.dealerId, bet.gameId, bet.subGameType, JSON.stringify(bet.numbers), bet.amountPerNumber, bet.totalAmount, new Date(bet.timestamp).toISOString());
+                });
+            }
             
-            console.error('Data migration complete.');
+            console.log('Data migration from db.json complete.');
         })();
     };
 
     try {
         createSchema();
         migrateData();
-        console.error('\nDatabase setup successful!');
-        console.error('You can now start the server.');
-        console.error('It is safe to delete the db.json file.');
+        console.log('\n--- RESTORATION SUCCESSFUL ---');
+        console.log('Database re-created and seeded from db.json.');
+        console.log('You should now restart your backend process (pm2 restart ababa-backend).');
     } catch (error) {
         console.error('An error occurred during database setup:', error);
-        fs.unlinkSync(DB_PATH); // Clean up failed DB creation
+        if (fs.existsSync(DB_PATH)) {
+            fs.unlinkSync(DB_PATH); // Clean up failed DB creation
+        }
     } finally {
-        db.close();
+        if (db) db.close();
     }
 }
 
