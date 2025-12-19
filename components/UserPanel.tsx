@@ -1,9 +1,9 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-// FIX: Import DailyResult and getMarketDateForBet to handle historical bet outcomes correctly.
-import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits, DailyResult } from '../types';
+import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
-import { useCountdown, getMarketDateForBet } from '../hooks/useCountdown';
+import { useCountdown } from '../hooks/useCountdown';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
@@ -86,24 +86,16 @@ const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
 };
 
 
-const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User, dailyResults: DailyResult[] }> = ({ bets, games, user, dailyResults }) => {
+const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ bets, games, user }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
 
     const getBetOutcome = (bet: Bet) => {
         const game = games.find(g => g.id === bet.gameId);
-        if (!game || !user) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
+        if (!game || !user || !game.winningNumber || game.winningNumber.includes('_')) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
 
-        const betMarketDate = getMarketDateForBet(new Date(bet.timestamp));
-        const historicalResult = dailyResults.find(r => r.gameId === bet.gameId && r.date === betMarketDate);
-        
-        const winningNumber = historicalResult?.winningNumber;
-
-        if (!winningNumber || winningNumber.includes('_')) {
-            return { status: 'Pending', payout: 0, color: 'text-amber-400' };
-        }
-
+        const winningNumber = game.winningNumber;
         let winningNumbersCount = 0;
 
         bet.numbers.forEach(num => {
@@ -261,7 +253,7 @@ const formatTime12h = (time24: string) => {
 const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }> = ({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const isPlayable = !!game.isMarketOpen && !isRestricted && status === 'OPEN';
-    const isMarketClosedForDisplay = !game.isMarketOpen;
+    const isMarketClosedForDisplay = !game.isMarketOpen || status === 'CLOSED';
 
     return (
         <div className={`bg-slate-800/50 rounded-lg shadow-lg p-4 flex flex-col justify-between transition-all duration-300 border border-slate-700 ${!isPlayable ? 'opacity-60' : 'hover:shadow-cyan-500/20 hover:-translate-y-1 hover:border-cyan-500/50'}`}>
@@ -292,7 +284,7 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
                     )}
                 </div>
             </div>
-             {game.winningNumber && isMarketClosedForDisplay && <div className="text-center font-bold text-lg text-emerald-400 mt-2">Previous Winner: {game.winningNumber}</div>}
+             {game.winningNumber && <div className="text-center font-bold text-lg text-emerald-400 mt-2">Winner: {game.winningNumber}</div>}
             <button onClick={() => onPlay(game)} disabled={!isPlayable} className="w-full mt-2 bg-sky-600 text-white font-bold py-2.5 px-4 rounded-md transition-all duration-300 enabled:hover:bg-sky-500 enabled:hover:shadow-lg enabled:hover:shadow-sky-500/30 disabled:bg-slate-700 disabled:cursor-not-allowed">
                 PLAY NOW
             </button>
@@ -336,23 +328,14 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     const [generatedCombos, setGeneratedCombos] = useState<ComboLine[]>([]);
     const [comboGlobalStake, setComboGlobalStake] = useState('');
 
-    const { text: countdownText, status } = useCountdown(game?.drawTime || '00:00');
-
 
     const availableSubGameTabs = useMemo(() => {
         if (!game) return [];
-        const allSubGameTypes = [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
-        
+        if (game.name === 'AK') return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.Bulk, SubGameType.Combo];
         if (game.name === 'AKC') {
             return [SubGameType.OneDigitClose];
         }
-        
-        if (game.name === 'AK') {
-            return allSubGameTypes.filter(type => type !== SubGameType.OneDigitClose);
-        }
-        
-        return allSubGameTypes;
-
+        return [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
     }, [game]);
 
     useEffect(() => {
@@ -481,7 +464,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                 for (let i = 0; i < uniqueDigits.length; i++) {
                     for (let j = 0; j < uniqueDigits.length; j++) {
                         if (i !== j) {
-                            betItems.push({ number: uniqueDigits[i] + uniqueDigits[j], subGameType: SubGameType.Combo });
+                            betItems.push({ number: uniqueDigits[i] + uniqueDigits[j], subGameType: SubGameType.TwoDigit });
                         }
                     }
                 }
@@ -628,7 +611,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                 groups.get(stake)!.push(bet.number);
             });
             const betGroups = Array.from(groups.entries()).map(([amount, numbers]) => ({
-                subGameType: SubGameType.Combo,
+                subGameType: SubGameType.TwoDigit,
                 numbers,
                 amountPerNumber: amount,
             }));
@@ -686,15 +669,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
             <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
-                    <div>
-                        <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
-                        {status === 'OPEN' && (
-                            <div className="flex items-center text-sm mt-1">
-                                {React.cloneElement(Icons.clock, { className: "h-4 w-4 mr-1.5 text-cyan-400" })}
-                                <span className="text-cyan-300 font-mono">{countdownText}</span>
-                            </div>
-                        )}
-                    </div>
+                    <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
                 </div>
                 <div className="p-6 overflow-y-auto">
@@ -740,7 +715,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                             <div className="mb-4">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Digits (3-6)</label>
                                 <div className="flex gap-2">
-                                    <input type="text" value={comboDigitsInput} onChange={e => setComboDigitsInput(e.target.value)} placeholder="e.g., 324" className={inputClass} maxLength={6}/>
+                                    <input type="text" value={comboDigitsInput} onChange={e => setComboDigitsInput(e.target.value)} placeholder="e.g., 324" className={inputClass} maxLength={10}/>
                                     <button onClick={handleGenerateCombos} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap">Generate</button>
                                 </div>
                             </div>
@@ -1009,7 +984,6 @@ interface UserPanelProps {
   user: User;
   games: Game[];
   bets: Bet[];
-  dailyResults: DailyResult[];
   placeBet: (details: {
     userId: string;
     gameId: string;
@@ -1026,7 +1000,7 @@ const getPrizeRateForBet = (subGameType: SubGameType, prizeRates: PrizeRates) =>
     }
 };
 
-const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet, dailyResults }) => {
+const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) => {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [betConfirmation, setBetConfirmation] = useState<BetConfirmationDetails | null>(null);
   const [betToConfirm, setBetToConfirm] = useState<BetConfirmationDetails | null>(null);
@@ -1183,7 +1157,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet, dail
       </div>
       
       <WalletSummaryView entries={user.ledger} />
-      <BetHistoryView bets={userBets} games={games} user={user} dailyResults={dailyResults} />
+      <BetHistoryView bets={userBets} games={games} user={user} />
       <LedgerView entries={user.ledger} />
       
       {selectedGame && <BettingModal game={selectedGame} games={games} user={user} onClose={() => { setSelectedGame(null); setBettingError(null); }} onPlaceBet={handleReviewBet} apiError={bettingError} clearApiError={() => setBettingError(null)} />}

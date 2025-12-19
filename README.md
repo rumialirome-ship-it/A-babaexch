@@ -136,7 +136,7 @@ Now, let's configure and launch the Node.js backend application.
     # and populates it with the necessary tables and data.
     npm run db:setup
     ```
-    > **Note**: This setup script is designed for a **fresh installation only**. If you are updating an existing deployment, see the "Updating the Application" section for instructions on how to use the migration script.
+    > **Note**: This setup script is designed to run only once. If you need to reset the database, you must first delete the `backend/database.sqlite` file. You can now safely remove `backend/db.json`.
 
 
 4.  **Create Environment File (`.env`)**:
@@ -289,35 +289,16 @@ Your A-Baba Exchange platform is now live and secure. You can access it at **`ht
 
 ---
 
-### **Updating The Database Safely (Migrations)**
-
-As new features are added to the application, the database structure (schema) may need to change (e.g., adding a new column to a table). Wiping the database is not an option in a production environment with live user data.
-
-To solve this, a **migration script** has been provided. This script safely inspects your existing database and applies only the necessary changes without deleting any data.
-
-**When should you run this?**
-You should run the migration script as part of your update process, *before* restarting the backend with the new code. This ensures the database is ready for the updated application logic.
-
-**How to run it:**
-1.  Connect to your server via SSH.
-2.  Navigate to the backend directory:
-    ```bash
-    cd /var/www/html/A-babaexch/backend
-    ```
-3.  Run the migration command:
-    ```bash
-    npm run db:migrate
-    ```
-The script will print out which changes, if any, were applied. It is safe to run this command multiple times; it will not make the same change twice.
-
----
-
 ### **Updating the Application**
 
 When you have new code changes to deploy, follow these steps to ensure they are applied correctly.
 
 1.  **Upload New Files**:
-    Use `scp` or another method to transfer your updated files to the server, overwriting the old ones.
+    Use `scp` or another method to transfer your updated files to the server, overwriting the old ones. For example, to update the backend:
+    ```bash
+    # On your local machine
+    scp -r /path/to/your/local/project/backend/* your_username@your_server_ip:/var/www/html/A-babaexch/backend/
+    ```
 
 2.  **Rebuild Frontend (if necessary)**:
     If you made changes to the frontend code (any file outside the `backend` directory), you must create a new build.
@@ -327,33 +308,27 @@ When you have new code changes to deploy, follow these steps to ensure they are 
     npm run build
     ```
 
-3.  **Update Backend Dependencies (if necessary)**:
-    If `backend/package.json` has changed, install new dependencies.
-    ```bash
-    # On the server
-    cd /var/www/html/A-babaexch/backend
-    npm install
-    ```
-
-4.  **Run Database Migration (CRITICAL STEP)**:
-    Before starting the new code, ensure your database schema is up-to-date.
-    ```bash
-    # On the server, inside the backend directory
-    npm run db:migrate
-    ```
-
-5.  **Reload the Backend Process**:
-    Use `pm2 reload` to restart the application with zero downtime.
+3.  **Restart the Backend Process**:
+    Simply running `pm2 restart` can sometimes fail to pick up all changes. A more reliable method is to use `reload`.
     ```bash
     # On the server
     pm2 reload ababa-backend
     ```
+    Alternatively, for a complete refresh, you can delete and restart the process:
+    ```bash
+    # On the server
+    pm2 delete ababa-backend
+    cd /var/www/html/A-babaexch/backend
+    pm2 start server.js --name ababa-backend
+    pm2 save # Don't forget to save the process list again!
+    ```
 
-6.  **Check the Logs**:
-    After reloading, check the logs to confirm the new version is running without errors.
+4.  **Check the Logs**:
+    After restarting, immediately check the logs to confirm the new version is running and there are no errors.
     ```bash
     pm2 logs ababa-backend
     ```
+
 ---
 
 ### **Managing Your Application**
@@ -368,18 +343,35 @@ When you have new code changes to deploy, follow these steps to ensure they are 
 
 -   **Admin Login Fails AND/OR No Games Show on Landing Page**:
     -   **Cause**: This is the most common issue after the initial deployment. It almost always means the backend database (`database.sqlite`) was not created or populated correctly. The backend server might have started before the setup script was run, creating an empty database file which the setup script then refuses to overwrite.
-    -   **Solution (for a FRESH install)**: You must force a recreation of the database.
-        1.  Stop the backend: `pm2 stop ababa-backend`
-        2.  Navigate to the backend directory: `cd /var/www/html/A-babaexch/backend`
-        3.  Delete the incorrect database file: `rm database.sqlite`
-        4.  Run the setup script again: `npm run db:setup`
-        5.  Restart the backend: `pm2 restart ababa-backend`
-        6.  Check the logs: `pm2 logs ababa-backend`.
-    -   **Solution (for an EXISTING install with data)**: Do NOT delete the database. Run the migration script to ensure the schema is correct: `npm run db:migrate`.
+    -   **Solution**: You must force a recreation of the database. Follow these steps precisely on your server:
+        1.  **Stop the backend server**:
+            ```bash
+            pm2 stop ababa-backend
+            ```
+        2.  **Navigate to the backend directory**:
+            ```bash
+            cd /var/www/html/A-babaexch/backend
+            ```
+        3.  **Delete the incorrect database file**:
+            ```bash
+            rm database.sqlite
+            ```
+        4.  **Run the setup script again to create a fresh, correct database**:
+            ```bash
+            npm run db:setup
+            ```
+            You should see messages confirming the schema was created and data was migrated.
+        5.  **Restart the backend server**:
+            ```bash
+            pm2 restart ababa-backend
+            ```
+        6.  Check the logs to confirm it started without errors: `pm2 logs ababa-backend`.
+        7.  Refresh the website. The games and login should now work.
 
 -   **502 Bad Gateway Error**: This usually means Nginx can't connect to your backend.
     -   Check if the backend is running with `pm2 status`. If it has stopped or is in an errored state, check the logs with `pm2 logs ababa-backend`.
 -   **Permission Errors**: If you have issues with the database file, ensure its directory has the correct permissions: `sudo chown -R $USER:$USER /var/www/html/A-babaexch/backend`.
+-   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 reload ababa-backend`.
 -   **Blank Page or "CRITICAL DEPLOYMENT MISCONFIGURATION" Error**:
     -   **Cause**: This is the other most common deployment error. It means your Nginx web server is serving the **development** folder (`/var/www/html/A-babaexch`) instead of the **production build** folder (`/var/www/html/A-babaexch/dist`). The browser is receiving a raw TypeScript file (`.tsx`) which it cannot execute.
     -   **Solution**: The error page itself contains the exact steps to fix this. You must edit your Nginx configuration and change the `root` directive to point to the correct `/dist` directory.

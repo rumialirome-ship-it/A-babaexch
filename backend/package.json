@@ -5,8 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "db:setup": "node setup-database.js",
-    "db:migrate": "node migrate-database.js"
+    "db:setup": "node setup-database.js"
   },
   "dependencies": {
     "@google/genai": "^0.12.0",

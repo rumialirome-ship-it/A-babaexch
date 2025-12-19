@@ -1,7 +1,6 @@
 
 
 
-
 export enum Role {
   Admin = 'ADMIN',
   Dealer = 'DEALER',
@@ -96,11 +95,4 @@ export interface NumberLimit {
   gameType: '1-open' | '1-close' | '2-digit';
   numberValue: string;
   limitAmount: number;
-}
-
-export interface DailyResult {
-  id: string;
-  gameId: string;
-  date: string; // YYYY-MM-DD
-  winningNumber: string;
 }
