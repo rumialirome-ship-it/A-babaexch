@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Game } from '../types';
 import { useCountdown } from '../hooks/useCountdown';
@@ -318,9 +319,15 @@ const LandingPage: React.FC = () => {
             try {
                 const response = await fetch('/api/games');
                 const data = await response.json();
-                setGames(data);
+                if (Array.isArray(data)) {
+                    setGames(data);
+                } else {
+                    console.error("Games API did not return an array:", data);
+                    setGames([]);
+                }
             } catch (error) {
                 console.error("Failed to fetch games:", error);
+                setGames([]);
             }
         };
         fetchGames();
@@ -341,9 +348,13 @@ const LandingPage: React.FC = () => {
                 <section id="games" className="mb-20">
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Today's Games</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-                        {games.map(game => (
+                        {games.length > 0 ? games.map(game => (
                             <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
-                        ))}
+                        )) : (
+                            <div className="col-span-full text-center text-slate-500 p-12">
+                                No games available at the moment.
+                            </div>
+                        )}
                     </div>
                 </section>
 
@@ -363,6 +374,7 @@ const LandingPage: React.FC = () => {
             
             <AdminLoginModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} onForgotPassword={() => { setIsAdminModalOpen(false); setIsAdminResetModalOpen(true); }} />
             <ResetPasswordModal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} />
+            {/* Fix: changed isAdminResetModalOpen prop to isOpen to match the component's defined props. */}
             <AdminResetInfoModal isOpen={isAdminResetModalOpen} onClose={() => setIsAdminResetModalOpen(false)} />
         </div>
     );

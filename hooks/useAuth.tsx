@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin } from '../types';
 
@@ -15,7 +16,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const parseAccountDates = (acc: any) => {
-    if (acc && acc.ledger) {
+    if (acc && acc.ledger && Array.isArray(acc.ledger)) {
         acc.ledger = acc.ledger.map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) }));
     }
     return acc;
@@ -75,26 +76,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (!response.ok) throw new Error('Token verification failed');
                 
                 const data = await response.json();
-                setAccount(parseAccountDates(data.account));
-                setRole(data.role);
+                if (data && data.account) {
+                    setAccount(parseAccountDates(data.account));
+                    setRole(data.role);
 
-                // If the logged-in user is a USER or DEALER, start polling for updates.
-                if (data.role === Role.User || data.role === Role.Dealer) {
-                    pollInterval = setInterval(async () => {
-                        try {
-                            const pollResponse = await fetch('/api/auth/verify', { headers: { 'Authorization': `Bearer ${token}` }});
-                            if (pollResponse.ok) {
-                                const pollData = await pollResponse.json();
-                                setAccount(parseAccountDates(pollData.account));
-                            } else {
-                                // Token likely expired, log out
-                                logout();
+                    // If the logged-in user is a USER or DEALER, start polling for updates.
+                    if (data.role === Role.User || data.role === Role.Dealer) {
+                        pollInterval = setInterval(async () => {
+                            try {
+                                const pollResponse = await fetch('/api/auth/verify', { headers: { 'Authorization': `Bearer ${token}` }});
+                                if (pollResponse.ok) {
+                                    const pollData = await pollResponse.json();
+                                    if (pollData && pollData.account) {
+                                        setAccount(parseAccountDates(pollData.account));
+                                    }
+                                } else {
+                                    logout();
+                                }
+                            } catch (error) {
+                                console.error("Polling for account update failed:", error);
+                                logout(); 
                             }
-                        } catch (error) {
-                            console.error("Polling for account update failed:", error);
-                            logout(); // Stop polling on error
-                        }
-                    }, 1000); // Poll every second
+                        }, 2000); 
+                    }
                 }
             } catch (error) {
                 console.error("Session verification failed:", error);
@@ -106,7 +110,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         verifyTokenAndPoll();
         
-        // Cleanup function to clear interval when component unmounts or token changes
         return () => {
             if (pollInterval) {
                 clearInterval(pollInterval);
@@ -127,11 +130,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             throw new Error(error.message || "Login failed");
         }
 
-        const { token: newToken, role: newRole, account: newAccount } = await response.json();
-        localStorage.setItem('authToken', newToken);
-        setAccount(parseAccountDates(newAccount));
-        setRole(newRole);
-        setToken(newToken);
+        const data = await response.json();
+        if (data && data.token && data.account) {
+            localStorage.setItem('authToken', data.token);
+            setAccount(parseAccountDates(data.account));
+            setRole(data.role);
+            setToken(data.token);
+        } else {
+            throw new Error("Invalid server response during login.");
+        }
     };
     
     const resetPassword = async (accountId: string, contact: string, newPassword: string): Promise<string> => {
