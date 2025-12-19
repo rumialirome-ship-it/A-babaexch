@@ -310,10 +310,11 @@ const AdminResetInfoModal: React.FC<{ isOpen: boolean; onClose: () => void; }> =
 
 const LandingPage: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
-    const [apiError, setApiError] = useState<string | null>(null);
+    const [apiErrorInfo, setApiErrorInfo] = useState<{ error: string; details?: string; fix?: string } | null>(null);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
+    const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
     
     useEffect(() => {
         const fetchGames = async () => {
@@ -322,9 +323,9 @@ const LandingPage: React.FC = () => {
                 const data = await response.json();
                 if (Array.isArray(data)) {
                     setGames(data);
-                    setApiError(null);
+                    setApiErrorInfo(null);
                 } else if (data.error) {
-                    setApiError(data.error);
+                    setApiErrorInfo({ error: data.error, details: data.details, fix: data.fix });
                     setGames([]);
                 } else {
                     console.error("Games API did not return an array:", data);
@@ -332,7 +333,7 @@ const LandingPage: React.FC = () => {
                 }
             } catch (error) {
                 console.error("Failed to fetch games:", error);
-                setApiError("Network error: Could not reach the server.");
+                setApiErrorInfo({ error: "Network Error", details: "Could not reach the server API." });
                 setGames([]);
             }
         };
@@ -354,16 +355,47 @@ const LandingPage: React.FC = () => {
                 <section id="games" className="mb-20">
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Today's Games</h2>
                     
-                    {apiError ? (
-                        <div className="max-w-2xl mx-auto bg-red-900/30 border border-red-500/50 p-8 rounded-lg text-center backdrop-blur-md">
+                    {apiErrorInfo ? (
+                        <div className="max-w-2xl mx-auto bg-slate-900/60 border border-red-500/50 p-8 rounded-lg text-center backdrop-blur-md shadow-2xl">
                             <div className="text-red-400 mb-4 flex justify-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
                             </div>
-                            <h3 className="text-2xl font-bold text-white mb-2">SYSTEM MAINTENANCE</h3>
-                            <p className="text-slate-300 mb-4">{apiError}</p>
-                            <p className="text-sm text-slate-400 italic">Please try again in a few minutes. Our engineers are working to restore service.</p>
+                            <h3 className="text-2xl font-bold text-white mb-2 uppercase tracking-widest">System Maintenance</h3>
+                            <p className="text-slate-300 mb-6">{apiErrorInfo.error}</p>
+
+                            {apiErrorInfo.fix && (
+                                <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-md mb-6 text-left">
+                                    <h4 className="text-emerald-400 font-bold mb-2 uppercase text-xs tracking-widest flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0l-1.4 5.76a1 1 0 01-1.03.77L.31 9.47c-1.62.14-2.18 2.21-.76 3.15l4.63 3.03a1 1 0 01.37 1.13l-1.4 5.76c-.38 1.56 1.8 3.14 3.23 2.19l4.63-3.03a1 1 0 011.1 0l4.63 3.03c1.43.95 3.61-.63 3.23-2.19l-1.4-5.76a1 1 0 01.37-1.13l4.63-3.03c1.42-.94.86-3.01-.76-3.15l-5.77-.23a1 1 0 01-1.03-.77l-1.4-5.76z" clipRule="evenodd" /></svg>
+                                        Required Server Fix
+                                    </h4>
+                                    <code className="text-emerald-300 text-sm block bg-black/40 p-3 rounded font-mono whitespace-pre-wrap">
+                                        {apiErrorInfo.fix}
+                                    </code>
+                                </div>
+                            )}
+
+                            {apiErrorInfo.details && (
+                                <div className="text-left">
+                                    <button 
+                                        onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
+                                        className="text-slate-500 text-xs hover:text-slate-300 transition-colors uppercase tracking-widest font-bold flex items-center gap-1 mx-auto"
+                                    >
+                                        {showTechnicalDetails ? 'Hide' : 'Show'} Technical Details
+                                    </button>
+                                    {showTechnicalDetails && (
+                                        <div className="mt-4 p-4 bg-black/40 rounded border border-slate-700">
+                                            <pre className="text-[10px] text-slate-400 font-mono overflow-x-auto whitespace-pre-wrap leading-tight">
+                                                {apiErrorInfo.details}
+                                            </pre>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            
+                            <p className="mt-8 text-xs text-slate-500 italic">Please try again in a few minutes. Our engineers are working to restore service.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
