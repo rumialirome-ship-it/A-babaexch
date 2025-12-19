@@ -1,25 +1,42 @@
 
 const path = require('path');
 const Database = require('better-sqlite3');
-const { v4: uuidv4 } = require('uuid');
 
 const DB_PATH = path.join(__dirname, 'database.sqlite');
-let db;
+let _db = null;
+
+/**
+ * Initializes the database connection.
+ * Explicitly handles the common better-sqlite3 native module errors.
+ */
+const connect = () => {
+    if (_db) return _db;
+    try {
+        console.log(`Connecting to database at: ${DB_PATH}`);
+        _db = new Database(DB_PATH, { timeout: 10000 });
+        _db.pragma('journal_mode = WAL');
+        _db.pragma('foreign_keys = ON');
+        console.log('Successfully connected to SQLite database.');
+        return _db;
+    } catch (e) {
+        console.error("--- CRITICAL DATABASE ERROR ---");
+        console.error("Failed to initialize better-sqlite3.");
+        console.error("Error Message:", e.message);
+        if (e.message.includes('NODE_MODULE_VERSION')) {
+            console.error("DIAGNOSIS: Node.js version mismatch. You must run 'npm install' in the backend folder to re-compile binaries.");
+        }
+        throw e;
+    }
+};
+
+const getDB = () => {
+    if (!_db) return connect();
+    return _db;
+};
 
 // Timezone logic (PKT is UTC+5)
 const PKT_OFFSET = 5;
 const OPEN_HOUR_PKT = 16;
-
-const connect = () => {
-    try {
-        db = new Database(DB_PATH);
-        db.pragma('journal_mode = WAL');
-        db.pragma('foreign_keys = ON');
-    } catch (e) {
-        console.error("DB Connection Failed:", e);
-        throw e;
-    }
-};
 
 const safeParse = (str) => {
     try { return str ? JSON.parse(str) : null; } 
@@ -28,26 +45,32 @@ const safeParse = (str) => {
 
 const getAllFromTable = (table) => {
     try {
+        const db = getDB();
         const items = db.prepare(`SELECT * FROM ${table}`).all();
+        
         return items.map(item => {
             if (item.prizeRates) item.prizeRates = safeParse(item.prizeRates);
             if (item.betLimits) item.betLimits = safeParse(item.betLimits);
             if (item.numbers) item.numbers = safeParse(item.numbers);
             
             if (table === 'games') {
-                // Determine if market is open (Simple logic for display)
+                // Pakistan Time Calculation
                 const now = new Date();
                 const pktHour = (now.getUTCHours() + PKT_OFFSET) % 24;
-                item.isMarketOpen = pktHour >= OPEN_HOUR_PKT || pktHour < 2; // Rough estimate
+                
+                // Market Logic: Open from 4:00 PM (16) until roughly 2:00 AM (02)
+                item.isMarketOpen = (pktHour >= OPEN_HOUR_PKT || pktHour < 2);
             }
             return item;
         });
-    } catch (e) {
-        return [];
+    } catch (err) {
+        console.error(`Error querying table ${table}:`, err.message);
+        throw err;
     }
 };
 
 const findAccountForLogin = (loginId) => {
+    const db = getDB();
     const roles = [
         { table: 'users', role: 'USER' },
         { table: 'dealers', role: 'DEALER' },
@@ -61,20 +84,35 @@ const findAccountForLogin = (loginId) => {
 };
 
 const findAccountById = (id, table) => {
+    const db = getDB();
     const acc = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
     if (!acc) return null;
     acc.prizeRates = safeParse(acc.prizeRates);
-    acc.ledger = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 50').all(id);
+    acc.ledger = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 100').all(id);
     return acc;
 };
 
 module.exports = {
     connect,
-    verifySchema: () => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'").get(),
+    verifySchema: () => {
+        const db = getDB();
+        return db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'").get();
+    },
     getAllFromTable,
     findAccountForLogin,
     findAccountById,
-    saveDealer: (d) => db.prepare('INSERT OR REPLACE INTO dealers (id, name, password, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?,?,?,?,?,?,?,?,?)').run(d.id, d.name, d.password, d.area, d.contact, d.wallet, d.commissionRate, JSON.stringify(d.prizeRates), d.avatarUrl),
-    saveUser: (u) => db.prepare('INSERT OR REPLACE INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?,?,?,?,?,?,?,?,?,?)').run(u.id, u.name, u.password, u.dealerId, u.area, u.contact, u.wallet, u.commissionRate, JSON.stringify(u.prizeRates), u.avatarUrl),
-    runInTransaction: (fn) => db.transaction(fn)()
+    saveDealer: (d) => {
+        const db = getDB();
+        return db.prepare('INSERT OR REPLACE INTO dealers (id, name, password, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?,?,?,?,?,?,?,?,?)')
+                 .run(d.id, d.name, d.password, d.area, d.contact, d.wallet, d.commissionRate, JSON.stringify(d.prizeRates), d.avatarUrl);
+    },
+    saveUser: (u) => {
+        const db = getDB();
+        return db.prepare('INSERT OR REPLACE INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?,?,?,?,?,?,?,?,?,?)')
+                 .run(u.id, u.name, u.password, u.dealerId, u.area, u.contact, u.wallet, u.commissionRate, JSON.stringify(u.prizeRates), u.avatarUrl);
+    },
+    runInTransaction: (fn) => {
+        const db = getDB();
+        return db.transaction(fn)();
+    }
 };

@@ -10,17 +10,27 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Initialize
+// Initialize Database connection
+let dbReady = false;
 try {
     database.connect();
-    console.log("Backend Connected to SQLite");
+    database.verifySchema();
+    dbReady = true;
+    console.log("Backend successfully connected and verified database.");
 } catch (e) {
-    console.error("FATAL: Database could not start.");
+    console.error("FATAL: Backend cannot operate without a functional database binary.");
+    console.error("Action Required: Check your 'better-sqlite3' installation.");
 }
 
-// Ensure every response is JSON
+// Global JSON response header middleware
 app.use('/api', (req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
+    if (!dbReady) {
+        return res.status(500).json({ 
+            error: "Database is offline.", 
+            details: "Node.js environment mismatch or binary error. Please rebuild node_modules." 
+        });
+    }
     next();
 });
 
@@ -30,54 +40,79 @@ app.get('/api/games', (req, res) => {
         const games = database.getAllFromTable('games');
         res.json(games);
     } catch (e) {
-        res.status(500).json([]);
+        console.error("API Error - /api/games:", e.message);
+        res.status(500).json({ error: "Query failed", details: e.message });
     }
 });
 
 // --- AUTH ---
 app.post('/api/auth/login', (req, res) => {
     const { loginId, password } = req.body;
-    const { account, role } = database.findAccountForLogin(loginId);
-    if (account && account.password === password) {
-        const token = jwt.sign({ id: account.id, role }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
-        const fullAccount = database.findAccountById(account.id, role.toLowerCase() + 's');
-        return res.json({ token, role, account: fullAccount });
+    try {
+        const { account, role } = database.findAccountForLogin(loginId);
+        if (account && account.password === password) {
+            const token = jwt.sign({ id: account.id, role }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
+            const fullAccount = database.findAccountById(account.id, role.toLowerCase() + 's');
+            return res.json({ token, role, account: fullAccount });
+        }
+        res.status(401).json({ message: "Invalid credentials" });
+    } catch (e) {
+        console.error("Login Error:", e.message);
+        res.status(500).json({ message: "Internal login error", error: e.message });
     }
-    res.status(401).json({ message: "Invalid credentials" });
 });
 
 app.get('/api/auth/verify', authMiddleware, (req, res) => {
-    const account = database.findAccountById(req.user.id, req.user.role.toLowerCase() + 's');
-    if (!account) return res.status(404).json({ message: "Not found" });
-    res.json({ account, role: req.user.role });
+    try {
+        const account = database.findAccountById(req.user.id, req.user.role.toLowerCase() + 's');
+        if (!account) return res.status(404).json({ message: "Account not found." });
+        res.json({ account, role: req.user.role });
+    } catch (e) {
+        res.status(500).json({ message: "Verification failed.", error: e.message });
+    }
 });
 
 // --- DATA SYNC ---
 app.get('/api/admin/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
-    res.json({
-        dealers: database.getAllFromTable('dealers'),
-        users: database.getAllFromTable('users'),
-        games: database.getAllFromTable('games'),
-        bets: database.getAllFromTable('bets')
-    });
+    try {
+        res.json({
+            dealers: database.getAllFromTable('dealers'),
+            users: database.getAllFromTable('users'),
+            games: database.getAllFromTable('games'),
+            bets: database.getAllFromTable('bets')
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.get('/api/dealer/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    const users = database.getAllFromTable('users').filter(u => u.dealerId === req.user.id);
-    res.json({ users, bets: [] });
+    try {
+        const users = database.getAllFromTable('users').filter(u => u.dealerId === req.user.id);
+        res.json({ users, bets: [] });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.get('/api/user/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
-    res.json({ games: database.getAllFromTable('games'), bets: [] });
+    try {
+        res.json({ games: database.getAllFromTable('games'), bets: [] });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
-// Error handling to prevent HTML returns
+// Final error catch-all to prevent Nginx HTML error pages
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ message: "Internal server error", error: err.message });
+    console.error("Global Error Caught:", err.stack);
+    res.status(500).json({ 
+        message: "Internal Server Error", 
+        error: err.message 
+    });
 });
 
 const PORT = process.env.PORT || 3001;
