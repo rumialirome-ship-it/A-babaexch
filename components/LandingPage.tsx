@@ -280,7 +280,7 @@ const ResetPasswordModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
                     )}
                 </div>
             </div>
-        </ModalWrapper>
+        </div>
     );
 };
 
@@ -312,6 +312,7 @@ const LandingPage: React.FC = () => {
     const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
     const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
     const [isRetrying, setIsRetrying] = useState(false);
+    const [copyStatus, setCopyStatus] = useState<string | null>(null);
     
     const fetchGames = async () => {
         setIsRetrying(true);
@@ -343,6 +344,14 @@ const LandingPage: React.FC = () => {
 
     const handleGameClick = () => {
         document.getElementById('login')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    const handleCopyFix = () => {
+        const fixCommands = "cd /var/www/html/A-babaexch/backend\nrm -rf node_modules package-lock.json\nnpm install\npm2 restart ababa-backend";
+        navigator.clipboard.writeText(fixCommands).then(() => {
+            setCopyStatus("Copied!");
+            setTimeout(() => setCopyStatus(null), 2000);
+        });
     };
 
     return (
@@ -379,25 +388,28 @@ const LandingPage: React.FC = () => {
                                     </svg>
                                 </div>
                                 <h4 className="text-3xl font-bold text-white mb-2">{apiErrorInfo.error}</h4>
-                                <p className="text-slate-300 text-lg mb-8 max-w-xl mx-auto">The database kernel failed to load. This is usually caused by a Node.js version mismatch after a system update.</p>
+                                <p className="text-slate-300 text-lg mb-8 max-w-xl mx-auto">The database kernel failed to load. This is caused by a Node.js binary mismatch. Run the recovery commands below.</p>
 
-                                {apiErrorInfo.fix && (
-                                    <div className="bg-emerald-500/10 border border-emerald-500/30 p-6 rounded-md mb-8 text-left relative overflow-hidden group">
-                                        <div className="absolute top-0 right-0 p-2 opacity-20 group-hover:opacity-100 transition-opacity">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                        </div>
-                                        <h5 className="text-emerald-400 font-bold mb-3 uppercase text-xs tracking-widest flex items-center gap-2">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0l-1.4 5.76a1 1 0 01-1.03.77L.31 9.47c-1.62.14-2.18 2.21-.76 3.15l4.63 3.03a1 1 0 01.37 1.13l-1.4 5.76c-.38 1.56 1.8 3.14 3.23 2.19l4.63-3.03a1 1 0 011.1 0l4.63 3.03c1.43.95 3.61-.63 3.23-2.19l-1.4-5.76a1 1 0 01.37-1.13l4.63-3.03c1.42-.94.86-3.01-.76-3.15l-5.77-.23a1 1 0 01-1.03-.77l-1.4-5.76z" clipRule="evenodd" /></svg>
-                                            RECOVERY PROCEDURE (Run in Server Terminal)
-                                        </h5>
-                                        <div className="bg-black/60 p-4 rounded font-mono text-sm border border-emerald-500/20 group-hover:border-emerald-500/50 transition-colors">
-                                            <p className="text-emerald-300 leading-relaxed">$ cd backend</p>
-                                            <p className="text-emerald-300 leading-relaxed">$ rm -rf node_modules package-lock.json</p>
-                                            <p className="text-emerald-300 leading-relaxed">$ npm install</p>
-                                            <p className="text-emerald-300 leading-relaxed">$ pm2 restart ababa-backend</p>
-                                        </div>
+                                <div className="bg-emerald-500/10 border border-emerald-500/30 p-6 rounded-md mb-8 text-left relative overflow-hidden group">
+                                    <div className="absolute top-4 right-4 flex gap-2">
+                                        <button 
+                                            onClick={handleCopyFix}
+                                            className="bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 text-[10px] px-3 py-1 rounded border border-emerald-500/30 transition-all uppercase font-bold"
+                                        >
+                                            {copyStatus || 'Copy Commands'}
+                                        </button>
                                     </div>
-                                )}
+                                    <h5 className="text-emerald-400 font-bold mb-3 uppercase text-xs tracking-widest flex items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0l-1.4 5.76a1 1 0 01-1.03.77L.31 9.47c-1.62.14-2.18 2.21-.76 3.15l4.63 3.03a1 1 0 01.37 1.13l-1.4 5.76c-.38 1.56 1.8 3.14 3.23 2.19l4.63-3.03a1 1 0 011.1 0l4.63 3.03c1.43.95 3.61-.63 3.23-2.19l-1.4-5.76a1 1 0 01.37-1.13l4.63-3.03c1.42-.94.86-3.01-.76-3.15l-5.77-.23a1 1 0 01-1.03-.77l-1.4-5.76z" clipRule="evenodd" /></svg>
+                                        RECOVERY PROCEDURE (Run in Server Terminal)
+                                    </h5>
+                                    <div className="bg-black/60 p-4 rounded font-mono text-sm border border-emerald-500/20 group-hover:border-emerald-500/50 transition-colors">
+                                        <p className="text-emerald-300 leading-relaxed">$ cd /var/www/html/A-babaexch/backend</p>
+                                        <p className="text-emerald-300 leading-relaxed">$ rm -rf node_modules package-lock.json</p>
+                                        <p className="text-emerald-300 leading-relaxed">$ npm install</p>
+                                        <p className="text-emerald-300 leading-relaxed">$ pm2 restart ababa-backend</p>
+                                    </div>
+                                </div>
 
                                 {apiErrorInfo.details && (
                                     <div className="text-left">
