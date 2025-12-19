@@ -11,16 +11,20 @@ const OPEN_HOUR_PKT = 16;
 const RESET_HOUR_UTC = OPEN_HOUR_PKT - PKT_OFFSET_HOURS;
 
 const getMarketDateString = (dateObj) => {
-    const d = new Date(dateObj.getTime());
-    if (d.getUTCHours() < RESET_HOUR_UTC) {
-        d.setUTCDate(d.getUTCDate() - 1);
+    try {
+        const d = new Date(dateObj.getTime());
+        if (d.getUTCHours() < RESET_HOUR_UTC) {
+            d.setUTCDate(d.getUTCDate() - 1);
+        }
+        return d.toISOString().split('T')[0];
+    } catch (e) {
+        return new Date().toISOString().split('T')[0];
     }
-    return d.toISOString().split('T')[0];
 };
 
 function getGameCycle(drawTime) {
     const now = new Date();
-    const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
+    const [drawHoursPKT, drawMinutesPKT] = (drawTime || "00:00").split(':').map(Number);
     const openHourUTC = OPEN_HOUR_PKT - PKT_OFFSET_HOURS;
     let lastOpenTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), openHourUTC, 0, 0));
     if (now.getTime() < lastOpenTime.getTime()) {
@@ -42,6 +46,7 @@ const connect = () => {
         db.pragma('synchronous = NORMAL');
         db.pragma('foreign_keys = ON');
     } catch (error) {
+        console.error("DB Connection Error:", error);
         process.exit(1);
     }
 };
@@ -49,78 +54,108 @@ const connect = () => {
 const verifySchema = () => {
     try {
         const table = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'").get();
-        if (!table) process.exit(1);
+        if (!table) {
+            console.error("Database schema missing. Run npm run db:setup");
+            process.exit(1);
+        }
     } catch (error) {
         process.exit(1);
     }
 };
 
 const findAccountById = (id, table, full = false) => {
-    const account = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
-    if (!account) return null;
-    account.ledger = full ? db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 200').all(id).map(e => ({...e, timestamp: new Date(e.timestamp)})) : [];
-    if (account.prizeRates) account.prizeRates = JSON.parse(account.prizeRates);
-    if (account.betLimits) account.betLimits = JSON.parse(account.betLimits);
-    if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
-    return account;
+    try {
+        const account = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+        if (!account) return null;
+        
+        account.ledger = full ? db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 200').all(id).map(e => ({...e, timestamp: new Date(e.timestamp)})) : [];
+        
+        if (account.prizeRates) {
+            try { account.prizeRates = JSON.parse(account.prizeRates); } catch(e) { account.prizeRates = {}; }
+        }
+        if (account.betLimits) {
+            try { account.betLimits = JSON.parse(account.betLimits); } catch(e) { account.betLimits = {}; }
+        }
+        if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
+        return account;
+    } catch (e) {
+        console.error(`Error finding account ${id} in ${table}:`, e);
+        return null;
+    }
 };
 
 const findAccountForLogin = (loginId) => {
-    let account = db.prepare('SELECT id FROM admins WHERE id = ?').get(loginId);
-    if (account) return { account: db.prepare('SELECT * FROM admins WHERE id = ?').get(loginId), role: 'ADMIN' };
-    
-    account = db.prepare('SELECT id FROM dealers WHERE id = ?').get(loginId);
-    if (account) return { account: db.prepare('SELECT * FROM dealers WHERE id = ?').get(loginId), role: 'DEALER' };
-    
-    account = db.prepare('SELECT id FROM users WHERE id = ?').get(loginId);
-    if (account) return { account: db.prepare('SELECT * FROM users WHERE id = ?').get(loginId), role: 'USER' };
-    
-    return { account: null, role: null };
+    try {
+        let account = db.prepare('SELECT id FROM admins WHERE id = ?').get(loginId);
+        if (account) return { account: db.prepare('SELECT * FROM admins WHERE id = ?').get(loginId), role: 'ADMIN' };
+        
+        account = db.prepare('SELECT id FROM dealers WHERE id = ?').get(loginId);
+        if (account) return { account: db.prepare('SELECT * FROM dealers WHERE id = ?').get(loginId), role: 'DEALER' };
+        
+        account = db.prepare('SELECT id FROM users WHERE id = ?').get(loginId);
+        if (account) return { account: db.prepare('SELECT * FROM users WHERE id = ?').get(loginId), role: 'USER' };
+        
+        return { account: null, role: null };
+    } catch (e) {
+        return { account: null, role: null };
+    }
 };
 
 const getAllFromTable = (table) => {
-    const items = db.prepare(`SELECT * FROM ${table}`).all();
-    return items.map(i => {
-        if (i.prizeRates) i.prizeRates = JSON.parse(i.prizeRates);
-        if (i.betLimits) i.betLimits = JSON.parse(i.betLimits);
-        if (table === 'games') {
-            const { openTime, closeTime } = getGameCycle(i.drawTime);
-            const now = new Date();
-            i.isMarketOpen = now >= openTime && now < closeTime;
-            i.logo = i.logo || ''; 
-        }
-        return i;
-    });
+    try {
+        const items = db.prepare(`SELECT * FROM ${table}`).all();
+        return items.map(i => {
+            if (i.prizeRates) {
+                try { i.prizeRates = JSON.parse(i.prizeRates); } catch(e) { i.prizeRates = {}; }
+            }
+            if (i.betLimits) {
+                try { i.betLimits = JSON.parse(i.betLimits); } catch(e) { i.betLimits = {}; }
+            }
+            if (table === 'games') {
+                const { openTime, closeTime } = getGameCycle(i.drawTime);
+                const now = new Date();
+                i.isMarketOpen = now >= openTime && now < closeTime;
+                i.logo = i.logo || ''; 
+            }
+            return i;
+        });
+    } catch (e) {
+        console.error(`Error getting all from ${table}:`, e);
+        return [];
+    }
 };
 
 const declareWinnerForGame = (gameId, winningNumber) => {
-    db.transaction(() => {
+    return db.transaction(() => {
         const marketDate = getMarketDateString(new Date());
         db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
         db.prepare('INSERT INTO daily_results (id, gameId, date, winningNumber) VALUES (?, ?, ?, ?) ON CONFLICT(gameId, date) DO UPDATE SET winningNumber = excluded.winningNumber')
           .run(uuidv4(), gameId, marketDate, winningNumber);
+        return findAccountById(gameId, 'games');
     })();
-    return findAccountById(gameId, 'games');
 };
 
 const approvePayoutsForGame = (gameId) => {
-    // Basic implementation for now to satisfy existing server.js calls
     db.prepare('UPDATE games SET payoutsApproved = 1 WHERE id = ?').run(gameId);
 };
 
 const getFinancialSummary = (date) => {
-    const results = db.prepare('SELECT * FROM daily_results WHERE date = ?').all(date || getMarketDateString(new Date()));
-    const summary = results.map(res => {
-        const game = db.prepare('SELECT name FROM games WHERE id = ?').get(res.gameId);
-        const stats = db.prepare('SELECT SUM(totalAmount) as stake, COUNT(*) as count FROM bets WHERE gameId = ? AND date(timestamp) = ?').get(res.gameId, res.date);
-        return {
-            gameName: game.name,
-            winningNumber: res.winningNumber,
-            totalStake: stats.stake || 0,
-            netProfit: (stats.stake || 0) * 0.1 
-        };
-    });
-    return { games: summary, totals: { totalStake: summary.reduce((a,b) => a + b.totalStake, 0), netProfit: summary.reduce((a,b) => a + b.netProfit, 0) } };
+    try {
+        const results = db.prepare('SELECT * FROM daily_results WHERE date = ?').all(date || getMarketDateString(new Date()));
+        const summary = results.map(res => {
+            const game = db.prepare('SELECT name FROM games WHERE id = ?').get(res.gameId);
+            const stats = db.prepare('SELECT SUM(totalAmount) as stake, COUNT(*) as count FROM bets WHERE gameId = ? AND date(timestamp) = ?').get(res.gameId, res.date);
+            return {
+                gameName: game ? game.name : 'Unknown',
+                winningNumber: res.winningNumber,
+                totalStake: stats.stake || 0,
+                netProfit: (stats.stake || 0) * 0.1 
+            };
+        });
+        return { games: summary, totals: { totalStake: summary.reduce((a,b) => a + b.totalStake, 0), netProfit: summary.reduce((a,b) => a + b.netProfit, 0) } };
+    } catch (e) {
+        return { games: [], totals: { totalStake: 0, netProfit: 0 } };
+    }
 };
 
 module.exports = {
