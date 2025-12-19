@@ -29,9 +29,7 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
                 clipPath: 'polygon(0 15px, 15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%)',
             }}
         >
-            {/* Glow effect */}
             <div className={`absolute -inset-0.5 bg-gradient-to-r from-${themeColor}-500 to-blue-500 rounded-lg blur opacity-0 group-hover:opacity-75 transition duration-500`}></div>
-            {/* Main content */}
             <div className="relative z-10 w-full flex flex-col h-full">
                 <div className="flex-grow">
                     <img src={logo} alt={`${game.name} logo`} className="w-24 h-24 rounded-full mb-4 border-4 border-slate-700 group-hover:border-cyan-400 transition-colors" />
@@ -115,7 +113,7 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
                 <form onSubmit={handleLoginSubmit} className="space-y-6">
                     <div>
                         <label htmlFor="loginId" className="block text-sm font-medium text-slate-300 mb-1 uppercase tracking-wider">Account ID</label>
-                        <input type="text" id="loginId" value={loginId} onChange={(e) => setLoginId(e.target.value)} className={`w-full bg-slate-900/50 p-3 rounded-md border border-slate-600 focus:ring-2 ${activeRole.theme.ring} focus:outline-none text-white placeholder-slate-500 transition-shadow duration-300 shadow-inner`} placeholder={`Enter ${activeTab} ID`} aria-describedby="error-message" />
+                        <input type="text" id="loginId" value={loginId} onChange={(e) => setLoginId(e.target.value)} className={`w-full bg-slate-900/50 p-3 rounded-md border border-slate-600 focus:ring-2 ${activeRole.theme.ring} focus:outline-none text-white placeholder-slate-500 transition-shadow duration-300 shadow-inner`} placeholder={`Enter ${activeTab} ID`} />
                     </div>
                     <div>
                          <div className="flex justify-between items-center mb-1">
@@ -123,13 +121,13 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
                             <button type="button" onClick={onForgotPassword} className="text-xs text-slate-400 hover:text-cyan-400 transition-colors">Forgot?</button>
                         </div>
                         <div className="relative">
-                            <input type={isPasswordVisible ? 'text' : 'password'} id="password" value={password} onChange={(e) => setPassword(e.target.value)} className={`w-full bg-slate-900/50 p-3 rounded-md border border-slate-600 focus:ring-2 ${activeRole.theme.ring} focus:outline-none text-white placeholder-slate-500 transition-shadow duration-300 shadow-inner pr-10`} placeholder="Enter password" aria-describedby="error-message" />
+                            <input type={isPasswordVisible ? 'text' : 'password'} id="password" value={password} onChange={(e) => setPassword(e.target.value)} className={`w-full bg-slate-900/50 p-3 rounded-md border border-slate-600 focus:ring-2 ${activeRole.theme.ring} focus:outline-none text-white placeholder-slate-500 transition-shadow duration-300 shadow-inner pr-10`} placeholder="Enter password" />
                              <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white" aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}>
                                 {isPasswordVisible ? Icons.eyeOff : Icons.eye}
                             </button>
                         </div>
                     </div>
-                    {error && <p id="error-message" role="alert" className="text-sm text-red-300 bg-red-500/20 p-3 rounded-md border border-red-500/30">{error}</p>}
+                    {error && <p role="alert" className="text-sm text-red-300 bg-red-500/20 p-3 rounded-md border border-red-500/30">{error}</p>}
                     <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/20 bg-gradient-to-r ${activeRole.theme.button} ${activeRole.theme.buttonHover}`}>
                         LOGIN
                     </button>
@@ -177,7 +175,6 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
                 </div>
                 <div className="p-8">
                     <form onSubmit={handleLoginSubmit} className="space-y-6">
-                        {/* Form fields identical to LoginPanel, just re-styled for the modal */}
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1 uppercase tracking-wider">Admin ID</label>
                             <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className={`w-full bg-slate-800/50 p-3 rounded-md border border-slate-600 focus:ring-2 ${theme.ring} focus:outline-none text-white`} />
@@ -247,7 +244,6 @@ const ResetPasswordModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
                     ) : (
                         <form onSubmit={handleResetSubmit} className="space-y-4">
                             <p className="text-sm text-slate-400 mb-2">Enter your Account ID and registered Contact to proceed.</p>
-                            {/* Form fields styled similarly to other forms */}
                              <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1">Account ID</label>
                                 <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 text-white" />
@@ -315,28 +311,33 @@ const LandingPage: React.FC = () => {
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
     const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
+    const [isRetrying, setIsRetrying] = useState(false);
     
-    useEffect(() => {
-        const fetchGames = async () => {
-            try {
-                const response = await fetch('/api/games');
-                const data = await response.json();
-                if (Array.isArray(data)) {
-                    setGames(data);
-                    setApiErrorInfo(null);
-                } else if (data.error) {
-                    setApiErrorInfo({ error: data.error, details: data.details, fix: data.fix });
-                    setGames([]);
-                } else {
-                    console.error("Games API did not return an array:", data);
-                    setGames([]);
-                }
-            } catch (error) {
-                console.error("Failed to fetch games:", error);
-                setApiErrorInfo({ error: "Network Error", details: "Could not reach the server API." });
+    const fetchGames = async () => {
+        setIsRetrying(true);
+        try {
+            const response = await fetch('/api/games');
+            const data = await response.json();
+            if (Array.isArray(data)) {
+                setGames(data);
+                setApiErrorInfo(null);
+            } else if (data.error) {
+                setApiErrorInfo({ error: data.error, details: data.details, fix: data.fix });
+                setGames([]);
+            } else {
+                console.error("Games API did not return an array:", data);
                 setGames([]);
             }
-        };
+        } catch (error) {
+            console.error("Failed to fetch games:", error);
+            setApiErrorInfo({ error: "Network Error", details: "The connection to the backend was refused. Ensure PM2 is running." });
+            setGames([]);
+        } finally {
+            setIsRetrying(false);
+        }
+    };
+
+    useEffect(() => {
         fetchGames();
     }, []);
 
@@ -356,46 +357,69 @@ const LandingPage: React.FC = () => {
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Today's Games</h2>
                     
                     {apiErrorInfo ? (
-                        <div className="max-w-2xl mx-auto bg-slate-900/60 border border-red-500/50 p-8 rounded-lg text-center backdrop-blur-md shadow-2xl">
-                            <div className="text-red-400 mb-4 flex justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
+                        <div className="max-w-4xl mx-auto bg-slate-900/60 border border-red-500/50 rounded-lg overflow-hidden backdrop-blur-md shadow-[0_0_50px_rgba(239,68,68,0.2)]">
+                            <div className="bg-red-600/20 p-4 border-b border-red-500/30 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="animate-pulse bg-red-500 h-3 w-3 rounded-full shadow-[0_0_10px_#ef4444]"></div>
+                                    <h3 className="text-lg font-bold text-red-100 uppercase tracking-widest">System Integrity Warning</h3>
+                                </div>
+                                <button 
+                                    onClick={fetchGames} 
+                                    disabled={isRetrying}
+                                    className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-1 px-4 rounded transition-all disabled:opacity-50"
+                                >
+                                    {isRetrying ? 'RE-INITIALIZING...' : 'RETRY CONNECTION'}
+                                </button>
                             </div>
-                            <h3 className="text-2xl font-bold text-white mb-2 uppercase tracking-widest">System Maintenance</h3>
-                            <p className="text-slate-300 mb-6">{apiErrorInfo.error}</p>
 
-                            {apiErrorInfo.fix && (
-                                <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-md mb-6 text-left">
-                                    <h4 className="text-emerald-400 font-bold mb-2 uppercase text-xs tracking-widest flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0l-1.4 5.76a1 1 0 01-1.03.77L.31 9.47c-1.62.14-2.18 2.21-.76 3.15l4.63 3.03a1 1 0 01.37 1.13l-1.4 5.76c-.38 1.56 1.8 3.14 3.23 2.19l4.63-3.03a1 1 0 011.1 0l4.63 3.03c1.43.95 3.61-.63 3.23-2.19l-1.4-5.76a1 1 0 01.37-1.13l4.63-3.03c1.42-.94.86-3.01-.76-3.15l-5.77-.23a1 1 0 01-1.03-.77l-1.4-5.76z" clipRule="evenodd" /></svg>
-                                        Required Server Fix
-                                    </h4>
-                                    <code className="text-emerald-300 text-sm block bg-black/40 p-3 rounded font-mono whitespace-pre-wrap">
-                                        {apiErrorInfo.fix}
-                                    </code>
+                            <div className="p-8 text-center">
+                                <div className="text-red-400 mb-6 flex justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
                                 </div>
-                            )}
+                                <h4 className="text-3xl font-bold text-white mb-2">{apiErrorInfo.error}</h4>
+                                <p className="text-slate-300 text-lg mb-8 max-w-xl mx-auto">The database kernel failed to load. This is usually caused by a Node.js version mismatch after a system update.</p>
 
-                            {apiErrorInfo.details && (
-                                <div className="text-left">
-                                    <button 
-                                        onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
-                                        className="text-slate-500 text-xs hover:text-slate-300 transition-colors uppercase tracking-widest font-bold flex items-center gap-1 mx-auto"
-                                    >
-                                        {showTechnicalDetails ? 'Hide' : 'Show'} Technical Details
-                                    </button>
-                                    {showTechnicalDetails && (
-                                        <div className="mt-4 p-4 bg-black/40 rounded border border-slate-700">
-                                            <pre className="text-[10px] text-slate-400 font-mono overflow-x-auto whitespace-pre-wrap leading-tight">
-                                                {apiErrorInfo.details}
-                                            </pre>
+                                {apiErrorInfo.fix && (
+                                    <div className="bg-emerald-500/10 border border-emerald-500/30 p-6 rounded-md mb-8 text-left relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-2 opacity-20 group-hover:opacity-100 transition-opacity">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                         </div>
-                                    )}
-                                </div>
-                            )}
-                            
-                            <p className="mt-8 text-xs text-slate-500 italic">Please try again in a few minutes. Our engineers are working to restore service.</p>
+                                        <h5 className="text-emerald-400 font-bold mb-3 uppercase text-xs tracking-widest flex items-center gap-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0l-1.4 5.76a1 1 0 01-1.03.77L.31 9.47c-1.62.14-2.18 2.21-.76 3.15l4.63 3.03a1 1 0 01.37 1.13l-1.4 5.76c-.38 1.56 1.8 3.14 3.23 2.19l4.63-3.03a1 1 0 011.1 0l4.63 3.03c1.43.95 3.61-.63 3.23-2.19l-1.4-5.76a1 1 0 01.37-1.13l4.63-3.03c1.42-.94.86-3.01-.76-3.15l-5.77-.23a1 1 0 01-1.03-.77l-1.4-5.76z" clipRule="evenodd" /></svg>
+                                            RECOVERY PROCEDURE (Run in Server Terminal)
+                                        </h5>
+                                        <div className="bg-black/60 p-4 rounded font-mono text-sm border border-emerald-500/20 group-hover:border-emerald-500/50 transition-colors">
+                                            <p className="text-emerald-300 leading-relaxed">$ cd backend</p>
+                                            <p className="text-emerald-300 leading-relaxed">$ rm -rf node_modules package-lock.json</p>
+                                            <p className="text-emerald-300 leading-relaxed">$ npm install</p>
+                                            <p className="text-emerald-300 leading-relaxed">$ pm2 restart ababa-backend</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {apiErrorInfo.details && (
+                                    <div className="text-left">
+                                        <button 
+                                            onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
+                                            className="text-slate-500 text-xs hover:text-slate-300 transition-colors uppercase tracking-widest font-bold flex items-center gap-1 mx-auto py-2"
+                                        >
+                                            {showTechnicalDetails ? '[-] HIDE' : '[+] SHOW'} DIAGNOSTIC LOGS
+                                        </button>
+                                        {showTechnicalDetails && (
+                                            <div className="mt-4 p-5 bg-black/80 rounded border border-slate-800 shadow-inner font-mono text-xs text-red-300/80 leading-relaxed max-h-48 overflow-y-auto custom-scrollbar">
+                                                <div className="mb-2 text-slate-500 uppercase tracking-tighter">[INITIALIZING STACK TRACE...]</div>
+                                                {apiErrorInfo.details}
+                                                <div className="mt-2 text-slate-500 uppercase tracking-tighter">[END OF LOG]</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="bg-black/40 p-3 text-center border-t border-slate-800">
+                                <p className="text-[10px] text-slate-600 uppercase tracking-[0.2em]">Service Status: <span className="text-red-900 font-bold">DEGRADED</span> | System ID: {window.location.hostname}</p>
+                            </div>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
@@ -403,7 +427,8 @@ const LandingPage: React.FC = () => {
                                 <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
                             )) : (
                                 <div className="col-span-full text-center text-slate-500 p-12">
-                                    Loading games...
+                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500 mb-4"></div>
+                                    <p className="uppercase tracking-[0.3em] text-xs">Querying Global Game Servers...</p>
                                 </div>
                             )}
                         </div>
@@ -413,7 +438,7 @@ const LandingPage: React.FC = () => {
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
                     <LoginPanel onForgotPassword={() => setIsResetModalOpen(true)} />
                      <div className="mt-6">
-                        <button onClick={() => setIsAdminModalOpen(true)} className="w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500">
+                        <button onClick={() => setIsAdminModalOpen(true)} className="w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-lg shadow-red-900/20">
                             ADMINISTRATOR ACCESS
                         </button>
                     </div>
