@@ -121,24 +121,15 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
     );
 };
 
-const ModalWrapper: React.FC<{ isOpen: boolean; onClose: () => void; children: React.ReactNode;}> = ({isOpen, onClose, children}) => {
-    if (!isOpen) return null;
-    return (
-         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4" aria-modal="true" role="dialog">
-            {children}
-        </div>
-    );
-}
-
 const LandingPage: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
     const [apiErrorInfo, setApiErrorInfo] = useState<{ error: string; details?: string; fix?: string } | null>(null);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-    const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
     const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
     const [isRetrying, setIsRetrying] = useState(false);
     const [countdownToRetry, setCountdownToRetry] = useState(10);
+    const [copySuccess, setCopySuccess] = useState(false);
     const pollTimerRef = useRef<number | null>(null);
     
     const fetchGames = async (silent = false) => {
@@ -154,7 +145,7 @@ const LandingPage: React.FC = () => {
                 setGames([]);
             }
         } catch (error) {
-            setApiErrorInfo({ error: "Network Error", details: "Failed to connect to backend server." });
+            setApiErrorInfo({ error: "Network Error", details: "The connection to the backend was refused. Ensure PM2 is running." });
             setGames([]);
         } finally {
             if (!silent) setIsRetrying(false);
@@ -164,7 +155,7 @@ const LandingPage: React.FC = () => {
 
     useEffect(() => {
         fetchGames();
-        // Auto-refresh when in error state
+        // Background polling
         pollTimerRef.current = window.setInterval(() => {
             setCountdownToRetry((prev) => {
                 if (prev <= 1) {
@@ -178,9 +169,10 @@ const LandingPage: React.FC = () => {
     }, []);
 
     const handleCopyFix = () => {
-        const fixCommands = "cd /var/www/html/A-babaexch/backend\nrm -rf node_modules package-lock.json\nnpm install\npm2 restart ababa-backend";
+        const fixCommands = "cd /var/www/html/A-babaexch/backend\npm2 stop ababa-backend\nrm -rf node_modules package-lock.json\nnpm install\npm2 start server.js --name ababa-backend";
         navigator.clipboard.writeText(fixCommands).then(() => {
-            alert("Commands copied to clipboard!");
+            setCopySuccess(true);
+            setTimeout(() => setCopySuccess(false), 2000);
         });
     };
 
@@ -196,48 +188,90 @@ const LandingPage: React.FC = () => {
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Today's Games</h2>
                     
                     {apiErrorInfo ? (
-                        <div className="max-w-4xl mx-auto bg-slate-900/60 border border-red-500/50 rounded-lg overflow-hidden backdrop-blur-md shadow-[0_0_50px_rgba(239,68,68,0.2)]">
+                        <div className="max-w-4xl mx-auto bg-slate-900/60 border border-red-500/50 rounded-lg overflow-hidden backdrop-blur-md shadow-[0_0_50px_rgba(239,68,68,0.25)]">
                             <div className="bg-red-600/20 p-4 border-b border-red-500/30 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="animate-pulse bg-red-500 h-3 w-3 rounded-full shadow-[0_0_10px_#ef4444]"></div>
-                                    <h3 className="text-lg font-bold text-red-100 uppercase tracking-widest">System Degraded</h3>
+                                    <div className="relative flex items-center justify-center">
+                                        <div className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-75"></div>
+                                        <div className="relative inline-flex rounded-full h-3 w-3 bg-red-500 shadow-[0_0_10px_#ef4444]"></div>
+                                    </div>
+                                    <h3 className="text-sm md:text-lg font-bold text-red-100 uppercase tracking-widest">System Integrity Warning</h3>
                                 </div>
                                 <div className="flex items-center gap-4">
-                                    <span className="text-[10px] text-red-400 uppercase tracking-widest hidden sm:block">Auto-reconnect in {countdownToRetry}s</span>
-                                    <button onClick={() => fetchGames()} disabled={isRetrying} className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-1.5 px-4 rounded transition-all disabled:opacity-50">
-                                        {isRetrying ? 'RE-INITIALIZING...' : 'RETRY NOW'}
+                                    <span className="hidden sm:inline text-[10px] text-red-400 uppercase tracking-widest font-mono">Retrying in {countdownToRetry}s</span>
+                                    <button 
+                                        onClick={() => fetchGames()} 
+                                        disabled={isRetrying}
+                                        className="bg-red-600 hover:bg-red-500 text-white text-[10px] md:text-xs font-bold py-1.5 px-4 rounded transition-all active:scale-95 disabled:opacity-50"
+                                    >
+                                        {isRetrying ? 'CONNECTING...' : 'RETRY NOW'}
                                     </button>
                                 </div>
                             </div>
 
                             <div className="p-8 text-center">
-                                <div className="text-red-400 mb-6 flex justify-center">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <div className="text-red-400 mb-6 flex justify-center scale-125">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
                                 </div>
-                                <h4 className="text-3xl font-bold text-white mb-2">{apiErrorInfo.error}</h4>
-                                <p className="text-slate-300 text-lg mb-8 max-w-xl mx-auto">Database binary mismatch detected. The system will recover automatically once you run the terminal fix commands.</p>
+                                <h4 className="text-4xl font-bold text-white mb-2">Database Offline</h4>
+                                <p className="text-slate-300 text-lg mb-8 max-w-xl mx-auto">The database kernel failed to load. This is usually caused by a <span className="text-red-400 font-bold">Node.js version mismatch</span> after a system update.</p>
 
                                 <div className="bg-emerald-500/10 border border-emerald-500/30 p-6 rounded-md mb-8 text-left relative overflow-hidden group">
-                                    <button onClick={handleCopyFix} className="absolute top-4 right-4 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 text-[10px] px-3 py-1 rounded border border-emerald-500/30 transition-all uppercase font-bold">Copy Commands</button>
-                                    <h5 className="text-emerald-400 font-bold mb-3 uppercase text-xs tracking-widest flex items-center gap-2">RECOVERY PROCEDURE (Run in Server Terminal)</h5>
-                                    <div className="bg-black/60 p-4 rounded font-mono text-sm border border-emerald-500/20 group-hover:border-emerald-500/50 transition-colors">
-                                        <p className="text-emerald-300 leading-relaxed">$ cd /var/www/html/A-babaexch/backend</p>
-                                        <p className="text-emerald-300 leading-relaxed">$ rm -rf node_modules package-lock.json</p>
-                                        <p className="text-emerald-300 leading-relaxed">$ npm install</p>
-                                        <p className="text-emerald-300 leading-relaxed">$ pm2 restart ababa-backend</p>
+                                    <div className="absolute top-4 right-4">
+                                        <button 
+                                            onClick={handleCopyFix}
+                                            className="bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 text-[10px] px-3 py-1.5 rounded border border-emerald-500/40 transition-all uppercase font-bold flex items-center gap-2"
+                                        >
+                                            {copySuccess ? 'Copied!' : 'Copy Commands'}
+                                            {!copySuccess && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>}
+                                        </button>
+                                    </div>
+                                    <h5 className="text-emerald-400 font-bold mb-4 uppercase text-[10px] tracking-widest flex items-center gap-2">
+                                        <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                                        Terminal Recovery Console
+                                    </h5>
+                                    <div className="bg-black/80 p-5 rounded font-mono text-sm border border-emerald-500/20 shadow-inner group-hover:border-emerald-500/40 transition-colors">
+                                        <div className="flex gap-4">
+                                            <span className="text-slate-600 select-none">$</span>
+                                            <p className="text-emerald-300">cd /var/www/html/A-babaexch/backend</p>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <span className="text-slate-600 select-none">$</span>
+                                            <p className="text-emerald-300">pm2 stop ababa-backend</p>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <span className="text-slate-600 select-none">$</span>
+                                            <p className="text-emerald-300">rm -rf node_modules package-lock.json</p>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <span className="text-slate-600 select-none">$</span>
+                                            <p className="text-emerald-300">npm install</p>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <span className="text-slate-600 select-none">$</span>
+                                            <p className="text-emerald-300">pm2 start server.js --name ababa-backend</p>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <button onClick={() => setShowTechnicalDetails(!showTechnicalDetails)} className="text-slate-500 text-xs hover:text-slate-300 uppercase tracking-widest font-bold mb-4">
+                                <button 
+                                    onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
+                                    className="text-slate-500 text-[10px] hover:text-slate-300 uppercase tracking-widest font-bold flex items-center gap-2 mx-auto"
+                                >
                                     {showTechnicalDetails ? '[-] Hide' : '[+] Show'} Diagnostic Logs
                                 </button>
                                 {showTechnicalDetails && (
-                                    <div className="mt-4 p-5 bg-black/80 rounded border border-slate-800 font-mono text-xs text-red-300/80 leading-relaxed max-h-48 overflow-y-auto text-left">
-                                        {apiErrorInfo.details}
+                                    <div className="mt-4 p-5 bg-black/60 rounded border border-slate-800 font-mono text-[11px] text-red-300/60 leading-relaxed max-h-48 overflow-y-auto text-left shadow-inner">
+                                        {apiErrorInfo.details || "No further details available."}
                                     </div>
                                 )}
+                            </div>
+                            <div className="bg-black/60 p-3 text-center border-t border-slate-800">
+                                <p className="text-[9px] text-slate-500 uppercase tracking-[0.3em]">
+                                    Service Status: <span className="text-red-600 font-bold">DEGRADED</span> | System ID: {window.location.hostname}
+                                </p>
                             </div>
                         </div>
                     ) : (
@@ -257,14 +291,13 @@ const LandingPage: React.FC = () => {
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
                     <LoginPanel onForgotPassword={() => setIsResetModalOpen(true)} />
                      <div className="mt-6">
-                        <button onClick={() => setIsAdminModalOpen(true)} className="w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500">
+                        <button onClick={() => setIsAdminModalOpen(true)} className="w-full text-white font-bold py-3 px-4 rounded-md transition-all transform hover:scale-105 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-lg shadow-red-900/20">
                             ADMINISTRATOR ACCESS
                         </button>
                     </div>
                 </section>
-                <footer className="text-center py-8 mt-12 text-slate-500">&copy; {new Date().getFullYear()} A-Baba Exchange. All rights reserved.</footer>
+                <footer className="text-center py-12 mt-12 text-slate-600 text-xs tracking-widest">&copy; {new Date().getFullYear()} A-BABA EXCHANGE. ALL RIGHTS RESERVED.</footer>
             </div>
-            {/* Modals placeholders for Admin Login, Reset Password etc. */}
         </div>
     );
 };
