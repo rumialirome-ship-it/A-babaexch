@@ -44,15 +44,13 @@ app.post('/api/admin/ai-insights', authMiddleware, async (req, res) => {
         const { summaryData } = req.body;
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
-        const prompt = `Analyze this lottery betting summary for the day: ${JSON.stringify(summaryData)}. 
-        Provide a concise 3-sentence risk assessment. Mention which game has the highest potential loss 
-        risk for the system and if any unusual betting volume is detected. Keep it professional and urgent.`;
+        const prompt = `Analyze this lottery betting summary: ${JSON.stringify(summaryData)}. Provide a concise 3-sentence risk assessment. Highlight games with high exposure.`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
             config: {
-                systemInstruction: "You are a senior financial risk analyst for a high-volume lottery exchange.",
+                systemInstruction: "You are a risk analyst for a lottery exchange.",
             }
         });
 
@@ -112,18 +110,6 @@ app.get('/api/dealer/data', authMiddleware, async (req, res) => {
     } catch (e) { res.status(500).send(); }
 });
 
-app.post('/api/dealer/topup/user', authMiddleware, async (req, res) => {
-    if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    const { userId, amount } = req.body;
-    try {
-        const dealer = await database.findAccountById(req.user.id, 'dealers');
-        if (parseFloat(dealer.wallet) < amount) return res.status(400).json({ message: "Insufficient Dealer Balance" });
-        await database.addLedgerEntry(req.user.id, 'DEALER', `Topup for ${userId}`, amount, 0);
-        await database.addLedgerEntry(userId, 'USER', `Topup from Dealer`, 0, amount);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ message: e.message }); }
-});
-
 // --- ADMIN ENDPOINTS ---
 app.get('/api/admin/data', authMiddleware, async (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
@@ -170,6 +156,29 @@ app.get('/api/admin/summary', authMiddleware, async (req, res) => {
             },
             totalBets: bets.length
         });
+    } catch (e) { res.status(500).send(); }
+});
+
+// New Endpoint: Market Exposure (Which number is played with how much money)
+app.get('/api/admin/games/:id/exposure', authMiddleware, async (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try {
+        const bets = await database.query('SELECT * FROM bets WHERE gameid = ?', [req.params.id]);
+        const exposure = {};
+        
+        // Initialize 00-99
+        for(let i=0; i<100; i++) exposure[i.toString().padStart(2, '0')] = 0;
+
+        bets.forEach(bet => {
+            const nums = JSON.parse(bet.numbers);
+            nums.forEach(n => {
+                // Map 1-digit to 2-digit range if needed, or handle separately
+                // For simplicity, we track exactly as played
+                exposure[n] = (exposure[n] || 0) + parseFloat(bet.amountpernumber);
+            });
+        });
+
+        res.json({ exposure });
     } catch (e) { res.status(500).send(); }
 });
 
