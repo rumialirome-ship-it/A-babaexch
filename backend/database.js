@@ -38,7 +38,7 @@ const connect = () => {
         console.error(e.message);
         
         let msg = "SQL Driver Blocked";
-        let fix = "Run 'npm run db:setup' on the server.";
+        let fix = "You must rebuild the native modules on this server.";
 
         // Specifically catch the binary mismatch / self-register errors
         if (e.message.includes('self-register') || e.message.includes('NODE_MODULE_VERSION') || e.code === 'ERR_DLOPEN_FAILED') {
@@ -52,6 +52,7 @@ const connect = () => {
         const err = new Error(msg);
         err.raw = e.message;
         err.fix = fix;
+        // The exact command the user needs to paste to fix their specific server
         err.terminal = "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend";
         throw err;
     }

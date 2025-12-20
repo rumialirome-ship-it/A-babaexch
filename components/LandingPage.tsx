@@ -81,19 +81,19 @@ const LandingPage: React.FC = () => {
                 setApiErrorInfo(null);
             } else {
                 setApiErrorInfo({ 
-                    error: data.error || "System Kernel Halt", 
+                    error: data.error || "SQL Engine Halt", 
                     details: data.details || "The binary SQL driver failed to self-register.", 
-                    fix: data.fix || "You must reinstall the database driver on the server.",
-                    raw: data.raw || "ERR_DLOPEN_FAILED",
+                    fix: data.fix || "You must rebuild the database from scratch.",
+                    raw: data.raw || "Module did not self-register.",
                     terminal: data.terminal || "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
                 });
                 setGames([]);
             }
         } catch (error: any) {
             setApiErrorInfo({ 
-                error: "Backend Engine Crash", 
-                details: "The better-sqlite3 driver is mismatched. This is a critical binary error.", 
-                fix: "Run the repair command in your terminal.",
+                error: "Backend Driver Crash", 
+                details: "The database driver is mismatched. This happens when code is moved between different servers.", 
+                fix: "Run the remake command in your SSH terminal.",
                 raw: error.toString(),
                 terminal: "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
             });
@@ -105,8 +105,6 @@ const LandingPage: React.FC = () => {
 
     useEffect(() => {
         fetchGames();
-        const interval = setInterval(() => fetchGames(true), 15000);
-        return () => clearInterval(interval);
     }, []);
 
     const handleCopyFix = () => {
@@ -122,7 +120,7 @@ const LandingPage: React.FC = () => {
             <div className="max-w-7xl mx-auto">
                 <header className="text-center my-12 md:my-20">
                     <h1 className="text-5xl md:text-7xl font-extrabold mb-3 tracking-wider glitch-text" data-text="A-BABA EXCHANGE">A-BABA EXCHANGE</h1>
-                    <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto font-sans uppercase tracking-[0.2em]">High Performance Gaming Ledger</p>
+                    <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto font-sans uppercase tracking-[0.2em]">Start-From-Start Remake System</p>
                 </header>
 
                 <section id="games" className="mb-20">
@@ -136,10 +134,10 @@ const LandingPage: React.FC = () => {
                                         <div className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-75"></div>
                                         <div className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></div>
                                     </div>
-                                    <h3 className="text-xs md:text-sm font-bold text-red-200 uppercase tracking-[0.4em]">CRITICAL: BINARY MISMATCH DETECTED</h3>
+                                    <h3 className="text-xs md:text-sm font-bold text-red-200 uppercase tracking-[0.4em]">SYSTEM REMAKE REQUIRED</h3>
                                 </div>
-                                <button onClick={() => fetchGames()} disabled={isRetrying} className="text-[10px] bg-red-500 hover:bg-red-400 text-white py-1 px-4 rounded-full font-bold uppercase transition-all active:scale-95">
-                                    {isRetrying ? 'RECONNECTING...' : 'RETRY NOW'}
+                                <button onClick={() => fetchGames()} disabled={isRetrying} className="text-[10px] bg-red-500 hover:bg-red-400 text-white py-1 px-4 rounded-full font-bold uppercase transition-all">
+                                    {isRetrying ? 'REBUILDING...' : 'RETRY LINK'}
                                 </button>
                             </div>
 
@@ -149,7 +147,7 @@ const LandingPage: React.FC = () => {
                                 </div>
                                 <h4 className="text-4xl font-russo text-white mb-2 uppercase tracking-tighter">DRIVER SELF-REGISTER FAILED</h4>
                                 <p className="text-slate-400 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
-                                    The <span className="text-red-300 font-bold">SQL Kernel</span> is severed. This happens when the backend modules were compiled for a different computer. You must <span className="text-emerald-300 font-bold underline">RE-INITIALIZE</span> the environment:
+                                    Your backend modules are broken. To delete the old database and <span className="text-emerald-300 font-bold underline">REMAKE</span> the entire system from scratch, run this in your terminal:
                                 </p>
 
                                 <div className="bg-emerald-500/5 border border-emerald-500/20 p-8 rounded-xl mb-10 text-left relative group">
@@ -158,13 +156,13 @@ const LandingPage: React.FC = () => {
                                             onClick={handleCopyFix}
                                             className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-5 py-2 rounded-full transition-all uppercase font-bold flex items-center gap-2"
                                         >
-                                            {copySuccess ? 'COMMAND COPIED' : 'COPY REPAIR COMMAND'}
+                                            {copySuccess ? 'COPIED' : 'COPY REMAKE COMMAND'}
                                             {!copySuccess && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>}
                                         </button>
                                     </div>
                                     <h5 className="text-emerald-400 font-bold mb-6 uppercase text-[10px] tracking-[0.4em] flex items-center gap-3">
                                         <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                                        DEEP RECONSTRUCTION SCRIPT
+                                        "START FROM START" RECONSTRUCTION SCRIPT
                                     </h5>
                                     <div className="bg-black/90 p-6 rounded-lg font-mono text-sm border border-emerald-500/20 shadow-inner group-hover:border-emerald-500/40 transition-colors overflow-x-auto custom-scrollbar">
                                         <p className="text-emerald-400 whitespace-nowrap leading-relaxed">
@@ -173,9 +171,9 @@ const LandingPage: React.FC = () => {
                                     </div>
                                     <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-between items-center text-[10px] text-slate-500 uppercase tracking-widest">
                                         <span>1. Stops PM2 Engine</span>
-                                        <span>2. Purges Binaries & SQL Cache</span>
-                                        <span>3. Rebuilds Drivers & Tables</span>
-                                        <span>4. Boots Secure Kernel</span>
+                                        <span>2. Purges Broken Driver & Old DB</span>
+                                        <span>3. Re-compiles SQL Driver</span>
+                                        <span>4. Rebuilds Empty Tables</span>
                                     </div>
                                 </div>
                                 
@@ -183,7 +181,7 @@ const LandingPage: React.FC = () => {
                                     onClick={() => setShowRaw(!showRaw)} 
                                     className="text-slate-600 text-[10px] hover:text-slate-400 uppercase tracking-[0.3em] font-bold underline transition-colors"
                                 >
-                                    {showRaw ? '[-] HIDE SYSTEM LOGS' : '[+] VIEW KERNEL LOGS'}
+                                    {showRaw ? '[-] HIDE SYSTEM LOGS' : '[+] VIEW DETAILED LOGS'}
                                 </button>
                                 
                                 {showRaw && (
@@ -200,7 +198,7 @@ const LandingPage: React.FC = () => {
                             )) : (
                                 <div className="col-span-full text-center text-slate-600 p-20">
                                     <div className="inline-block animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-cyan-500/50 mb-6"></div>
-                                    <p className="uppercase tracking-[0.5em] text-[10px]">SYNCING WITH SQL KERNEL...</p>
+                                    <p className="uppercase tracking-[0.5em] text-[10px]">VERIFYING SQL TABLES...</p>
                                 </div>
                             )}
                         </div>
@@ -209,10 +207,10 @@ const LandingPage: React.FC = () => {
 
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
                      <div className="bg-slate-800/30 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/50 p-10 text-center">
-                        <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Access Portal</h2>
-                        <p className="text-slate-500 mb-8 text-sm leading-relaxed">Authentication is offline while the system kernel is in repair mode.</p>
+                        <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Portal Access</h2>
+                        <p className="text-slate-500 mb-8 text-sm leading-relaxed">Login is disabled until the SQL environment is remade.</p>
                         <div className="space-y-4">
-                            <button disabled className="w-full bg-slate-800/50 text-slate-600 py-4 rounded-lg font-bold cursor-not-allowed border border-slate-700 uppercase tracking-widest text-xs">Waiting for Environment Rebuild...</button>
+                            <button disabled className="w-full bg-slate-800/50 text-slate-600 py-4 rounded-lg font-bold cursor-not-allowed border border-slate-700 uppercase tracking-widest text-xs">Waiting for Environment Remake...</button>
                         </div>
                      </div>
                 </section>

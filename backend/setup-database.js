@@ -8,23 +8,29 @@ const path = require('path');
  */
 function rebuild() {
     console.log("==================================================");
-    console.log("   A-BABA EXCHANGE: SQL RENEWAL & RECREATOR   ");
+    console.log("   A-BABA EXCHANGE: START-FROM-START REMAKE   ");
     console.log("==================================================");
 
     const DB_PATH = path.join(__dirname, 'database.sqlite');
     const SEED_FILE = path.join(__dirname, 'db.json');
 
     // 1. Force wipe all database artifacts
-    const targets = [DB_PATH, DB_PATH + '-wal', DB_PATH + '-shm', DB_PATH + '-journal'];
+    const targets = [
+        DB_PATH, 
+        DB_PATH + '-wal', 
+        DB_PATH + '-shm', 
+        DB_PATH + '-journal'
+    ];
     
-    console.log("[1/4] Destroying existing SQL artifacts...");
+    console.log("[1/4] Destroying existing SQL artifacts (Wiping Old Data)...");
     targets.forEach(t => {
         if (fs.existsSync(t)) {
             try {
                 fs.unlinkSync(t);
                 console.log(`      WIPED: ${path.basename(t)}`);
             } catch (err) {
-                console.error(`      ERROR: Cannot delete ${path.basename(t)}. Stop PM2 first.`);
+                console.error(`      ERROR: Cannot delete ${path.basename(t)}. Ensure PM2 is stopped.`);
+                console.error(`      FIX: Run 'pm2 stop ababa-backend' first.`);
                 process.exit(1);
             }
         }
@@ -35,9 +41,9 @@ function rebuild() {
     try {
         Database = require('better-sqlite3');
     } catch (err) {
-        console.error("[2/4] FATAL: SQL Driver is broken (Binary Mismatch).");
+        console.error("[2/4] FATAL: SQL Driver is corrupted (Binary Mismatch).");
         console.error("      ERROR: " + err.message);
-        console.error("      FIX: Run 'rm -rf node_modules && npm install' now.");
+        console.error("      FIX: You MUST run 'rm -rf node_modules && npm install' on this server.");
         process.exit(1);
     }
 
@@ -95,9 +101,9 @@ function rebuild() {
         process.exit(1);
     }
 
-    // 4. Seed Guru Data
+    // 4. Seed Data (Guru, initial Dealer, Games)
     if (fs.existsSync(SEED_FILE)) {
-        console.log("[4/4] Migrating initial Guru/Dealer data...");
+        console.log("[4/4] Migrating initial data from seed (db.json)...");
         try {
             const data = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
             db.transaction(() => {
@@ -120,7 +126,7 @@ function rebuild() {
                     });
                 }
             })();
-            console.log("      SUCCESS: Migration complete.");
+            console.log("      SUCCESS: Start-from-Start migration complete.");
         } catch (e) {
             console.error("      ERROR: Migration failed.");
             console.error(e.message);
@@ -130,7 +136,7 @@ function rebuild() {
 
     db.close();
     console.log("==================================================");
-    console.log("   SYSTEM REBUILD SUCCESSFUL! RESTART PM2.   ");
+    console.log("   REBUILD SUCCESSFUL! RUN 'pm2 start' NOW.   ");
     console.log("==================================================");
 }
 
