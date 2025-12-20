@@ -281,19 +281,37 @@ app.get('/api/admin/games/:id/exposure', authMiddleware, async (req, res) => {
 app.post('/api/admin/games/:id/declare-winner', authMiddleware, async (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     const { winningNumber } = req.body;
+    const gameId = req.params.id;
     try {
-        await database.run('UPDATE games SET winningnumber = ? WHERE id = ?', [winningNumber, req.params.id]);
+        console.error(`Attempting to DECLARE winner for Game ID: ${gameId} with number: ${winningNumber}`);
+        const game = await database.get('SELECT name FROM games WHERE id = ?', [gameId]);
+        if (!game) return res.status(404).json({ message: "Game not found with ID: " + gameId });
+
+        await database.run('UPDATE games SET winningnumber = ? WHERE id = ?', [winningNumber, gameId]);
+        console.error(`Successfully DECLARED result for ${game.name} (${gameId})`);
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ message: e.message }); }
+    } catch (e) { 
+        console.error(`ERROR declaring result for ${gameId}:`, e.message);
+        res.status(500).json({ message: e.message }); 
+    }
 });
 
 app.put('/api/admin/games/:id/update-winner', authMiddleware, async (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     const { newWinningNumber } = req.body;
+    const gameId = req.params.id;
     try {
-        await database.run('UPDATE games SET winningnumber = ? WHERE id = ?', [newWinningNumber, req.params.id]);
+        console.error(`Attempting to UPDATE winner for Game ID: ${gameId} to number: ${newWinningNumber}`);
+        const game = await database.get('SELECT name FROM games WHERE id = ?', [gameId]);
+        if (!game) return res.status(404).json({ message: "Game not found with ID: " + gameId });
+
+        await database.run('UPDATE games SET winningnumber = ? WHERE id = ?', [newWinningNumber, gameId]);
+        console.error(`Successfully UPDATED result for ${game.name} (${gameId})`);
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ message: e.message }); }
+    } catch (e) { 
+        console.error(`ERROR updating result for ${gameId}:`, e.message);
+        res.status(500).json({ message: e.message }); 
+    }
 });
 
 const PORT = process.env.PORT || 3001;

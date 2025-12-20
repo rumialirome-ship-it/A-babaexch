@@ -364,6 +364,7 @@ const AdminPanel: React.FC<any> = ({ admin, dealers, users, games, bets, declare
   const [winningNumberInput, setWinningNumberInput] = useState('');
   const [drawTimeInput, setDrawTimeInput] = useState('');
   const [isUpdatingWinner, setIsUpdatingWinner] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [viewingLedgerFor, setViewingLedgerFor] = useState<User | Dealer | null>(null);
   const [transactionModal, setTransactionModal] = useState<{ account: Dealer | User, type: 'Top-Up' | 'Withdrawal' } | null>(null);
   const [editingAccount, setEditingAccount] = useState<{ account: Dealer | User, type: 'dealer' | 'user' } | null>(null);
@@ -390,7 +391,7 @@ const AdminPanel: React.FC<any> = ({ admin, dealers, users, games, bets, declare
       fetchSummary();
   };
 
-  useEffect(() => { fetchSummary(); }, [activeTab, fetchWithAuth]);
+  useEffect(() => { fetchSummary(); }, [activeTab, fetchWithAuth, games]);
 
   const tabs = [
     { id: 'dashboard', label: 'Home', icon: Icons.chartBar },
@@ -400,6 +401,25 @@ const AdminPanel: React.FC<any> = ({ admin, dealers, users, games, bets, declare
     { id: 'games', label: 'Games', icon: Icons.gamepad },
     { id: 'history', label: 'System Bets', icon: Icons.bookOpen },
   ];
+
+  const handleWinningNumberSubmit = async () => {
+      if (!gameWinnerModal) return;
+      setIsProcessing(true);
+      try {
+          if (isUpdatingWinner) {
+              await updateWinner(gameWinnerModal.id, winningNumberInput);
+          } else {
+              await declareWinner(gameWinnerModal.id, winningNumberInput);
+          }
+          setGameWinnerModal(null);
+          setWinningNumberInput('');
+          await fetchSummary();
+      } catch (e) {
+          alert("Declaration failed: " + e);
+      } finally {
+          setIsProcessing(false);
+      }
+  };
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
@@ -492,17 +512,17 @@ const AdminPanel: React.FC<any> = ({ admin, dealers, users, games, bets, declare
                         </div>
                       </div>
 
-                      <div className="text-center p-4 bg-black/40 rounded-lg mb-6 border border-slate-700">
-                          <p className="text-3xl font-bold font-mono text-emerald-400 tracking-tighter">{game.winningNumber || '--'}</p>
-                          <p className="text-[10px] text-slate-500 uppercase mt-1">Winning Number</p>
+                      <div className={`text-center p-4 bg-black/40 rounded-lg mb-6 border ${game.winningNumber ? 'border-emerald-500/50 shadow-lg shadow-emerald-500/10' : 'border-slate-700'}`}>
+                          <p className={`text-3xl font-bold font-mono tracking-tighter ${game.winningNumber ? 'text-emerald-400' : 'text-slate-600'}`}>{game.winningNumber || '--'}</p>
+                          <p className="text-[10px] text-slate-500 uppercase mt-1">{game.winningNumber ? 'Winning Number Set' : 'Result Pending'}</p>
                       </div>
 
                       <div className="flex gap-2">
                           <button 
                             onClick={() => { setGameWinnerModal(game); setWinningNumberInput(game.winningNumber || ''); setIsUpdatingWinner(!!game.winningNumber); }} 
-                            className="flex-1 py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold text-xs uppercase transition-colors"
+                            className={`flex-1 py-2 ${game.winningNumber ? 'bg-amber-600 hover:bg-amber-500' : 'bg-red-600 hover:bg-red-500'} text-white rounded font-bold text-xs uppercase transition-colors`}
                           >
-                            {game.winningNumber ? 'Update Result' : 'Declare Result'}
+                            {game.winningNumber ? 'Edit Result' : 'Declare Result'}
                           </button>
                           <button 
                             onClick={() => { setGameTimeModal(game); setDrawTimeInput(game.drawTime); }} 
@@ -530,10 +550,22 @@ const AdminPanel: React.FC<any> = ({ admin, dealers, users, games, bets, declare
           {editingAccount && <AccountEditForm account={editingAccount.account} type={editingAccount.type} onSave={handleUpdateAccount} onCancel={() => setEditingAccount(null)} />}
       </Modal>
 
-      <Modal isOpen={!!gameWinnerModal} onClose={() => setGameWinnerModal(null)} title="Market Result" themeColor="red">
+      <Modal isOpen={!!gameWinnerModal} onClose={() => setGameWinnerModal(null)} title="Market Result Declaration" themeColor="red">
           <div className="space-y-6">
-              <input maxLength={2} type="text" autoFocus value={winningNumberInput} onChange={e => setWinningNumberInput(e.target.value.replace(/\D/g, ''))} className="w-full bg-slate-950 p-4 text-6xl text-center font-bold text-red-500 border-2 border-slate-700 rounded" />
-              <button onClick={async () => { if (isUpdatingWinner) await updateWinner(gameWinnerModal!.id, winningNumberInput); else await declareWinner(gameWinnerModal!.id, winningNumberInput); setGameWinnerModal(null); fetchSummary(); }} className="w-full py-4 bg-red-600 text-white rounded font-bold uppercase">Confirm Broadcast</button>
+              <div className="text-center bg-slate-800/50 p-4 rounded border border-slate-700">
+                  <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-1">Target Game</p>
+                  <p className="text-2xl font-bold text-white uppercase">{gameWinnerModal?.name}</p>
+                  <p className="text-sm text-red-400 font-mono mt-1">ID: {gameWinnerModal?.id} | DRAW: {formatTime12h(gameWinnerModal?.drawTime || '')}</p>
+              </div>
+              <input maxLength={2} type="text" autoFocus value={winningNumberInput} onChange={e => setWinningNumberInput(e.target.value.replace(/\D/g, ''))} className="w-full bg-slate-950 p-4 text-6xl text-center font-bold text-red-500 border-2 border-slate-700 rounded" placeholder="--" />
+              <button 
+                onClick={handleWinningNumberSubmit}
+                disabled={isProcessing}
+                className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded font-bold uppercase transition-all shadow-lg shadow-red-600/20 disabled:bg-slate-700"
+              >
+                {isProcessing ? 'BROADCASTING...' : 'Confirm & Broadcast Winner'}
+              </button>
+              <p className="text-[10px] text-center text-slate-500 uppercase tracking-tighter italic">* This action will immediately declare winning status for all related bets.</p>
           </div>
       </Modal>
 

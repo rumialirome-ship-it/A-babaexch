@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates } from './types';
 import { Icons, GAME_LOGOS } from './constants';
@@ -107,20 +106,20 @@ const AppContent: React.FC = () => {
         let intervalId: ReturnType<typeof setInterval> | undefined;
     
         if (account) {
-            fetchData(); // Initial fetch on login/account change
+            fetchData(); // Initial fetch
     
             if (role === Role.User || role === Role.Dealer) {
-                intervalId = setInterval(fetchData, 1000); // Poll every second
+                intervalId = setInterval(fetchData, 1000); // 1s polling for users/dealers
+            } else if (role === Role.Admin) {
+                intervalId = setInterval(fetchData, 5000); // 5s polling for admins
             }
         } else {
-            // Clear data on logout
             setUsers([]);
             setDealers([]);
             setGames([]);
             setBets([]);
         }
     
-        // Cleanup interval on component unmount or when dependencies change
         return () => {
             if (intervalId) {
                 clearInterval(intervalId);
@@ -227,7 +226,10 @@ const AppContent: React.FC = () => {
 
 
     const declareWinner = useCallback(async (gameId: string, winningNumber: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/declare-winner`, { method: 'POST', body: JSON.stringify({ winningNumber }) });
+        const response = await fetchWithAuth(`/api/admin/games/${gameId}/declare-winner`, { 
+            method: 'POST', 
+            body: JSON.stringify({ winningNumber }) 
+        });
         if (!response.ok) {
             const err = await response.json();
             throw new Error(err.message);
@@ -236,7 +238,10 @@ const AppContent: React.FC = () => {
     }, [fetchWithAuth, fetchData]);
 
     const updateWinner = useCallback(async (gameId: string, newWinningNumber: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/update-winner`, { method: 'PUT', body: JSON.stringify({ newWinningNumber }) });
+        const response = await fetchWithAuth(`/api/admin/games/${gameId}/update-winner`, { 
+            method: 'PUT', 
+            body: JSON.stringify({ newWinningNumber }) 
+        });
         if (!response.ok) {
             const err = await response.json();
             throw new Error(err.message);
