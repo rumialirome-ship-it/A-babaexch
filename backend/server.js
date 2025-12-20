@@ -19,26 +19,36 @@ let dbReady = false;
 let dbError = null;
 let dbRawError = null;
 
-try {
-    database.connect();
-    if (database.verifySchema()) {
-        dbReady = true;
-        console.log("[SERVER] Database is ready.");
-    } else {
-        dbError = "Schema incomplete. Please run setup-database.js.";
-        console.error("[SERVER] " + dbError);
+const tryInitDB = () => {
+    try {
+        database.connect();
+        if (database.verifySchema()) {
+            dbReady = true;
+            dbError = null;
+            dbRawError = null;
+            console.log("[SERVER] Database is ready.");
+            return true;
+        } else {
+            dbError = "Schema incomplete. Please run setup-database.js.";
+            console.error("[SERVER] " + dbError);
+        }
+    } catch (e) {
+        dbError = e.message;
+        dbRawError = e.raw || e.toString();
+        console.error("[SERVER] FATAL: Database failed to start.");
     }
-} catch (e) {
-    dbError = e.message;
-    dbRawError = e.raw || e.toString();
-    console.error("[SERVER] FATAL: Database failed to start.");
-}
+    return false;
+};
+
+// Initial attempt
+tryInitDB();
 
 // Global JSON response header and DB check middleware
 app.use('/api', (req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
-    if (!dbReady && req.path !== '/status' && req.path !== '/games') {
-        // We let /games through so it can return the formatted error
+    // If DB is not ready, try to re-init once more for health check requests
+    if (!dbReady && (req.path === '/status' || req.path === '/games')) {
+        tryInitDB();
     }
     next();
 });
@@ -58,9 +68,9 @@ app.get('/api/games', (req, res) => {
     if (!dbReady) {
         return res.status(503).json({ 
             error: dbError || "Database Offline", 
-            details: "The server is running but the SQL connection is broken.",
+            details: "The SQL link is severed. This usually means the binary driver crashed or the database file is missing.",
             raw: dbRawError,
-            fix: "Execute 'npm install' in the backend directory and restart PM2."
+            fix: "Run: cd backend && pm2 stop ababa-backend && npm run db:setup && pm2 start server.js --name ababa-backend"
         });
     }
     try {
@@ -84,7 +94,7 @@ app.get('/api/user/ai-lucky-pick', authMiddleware, async (req, res) => {
         Make the choice feel special and based on the cosmos. Only return JSON.`;
 
         const response = await genAI.models.generateContent({
-            model: "gemini-3-flash-preview",
+            model: 'gemini-3-flash-preview',
             contents: prompt,
             config: { responseMimeType: "application/json" }
         });
