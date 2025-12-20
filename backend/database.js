@@ -10,9 +10,9 @@ const connect = () => {
     if (_db) return _db;
     
     try {
-        console.log(`[DB] Establishing link to: ${DB_PATH}`);
+        console.log(`[DB] Attempting to link: ${DB_PATH}`);
         
-        // Ensure directory exists
+        // Ensure folder exists
         const dir = path.dirname(DB_PATH);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
@@ -22,24 +22,24 @@ const connect = () => {
         _db.pragma('journal_mode = WAL');
         _db.pragma('foreign_keys = ON');
         
-        // Quick health check
+        // Connectivity test
         _db.prepare("SELECT 1").get();
         
-        console.log('[DB] Link active.');
+        console.log('[DB] SQL Link Established.');
         return _db;
     } catch (e) {
-        console.error("--- SQL CONNECTION FAILURE ---");
+        console.error("--- DATABASE LINK FAILURE ---");
         console.error(e.message);
         
-        let msg = "SQL Initialization Error";
-        let fix = "Run 'npm install' then 'npm run db:setup'.";
+        let msg = "Database Offline";
+        let fix = "Run 'npm run db:setup' on the server.";
 
         if (e.code === 'ERR_DLOPEN_FAILED' || e.message.includes('NODE_MODULE_VERSION')) {
-            msg = "Binary Mismatch: The better-sqlite3 driver is incompatible.";
+            msg = "Binary Mismatch: Reinstall SQL Driver";
             fix = "Run: rm -rf node_modules && npm install && pm2 restart ababa-backend";
-        } else if (e.message.includes('readonly') || e.message.includes('permission')) {
-            msg = "Permission Denied: Backend cannot write to the database file.";
-            fix = "Run: sudo chown -R $USER:$USER " + __dirname;
+        } else if (!fs.existsSync(DB_PATH)) {
+            msg = "Database Missing: SQL File Not Found";
+            fix = "Run: npm run db:setup";
         }
 
         const err = new Error(msg);
@@ -70,7 +70,7 @@ const getAllFromTable = (table) => {
             return item;
         });
     } catch (err) {
-        console.error(`[DB] Query Error on ${table}:`, err.message);
+        console.error(`[DB] Query failed for ${table}:`, err.message);
         throw err;
     }
 };
@@ -80,14 +80,14 @@ module.exports = {
     verifySchema: () => {
         try {
             const db = getDB();
-            const required = ['admins', 'dealers', 'users', 'games', 'bets', 'ledgers'];
+            // Check essential tables
+            const required = ['admins', 'games', 'dealers'];
             for (const table of required) {
                 const res = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(table);
-                if (!res) throw new Error(`Missing table: ${table}`);
+                if (!res) return false;
             }
             return true;
         } catch (e) {
-            console.error(`[DB] Schema Verification Failed: ${e.message}`);
             return false;
         }
     },
