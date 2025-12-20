@@ -65,7 +65,7 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
 
 const LandingPage: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
-    const [apiErrorInfo, setApiErrorInfo] = useState<{ error: string; details?: string; fix?: string; raw?: string } | null>(null);
+    const [apiErrorInfo, setApiErrorInfo] = useState<{ error: string; details?: string; fix?: string; raw?: string; terminal?: string } | null>(null);
     const [isRetrying, setIsRetrying] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
     const [showRaw, setShowRaw] = useState(false);
@@ -81,19 +81,21 @@ const LandingPage: React.FC = () => {
                 setApiErrorInfo(null);
             } else {
                 setApiErrorInfo({ 
-                    error: data.error || "SQL Link Down", 
+                    error: data.error || "System Kernel Halt", 
                     details: data.details || "The binary SQL driver failed to self-register.", 
-                    fix: data.fix || "Run 'npm install' on the server.",
-                    raw: data.raw || "Module did not self-register."
+                    fix: data.fix || "You must reinstall the database driver on the server.",
+                    raw: data.raw || "ERR_DLOPEN_FAILED",
+                    terminal: data.terminal || "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
                 });
                 setGames([]);
             }
         } catch (error: any) {
             setApiErrorInfo({ 
-                error: "Backend Driver Error", 
-                details: "The better-sqlite3 module did not self-register. This is a binary mismatch.", 
-                fix: "You must reinstall node_modules on the server.",
-                raw: error.toString()
+                error: "Backend Engine Crash", 
+                details: "The better-sqlite3 driver is mismatched. This is a critical binary error.", 
+                fix: "Run the repair command in your terminal.",
+                raw: error.toString(),
+                terminal: "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
             });
             setGames([]);
         } finally {
@@ -103,11 +105,13 @@ const LandingPage: React.FC = () => {
 
     useEffect(() => {
         fetchGames();
+        const interval = setInterval(() => fetchGames(true), 15000);
+        return () => clearInterval(interval);
     }, []);
 
     const handleCopyFix = () => {
-        const fixCommand = "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite && npm install && npm run db:setup && pm2 start server.js --name ababa-backend";
-        navigator.clipboard.writeText(fixCommand).then(() => {
+        if (!apiErrorInfo?.terminal) return;
+        navigator.clipboard.writeText(apiErrorInfo.terminal).then(() => {
             setCopySuccess(true);
             setTimeout(() => setCopySuccess(false), 2000);
         });
@@ -118,64 +122,72 @@ const LandingPage: React.FC = () => {
             <div className="max-w-7xl mx-auto">
                 <header className="text-center my-12 md:my-20">
                     <h1 className="text-5xl md:text-7xl font-extrabold mb-3 tracking-wider glitch-text" data-text="A-BABA EXCHANGE">A-BABA EXCHANGE</h1>
-                    <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto font-sans uppercase tracking-[0.2em]">High Performance Gaming Infrastructure</p>
+                    <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto font-sans uppercase tracking-[0.2em]">High Performance Gaming Ledger</p>
                 </header>
 
                 <section id="games" className="mb-20">
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Global Markets</h2>
                     
                     {apiErrorInfo ? (
-                        <div className="max-w-4xl mx-auto bg-slate-900/90 border border-red-500/50 rounded-xl overflow-hidden backdrop-blur-xl shadow-[0_0_80px_rgba(239,68,68,0.2)]">
-                            <div className="bg-red-600/10 p-4 border-b border-red-500/30 flex items-center justify-between">
+                        <div className="max-w-4xl mx-auto bg-slate-900/95 border border-red-500/50 rounded-xl overflow-hidden backdrop-blur-2xl shadow-[0_0_100px_rgba(239,68,68,0.25)]">
+                            <div className="bg-red-600/20 p-4 border-b border-red-500/30 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="relative flex items-center justify-center">
                                         <div className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-75"></div>
-                                        <div className="relative inline-flex rounded-full h-3 w-3 bg-red-500 shadow-[0_0_10px_#ef4444]"></div>
+                                        <div className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></div>
                                     </div>
-                                    <h3 className="text-xs md:text-sm font-bold text-red-100 uppercase tracking-[0.3em]">Critical: Binary Mismatch Detected</h3>
+                                    <h3 className="text-xs md:text-sm font-bold text-red-200 uppercase tracking-[0.4em]">CRITICAL: BINARY MISMATCH DETECTED</h3>
                                 </div>
+                                <button onClick={() => fetchGames()} disabled={isRetrying} className="text-[10px] bg-red-500 hover:bg-red-400 text-white py-1 px-4 rounded-full font-bold uppercase transition-all active:scale-95">
+                                    {isRetrying ? 'RECONNECTING...' : 'RETRY NOW'}
+                                </button>
                             </div>
 
                             <div className="p-10 text-center">
-                                <div className="text-red-500 mb-6 flex justify-center opacity-40">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
+                                <div className="text-red-500 mb-6 flex justify-center opacity-50">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                 </div>
-                                <h4 className="text-4xl font-russo text-white mb-2 uppercase tracking-tighter">Module Did Not Self-Register</h4>
+                                <h4 className="text-4xl font-russo text-white mb-2 uppercase tracking-tighter">DRIVER SELF-REGISTER FAILED</h4>
                                 <p className="text-slate-400 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
-                                    The SQL driver <span className="text-red-300 font-bold">better-sqlite3</span> is broken. To delete the old data, renew the tables, and fix the binary mismatch, run this command in your SSH terminal:
+                                    The <span className="text-red-300 font-bold">SQL Kernel</span> is severed. This happens when the backend modules were compiled for a different computer. You must <span className="text-emerald-300 font-bold underline">RE-INITIALIZE</span> the environment:
                                 </p>
 
-                                <div className="bg-emerald-500/5 border border-emerald-500/20 p-8 rounded-xl mb-10 text-left relative overflow-hidden group">
+                                <div className="bg-emerald-500/5 border border-emerald-500/20 p-8 rounded-xl mb-10 text-left relative group">
                                     <div className="absolute top-6 right-8">
                                         <button 
                                             onClick={handleCopyFix}
-                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-5 py-2 rounded-full transition-all uppercase font-bold flex items-center gap-2 shadow-lg shadow-emerald-900/20"
+                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-5 py-2 rounded-full transition-all uppercase font-bold flex items-center gap-2"
                                         >
-                                            {copySuccess ? 'COPIED TO CLIPBOARD' : 'COPY RECREATOR COMMAND'}
+                                            {copySuccess ? 'COMMAND COPIED' : 'COPY REPAIR COMMAND'}
                                             {!copySuccess && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>}
                                         </button>
                                     </div>
                                     <h5 className="text-emerald-400 font-bold mb-6 uppercase text-[10px] tracking-[0.4em] flex items-center gap-3">
                                         <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                                        SQL RENEWAL & REPAIR COMMAND
+                                        DEEP RECONSTRUCTION SCRIPT
                                     </h5>
-                                    <div className="bg-black/90 p-6 rounded-lg font-mono text-sm border border-emerald-500/10 shadow-inner group-hover:border-emerald-500/30 transition-colors overflow-x-auto custom-scrollbar">
-                                        <p className="text-emerald-400 whitespace-nowrap">cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite && npm install && npm run db:setup && pm2 start server.js --name ababa-backend</p>
+                                    <div className="bg-black/90 p-6 rounded-lg font-mono text-sm border border-emerald-500/20 shadow-inner group-hover:border-emerald-500/40 transition-colors overflow-x-auto custom-scrollbar">
+                                        <p className="text-emerald-400 whitespace-nowrap leading-relaxed">
+                                            {apiErrorInfo.terminal}
+                                        </p>
                                     </div>
-                                    <p className="mt-4 text-[11px] text-slate-500 uppercase tracking-widest text-center">Caution: This deletes all data and reinstalls the SQL engine correctly.</p>
+                                    <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-between items-center text-[10px] text-slate-500 uppercase tracking-widest">
+                                        <span>1. Stops PM2 Engine</span>
+                                        <span>2. Purges Binaries & SQL Cache</span>
+                                        <span>3. Rebuilds Drivers & Tables</span>
+                                        <span>4. Boots Secure Kernel</span>
+                                    </div>
                                 </div>
                                 
                                 <button 
                                     onClick={() => setShowRaw(!showRaw)} 
                                     className="text-slate-600 text-[10px] hover:text-slate-400 uppercase tracking-[0.3em] font-bold underline transition-colors"
                                 >
-                                    {showRaw ? '[-] Hide System Logs' : '[+] View SQL Engine Errors'}
+                                    {showRaw ? '[-] HIDE SYSTEM LOGS' : '[+] VIEW KERNEL LOGS'}
                                 </button>
                                 
                                 {showRaw && (
-                                    <div className="mt-6 p-6 bg-black/60 border border-slate-800 rounded-lg text-left font-mono text-[11px] text-red-300/40 overflow-x-auto">
+                                    <div className="mt-6 p-6 bg-black/80 border border-slate-800 rounded-lg text-left font-mono text-[11px] text-red-300/60 overflow-x-auto">
                                         {apiErrorInfo.raw}
                                     </div>
                                 )}
@@ -188,7 +200,7 @@ const LandingPage: React.FC = () => {
                             )) : (
                                 <div className="col-span-full text-center text-slate-600 p-20">
                                     <div className="inline-block animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-cyan-500/50 mb-6"></div>
-                                    <p className="uppercase tracking-[0.5em] text-[10px]">Synchronizing with SQL Kernel...</p>
+                                    <p className="uppercase tracking-[0.5em] text-[10px]">SYNCING WITH SQL KERNEL...</p>
                                 </div>
                             )}
                         </div>
@@ -197,10 +209,10 @@ const LandingPage: React.FC = () => {
 
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
                      <div className="bg-slate-800/30 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/50 p-10 text-center">
-                        <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Portal Access</h2>
-                        <p className="text-slate-500 mb-8 text-sm leading-relaxed">Secure authentication is offline until the SQL database is restored.</p>
+                        <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Access Portal</h2>
+                        <p className="text-slate-500 mb-8 text-sm leading-relaxed">Authentication is offline while the system kernel is in repair mode.</p>
                         <div className="space-y-4">
-                            <button disabled className="w-full bg-slate-800/50 text-slate-600 py-4 rounded-lg font-bold cursor-not-allowed border border-slate-700 uppercase tracking-widest text-xs">Waiting for SQL Restoration...</button>
+                            <button disabled className="w-full bg-slate-800/50 text-slate-600 py-4 rounded-lg font-bold cursor-not-allowed border border-slate-700 uppercase tracking-widest text-xs">Waiting for Environment Rebuild...</button>
                         </div>
                      </div>
                 </section>

@@ -6,18 +6,18 @@ const DB_PATH = path.join(__dirname, 'database.sqlite');
 let _db = null;
 
 /**
- * DATABASE CONNECTOR
- * Uses lazy-loading to prevent crash if binary driver is broken.
+ * SQL KERNEL CONNECTOR
+ * Employs lazy-loading to ensure the Express server stays alive 
+ * even if the native SQL driver is corrupted or mismatched.
  */
 const connect = () => {
     if (_db) return _db;
     
     try {
-        // We require it here so the server doesn't crash immediately on load
-        // if the binary is mismatched.
+        // Native binary requirement - where the "self-register" error happens
         const Database = require('better-sqlite3');
         
-        console.log(`[DB] Establishing link to: ${DB_PATH}`);
+        console.log(`[DB] Linking SQL Engine to: ${DB_PATH}`);
         
         const dir = path.dirname(DB_PATH);
         if (!fs.existsSync(dir)) {
@@ -28,29 +28,31 @@ const connect = () => {
         _db.pragma('journal_mode = WAL');
         _db.pragma('foreign_keys = ON');
         
-        // Quick health check
+        // Connectivity Verification
         _db.prepare("SELECT 1").get();
         
-        console.log('[DB] SQL Link Established.');
+        console.log('[DB] SQL Link Established Successfully.');
         return _db;
     } catch (e) {
-        console.error("--- DATABASE LINK FAILURE ---");
+        console.error("!!! SQL ENGINE FAILURE !!!");
         console.error(e.message);
         
-        let msg = "SQL Kernel Error";
+        let msg = "SQL Driver Blocked";
         let fix = "Run 'npm run db:setup' on the server.";
 
-        if (e.message.includes('self-register') || e.message.includes('NODE_MODULE_VERSION')) {
-            msg = "Binary Mismatch: SQL Driver Broken";
-            fix = "Run: rm -rf node_modules && npm install && pm2 restart ababa-backend";
+        // Specifically catch the binary mismatch / self-register errors
+        if (e.message.includes('self-register') || e.message.includes('NODE_MODULE_VERSION') || e.code === 'ERR_DLOPEN_FAILED') {
+            msg = "Binary Mismatch: SQL Driver Needs Re-Compiling";
+            fix = "Terminal Command: rm -rf node_modules && npm install";
         } else if (!fs.existsSync(DB_PATH)) {
-            msg = "Database Missing: SQL File Not Found";
-            fix = "Run: npm run db:setup";
+            msg = "Table Desolation: Database File Missing";
+            fix = "Terminal Command: npm run db:setup";
         }
 
         const err = new Error(msg);
         err.raw = e.message;
         err.fix = fix;
+        err.terminal = "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend";
         throw err;
     }
 };
