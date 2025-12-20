@@ -1,4 +1,6 @@
 
+
+
 export enum Role {
   Admin = 'ADMIN',
   Dealer = 'DEALER',
@@ -33,7 +35,6 @@ export interface BaseAccount {
   avatarUrl?: string;
 }
 
-// Added BetLimits interface to fix missing member error
 export interface BetLimits {
   oneDigit: number;
   twoDigit: number;
@@ -42,7 +43,6 @@ export interface BetLimits {
 export interface User extends BaseAccount {
   dealerId: string;
   prizeRates: PrizeRates;
-  // Updated to use the explicitly defined BetLimits interface
   betLimits?: BetLimits;
 }
 
@@ -54,37 +54,28 @@ export interface Admin {
   id: string;
   name: string;
   password: string;
-  wallet: number;
-  prizeRates: PrizeRates;
+  wallet: number; // Represents system earnings
+  prizeRates: PrizeRates; // System-wide base rates
+  avatarUrl?: string;
   ledger: LedgerEntry[];
 }
 
 export interface Game {
   id: string;
-  name: string;
-  drawTime: string;
-  winningNumber?: string;
-  isMarketOpen: boolean;
+  name:string;
+  logo: string;
+  drawTime: string; // HH:MM
+  winningNumber?: string; // two-digit string e.g., "42"
   payoutsApproved?: boolean;
-  // Added logo property to resolve access error
-  logo?: string;
+  isMarketOpen?: boolean;
 }
 
 export enum SubGameType {
-  OneDigitOpen = "1 Digit Open",
-  OneDigitClose = "1 Digit Close",
-  TwoDigit = "2 Digit",
-  // Added missing enum members to fix UserPanel errors
-  Bulk = "Bulk",
-  Combo = "Combo",
-}
-
-// Added NumberLimit interface to resolve missing member error in AdminPanel
-export interface NumberLimit {
-  id: number;
-  gameType: '1-open' | '1-close' | '2-digit';
-  numberValue: string;
-  limitAmount: number;
+    OneDigitOpen = "1 Digit Open",
+    OneDigitClose = "1 Digit Close",
+    TwoDigit = "2 Digit",
+    Bulk = "Bulk Game",
+    Combo = "Combo Game",
 }
 
 export interface Bet {
@@ -93,8 +84,15 @@ export interface Bet {
   dealerId: string;
   gameId: string;
   subGameType: SubGameType;
-  numbers: string[];
+  numbers: string[]; // e.g., ["14", "25"]
   amountPerNumber: number;
   totalAmount: number;
   timestamp: Date;
+}
+
+export interface NumberLimit {
+  id: number;
+  gameType: '1-open' | '1-close' | '2-digit';
+  numberValue: string;
+  limitAmount: number;
 }
