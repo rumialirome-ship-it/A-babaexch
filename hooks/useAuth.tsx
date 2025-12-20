@@ -3,168 +3,77 @@ import React, { createContext, useState, useContext, useEffect, useCallback } fr
 import { Role, User, Dealer, Admin } from '../types';
 
 interface AuthContextType {
-    role: Role | null;
-    account: User | Dealer | Admin | null;
-    token: string | null;
-    loading: boolean;
-    login: (id: string, pass: string) => Promise<void>;
-    logout: () => void;
-    resetPassword: (id: string, contact: string, newPass: string) => Promise<string>;
-    fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
+  role: Role | null;
+  account: User | Dealer | Admin | null;
+  loading: boolean;
+  login: (id: string, pass: string) => Promise<void>;
+  logout: () => void;
+  fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const parseAccountDates = (acc: any) => {
-    if (acc && acc.ledger && Array.isArray(acc.ledger)) {
-        acc.ledger = acc.ledger.map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) }));
-    }
-    return acc;
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [role, setRole] = useState<Role | null>(null);
-    const [account, setAccount] = useState<User | Dealer | Admin | null>(null);
-    const [token, setToken] = useState<string | null>(localStorage.getItem('authToken'));
-    const [loading, setLoading] = useState<boolean>(true);
+  const [role, setRole] = useState<Role | null>(null);
+  const [account, setAccount] = useState<User | Dealer | Admin | null>(null);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('ab_token'));
+  const [loading, setLoading] = useState(true);
 
-    const logout = useCallback(() => {
-        setRole(null);
-        setAccount(null);
-        setToken(null);
-        localStorage.removeItem('authToken');
-    }, []);
-    
-    const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
-        const headers = new Headers(options.headers || {});
-        const currentToken = token || localStorage.getItem('authToken');
-        if (currentToken) {
-            headers.append('Authorization', `Bearer ${currentToken}`);
-        }
-        if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
-            headers.append('Content-Type', 'application/json');
-        }
-        
-        const fetchOptions: RequestInit = { ...options, headers };
+  const logout = useCallback(() => {
+    setRole(null);
+    setAccount(null);
+    setToken(null);
+    localStorage.removeItem('ab_token');
+  }, []);
 
-        if (!fetchOptions.method || fetchOptions.method.toUpperCase() === 'GET') {
-            const separator = url.includes('?') ? '&' : '?';
-            url = `${url}${separator}cacheBust=${new Date().getTime()}`;
-        }
+  const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
+    const headers = new Headers(options.headers || {});
+    if (token) headers.append('Authorization', `Bearer ${token}`);
+    if (!headers.has('Content-Type')) headers.append('Content-Type', 'application/json');
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) logout();
+    return res;
+  }, [token, logout]);
 
-        const response = await fetch(url, fetchOptions);
-
-        if (response.status === 401 || response.status === 403) {
-            logout();
-            throw new Error('Session expired. Please log in again.');
-        }
-        
-        return response;
-    }, [token, logout]);
-    
-    useEffect(() => {
-        let pollInterval: ReturnType<typeof setInterval> | undefined;
-        
-        const verifyTokenAndPoll = async () => {
-            if (!token) {
-                setLoading(false);
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/auth/verify', { headers: { 'Authorization': `Bearer ${token}` } });
-                if (!response.ok) throw new Error('Token verification failed');
-                
-                const data = await response.json();
-                if (data && data.account) {
-                    setAccount(parseAccountDates(data.account));
-                    setRole(data.role);
-
-                    // If the logged-in user is a USER or DEALER, start polling for updates.
-                    if (data.role === Role.User || data.role === Role.Dealer) {
-                        pollInterval = setInterval(async () => {
-                            try {
-                                const pollResponse = await fetch('/api/auth/verify', { headers: { 'Authorization': `Bearer ${token}` }});
-                                if (pollResponse.ok) {
-                                    const pollData = await pollResponse.json();
-                                    if (pollData && pollData.account) {
-                                        setAccount(parseAccountDates(pollData.account));
-                                    }
-                                } else {
-                                    logout();
-                                }
-                            } catch (error) {
-                                console.error("Polling for account update failed:", error);
-                                logout(); 
-                            }
-                        }, 2000); 
-                    }
-                }
-            } catch (error) {
-                console.error("Session verification failed:", error);
-                logout();
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        verifyTokenAndPoll();
-        
-        return () => {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-            }
-        };
-    }, [token, logout]);
-
-
-    const login = async (loginId: string, loginPass: string) => {
-        const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ loginId, password: loginPass })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || "Login failed");
-        }
-
-        const data = await response.json();
-        if (data && data.token && data.account) {
-            localStorage.setItem('authToken', data.token);
-            setAccount(parseAccountDates(data.account));
-            setRole(data.role);
-            setToken(data.token);
-        } else {
-            throw new Error("Invalid server response during login.");
-        }
+  useEffect(() => {
+    const verify = async () => {
+      if (!token) { setLoading(false); return; }
+      try {
+        const res = await fetch('/api/auth/verify', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          setAccount(data.account);
+          setRole(data.role);
+        } else { logout(); }
+      } catch (e) { logout(); }
+      finally { setLoading(false); }
     };
-    
-    const resetPassword = async (accountId: string, contact: string, newPassword: string): Promise<string> => {
-        const response = await fetch('/api/auth/reset-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accountId, contact, newPassword })
-        });
-        const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.message || 'Failed to reset password.');
-        }
-        return data.message;
-    };
+    verify();
+  }, [token, logout]);
 
-    return (
-        <AuthContext.Provider value={{ role, account, token, loading, login, logout, resetPassword, fetchWithAuth }}>
-            {children}
-        </AuthContext.Provider>
-    );
+  const login = async (loginId: string, password: string) => {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loginId, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Login Failed');
+    localStorage.setItem('ab_token', data.token);
+    setToken(data.token);
+    setAccount(data.account);
+    setRole(data.role);
+  };
+
+  return (
+    <AuthContext.Provider value={{ role, account, loading, login, logout, fetchWithAuth }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
-export const useAuth = (): AuthContextType => {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('Auth Missing');
+  return ctx;
 };
