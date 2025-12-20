@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const authMiddleware = require('./authMiddleware');
 const database = require('./database');
 const { v4: uuidv4 } = require('uuid');
+const { GoogleGenAI } = require('@google/genai');
 
 const app = express();
 app.use(cors());
@@ -32,6 +33,33 @@ app.get('/api/auth/verify', authMiddleware, async (req, res) => {
         if (!account) return res.status(404).send();
         res.json({ account, role: req.user.role });
     } catch (e) { res.status(500).send(); }
+});
+
+// --- AI INSIGHTS (NEW) ---
+app.post('/api/admin/ai-insights', authMiddleware, async (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    if (!process.env.API_KEY) return res.status(500).json({ message: "Gemini API Key missing in backend .env" });
+
+    try {
+        const { summaryData } = req.body;
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        const prompt = `Analyze this lottery betting summary for the day: ${JSON.stringify(summaryData)}. 
+        Provide a concise 3-sentence risk assessment. Mention which game has the highest potential loss 
+        risk for the system and if any unusual betting volume is detected. Keep it professional and urgent.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                systemInstruction: "You are a senior financial risk analyst for a high-volume lottery exchange.",
+            }
+        });
+
+        res.json({ insights: response.text });
+    } catch (e) {
+        res.status(500).json({ message: "AI Analysis failed: " + e.message });
+    }
 });
 
 // --- PUBLIC ---
@@ -113,10 +141,9 @@ app.get('/api/admin/summary', authMiddleware, async (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try {
         const games = await database.getAllFromTable('games');
-        const bets = await database.getAllFromTable('bets');
+        const bets = await database.query('SELECT * FROM bets');
         
         let totalStake = 0;
-        let totalPayouts = 0;
         const gameSummaries = games.map(game => {
             const gameBets = bets.filter(b => b.gameId === game.id);
             const stake = gameBets.reduce((s, b) => s + parseFloat(b.totalAmount), 0);
@@ -140,7 +167,7 @@ app.post('/api/admin/games/:id/declare-winner', authMiddleware, async (req, res)
     try {
         await database.run('UPDATE games SET winningNumber = ? WHERE id = ?', [winningNumber, req.params.id]);
         res.json({ success: true });
-    } catch (e) { res.status(500).send(); }
+    } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
 const PORT = process.env.PORT || 3001;
