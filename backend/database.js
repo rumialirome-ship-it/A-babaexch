@@ -2,20 +2,20 @@
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 
-// Load environment variables if not already loaded
+// Load environment variables
 require('dotenv').config();
 
 const poolConfig = {
     connectionString: process.env.DATABASE_URL,
-    // Ensure SCRAM authentication doesn't fail if password is not explicitly in string
+    // Robust defaults for production PG
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 5000,
 };
 
-// Fallback for local development if DATABASE_URL is partial
-if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes(':') && !process.env.DATABASE_URL.startsWith('postgres')) {
-    console.error('CRITICAL: DATABASE_URL appears invalid. It must be a full PostgreSQL connection string.');
+if (!process.env.DATABASE_URL) {
+    console.error('CRITICAL ERROR: DATABASE_URL is not defined in .env');
+    process.exit(1);
 }
 
 const pool = new Pool(poolConfig);
@@ -23,6 +23,9 @@ const pool = new Pool(poolConfig);
 const PKT_OFFSET_HOURS = 5;
 const OPEN_HOUR_PKT = 16;
 
+/**
+ * Automatically converts SQLite style '?' placeholders to PG style '$1, $2...'
+ */
 function convertPlaceholders(sql) {
     let index = 1;
     return sql.replace(/\?/g, () => `$${index++}`);
@@ -66,13 +69,17 @@ function isGameOpen(drawTime) {
 const connect = async () => {
     try {
         const client = await pool.connect();
-        console.error('############################################################');
-        console.error('>>> A-BABA POSTGRES ENGINE ONLINE <<<');
-        console.error('############################################################');
+        console.error('----------------------------------------');
+        console.error('A-BABA POSTGRES ENGINE ONLINE');
+        console.error('DATABASE: Connection Verified');
+        console.error('----------------------------------------');
         client.release();
     } catch (err) {
-        console.error('CRITICAL: Failed to connect to PostgreSQL:', err.message);
-        console.error('Check your DATABASE_URL in the .env file.');
+        console.error('CRITICAL: Failed to connect to PostgreSQL.');
+        console.error('ERROR DETAIL:', err.message);
+        if (err.code === '28P01') {
+            console.error('FIX: Your database password in .env does not match the PostgreSQL user password.');
+        }
         process.exit(1);
     }
 };
@@ -93,9 +100,14 @@ const run = async (sql, params = []) => {
 };
 
 const verifySchema = async () => {
-    const res = await get("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'admins'");
-    if (!res) {
-        console.error('CRITICAL: Database schema missing. Run "npm run db:setup" first.');
+    try {
+        const res = await get("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'admins'");
+        if (!res) {
+            console.error('CRITICAL: Database schema missing in PostgreSQL. Run "npm run db:setup".');
+            process.exit(1);
+        }
+    } catch (e) {
+        console.error('Schema verification failed:', e.message);
         process.exit(1);
     }
 };

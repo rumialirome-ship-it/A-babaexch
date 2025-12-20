@@ -125,7 +125,7 @@ app.get('/api/admin/summary', authMiddleware, async (req, res) => {
                 gameName: game.name,
                 winningNumber: game.winningNumber || '-',
                 totalStake: stake,
-                totalPayouts: 0, // Placeholder
+                totalPayouts: 0, 
                 netProfit: stake
             };
         });
@@ -146,6 +146,10 @@ app.post('/api/admin/games/:id/declare-winner', authMiddleware, async (req, res)
 const PORT = process.env.PORT || 3001;
 database.connect().then(() => {
     database.verifySchema().then(() => {
-        app.listen(PORT, () => console.error(`>>> A-BABA SERVER READY ON PORT ${PORT} <<<`));
+        app.listen(PORT, () => {
+            console.error('----------------------------------------');
+            console.error(`A-BABA SERVER READY ON PORT ${PORT}`);
+            console.error('----------------------------------------');
+        });
     });
 });
