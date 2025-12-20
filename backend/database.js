@@ -20,13 +20,18 @@ const connect = () => {
         return _db;
     } catch (e) {
         console.error("--- CRITICAL DATABASE ERROR ---");
+        let detailedError = e.message;
+        let suggestedFix = "Run 'npm install' in the backend folder and restart PM2.";
+        
         if (e.code === 'ERR_DLOPEN_FAILED' || e.message.includes('NODE_MODULE_VERSION')) {
-            console.error("[DB] DIAGNOSIS: Node.js version mismatch detected.");
-            console.error("[DB] FIX: Run 'npm install' or 'npm rebuild' in the backend folder.");
-        } else {
-            console.error("[DB] Error Message:", e.message);
+            detailedError = "Binary Mismatch: The database driver needs to be recompiled for your current Node.js version.";
+            suggestedFix = "cd /var/www/html/A-babaexch/backend && rm -rf node_modules && npm install && pm2 restart ababa-backend";
         }
-        throw e;
+        
+        const errorObject = new Error(detailedError);
+        errorObject.fix = suggestedFix;
+        errorObject.original = e.message;
+        throw errorObject;
     }
 };
 

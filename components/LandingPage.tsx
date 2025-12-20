@@ -64,69 +64,9 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
     );
 };
 
-const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPassword }) => {
-    const { login } = useAuth();
-    const [activeTab, setActiveTab] = useState<'User' | 'Dealer'>('User');
-    const [loginId, setLoginId] = useState('');
-    const [password, setPassword] = useState('');
-    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const roles = {
-        User: { text: 'text-cyan-400', ring: 'focus:ring-cyan-500', button: 'from-cyan-500 to-blue-500', hover: 'hover:from-cyan-400 hover:to-blue-400' },
-        Dealer: { text: 'text-emerald-400', ring: 'focus:ring-emerald-500', button: 'from-emerald-500 to-green-500', hover: 'hover:from-emerald-400 hover:to-green-400' }
-    };
-
-    const handleLoginSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!loginId.trim() || !password.trim()) { setError("ID and Password required."); return; }
-        setError(null);
-        try { await login(loginId, password); } catch (err) { setError(err instanceof Error ? err.message : "Login failed."); }
-    };
-
-    return (
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg shadow-2xl border border-slate-700 overflow-hidden">
-            <div className="p-1.5 flex items-center space-x-2 bg-black/20">
-                {(['User', 'Dealer'] as const).map(role => (
-                    <button key={role} onClick={() => { setActiveTab(role); setError(null); }} className={`flex-1 py-2 px-4 text-sm uppercase tracking-widest rounded-md transition-all ${activeTab === role ? `bg-slate-700 ${roles[role].text} shadow-lg` : 'text-slate-400 hover:bg-slate-700/50'}`}>
-                        {role}
-                    </button>
-                ))}
-            </div>
-            <div className="p-8">
-                <form onSubmit={handleLoginSubmit} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1 uppercase tracking-wider">Account ID</label>
-                        <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className={`w-full bg-slate-900/50 p-3 rounded-md border border-slate-600 focus:ring-2 ${roles[activeTab].ring} text-white`} placeholder={`Enter ${activeTab} ID`} />
-                    </div>
-                    <div>
-                        <div className="flex justify-between items-center mb-1">
-                            <label className="block text-sm font-medium text-slate-300 uppercase tracking-wider">Password</label>
-                            <button type="button" onClick={onForgotPassword} className="text-xs text-slate-400 hover:text-cyan-400">Forgot?</button>
-                        </div>
-                        <div className="relative">
-                            <input type={isPasswordVisible ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className={`w-full bg-slate-900/50 p-3 rounded-md border border-slate-600 focus:ring-2 ${roles[activeTab].ring} text-white pr-10`} />
-                             <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">
-                                {isPasswordVisible ? Icons.eyeOff : Icons.eye}
-                            </button>
-                        </div>
-                    </div>
-                    {error && <p className="text-sm text-red-300 bg-red-500/20 p-3 rounded-md border border-red-500/30">{error}</p>}
-                    <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-md transition-all transform hover:scale-105 bg-gradient-to-r ${roles[activeTab].button} ${roles[activeTab].hover}`}>
-                        LOGIN
-                    </button>
-                </form>
-            </div>
-        </div>
-    );
-};
-
 const LandingPage: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
     const [apiErrorInfo, setApiErrorInfo] = useState<{ error: string; details?: string; fix?: string } | null>(null);
-    const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-    const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-    const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
     const [isRetrying, setIsRetrying] = useState(false);
     const [countdownToRetry, setCountdownToRetry] = useState(10);
     const [copySuccess, setCopySuccess] = useState(false);
@@ -136,16 +76,21 @@ const LandingPage: React.FC = () => {
         if (!silent) setIsRetrying(true);
         try {
             const response = await fetch('/api/games');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw errorData;
+            }
             const data = await response.json();
             if (Array.isArray(data)) {
                 setGames(data);
                 setApiErrorInfo(null);
-            } else if (data.error) {
-                setApiErrorInfo({ error: data.error, details: data.details, fix: data.fix });
-                setGames([]);
             }
-        } catch (error) {
-            setApiErrorInfo({ error: "Network Error", details: "The connection to the backend was refused. Ensure PM2 is running." });
+        } catch (error: any) {
+            setApiErrorInfo({ 
+                error: error.error || "Database Offline", 
+                details: error.details || "The connection to the SQL kernel was refused.", 
+                fix: error.fix || "Execute 'npm install' in the backend directory." 
+            });
             setGames([]);
         } finally {
             if (!silent) setIsRetrying(false);
@@ -155,7 +100,6 @@ const LandingPage: React.FC = () => {
 
     useEffect(() => {
         fetchGames();
-        // Background polling
         pollTimerRef.current = window.setInterval(() => {
             setCountdownToRetry((prev) => {
                 if (prev <= 1) {
@@ -195,16 +139,16 @@ const LandingPage: React.FC = () => {
                                         <div className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-75"></div>
                                         <div className="relative inline-flex rounded-full h-3 w-3 bg-red-500 shadow-[0_0_10px_#ef4444]"></div>
                                     </div>
-                                    <h3 className="text-sm md:text-lg font-bold text-red-100 uppercase tracking-widest">System Integrity Warning</h3>
+                                    <h3 className="text-sm md:text-lg font-bold text-red-100 uppercase tracking-widest">SQL Link Severed</h3>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <span className="hidden sm:inline text-[10px] text-red-400 uppercase tracking-widest font-mono">Retrying in {countdownToRetry}s</span>
+                                <div className="flex items-center gap-4 font-mono">
+                                    <span className="hidden sm:inline text-[10px] text-red-400 uppercase tracking-widest">Auto-Poll in {countdownToRetry}s</span>
                                     <button 
                                         onClick={() => fetchGames()} 
                                         disabled={isRetrying}
                                         className="bg-red-600 hover:bg-red-500 text-white text-[10px] md:text-xs font-bold py-1.5 px-4 rounded transition-all active:scale-95 disabled:opacity-50"
                                     >
-                                        {isRetrying ? 'CONNECTING...' : 'RETRY NOW'}
+                                        {isRetrying ? 'LINKING...' : 'RECONNECT'}
                                     </button>
                                 </div>
                             </div>
@@ -215,8 +159,8 @@ const LandingPage: React.FC = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
                                 </div>
-                                <h4 className="text-4xl font-bold text-white mb-2">Database Offline</h4>
-                                <p className="text-slate-300 text-lg mb-8 max-w-xl mx-auto">The database kernel failed to load. This is usually caused by a <span className="text-red-400 font-bold">Node.js version mismatch</span> after a system update.</p>
+                                <h4 className="text-4xl font-bold text-white mb-2">{apiErrorInfo.error}</h4>
+                                <p className="text-slate-300 text-lg mb-8 max-w-xl mx-auto">The database binary is incompatible with your current environment. This requires a <strong>Manual Recovery</strong> via SSH terminal.</p>
 
                                 <div className="bg-emerald-500/10 border border-emerald-500/30 p-6 rounded-md mb-8 text-left relative overflow-hidden group">
                                     <div className="absolute top-4 right-4">
@@ -224,13 +168,13 @@ const LandingPage: React.FC = () => {
                                             onClick={handleCopyFix}
                                             className="bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-400 text-[10px] px-3 py-1.5 rounded border border-emerald-500/40 transition-all uppercase font-bold flex items-center gap-2"
                                         >
-                                            {copySuccess ? 'Copied!' : 'Copy Commands'}
+                                            {copySuccess ? 'COPIED TO CLIPBOARD' : 'COPY RECOVERY COMMANDS'}
                                             {!copySuccess && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>}
                                         </button>
                                     </div>
                                     <h5 className="text-emerald-400 font-bold mb-4 uppercase text-[10px] tracking-widest flex items-center gap-2">
                                         <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                                        Terminal Recovery Console
+                                        RECOVERY TERMINAL CONSOLE
                                     </h5>
                                     <div className="bg-black/80 p-5 rounded font-mono text-sm border border-emerald-500/20 shadow-inner group-hover:border-emerald-500/40 transition-colors">
                                         <div className="flex gap-4">
@@ -255,22 +199,11 @@ const LandingPage: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
-
-                                <button 
-                                    onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
-                                    className="text-slate-500 text-[10px] hover:text-slate-300 uppercase tracking-widest font-bold flex items-center gap-2 mx-auto"
-                                >
-                                    {showTechnicalDetails ? '[-] Hide' : '[+] Show'} Diagnostic Logs
-                                </button>
-                                {showTechnicalDetails && (
-                                    <div className="mt-4 p-5 bg-black/60 rounded border border-slate-800 font-mono text-[11px] text-red-300/60 leading-relaxed max-h-48 overflow-y-auto text-left shadow-inner">
-                                        {apiErrorInfo.details || "No further details available."}
-                                    </div>
-                                )}
+                                <p className="text-slate-500 text-[10px] uppercase tracking-widest">Run the commands above on your server to restore full SQL functionality.</p>
                             </div>
                             <div className="bg-black/60 p-3 text-center border-t border-slate-800">
                                 <p className="text-[9px] text-slate-500 uppercase tracking-[0.3em]">
-                                    Service Status: <span className="text-red-600 font-bold">DEGRADED</span> | System ID: {window.location.hostname}
+                                    Diagnostic: {apiErrorInfo.details}
                                 </p>
                             </div>
                         </div>
@@ -281,7 +214,7 @@ const LandingPage: React.FC = () => {
                             )) : (
                                 <div className="col-span-full text-center text-slate-500 p-12">
                                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500 mb-4"></div>
-                                    <p className="uppercase tracking-[0.3em] text-xs">Querying Global Game Servers...</p>
+                                    <p className="uppercase tracking-[0.3em] text-xs">Awaiting SQL Handshake...</p>
                                 </div>
                             )}
                         </div>
@@ -289,14 +222,15 @@ const LandingPage: React.FC = () => {
                 </section>
 
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
-                    <LoginPanel onForgotPassword={() => setIsResetModalOpen(true)} />
-                     <div className="mt-6">
-                        <button onClick={() => setIsAdminModalOpen(true)} className="w-full text-white font-bold py-3 px-4 rounded-md transition-all transform hover:scale-105 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-lg shadow-red-900/20">
-                            ADMINISTRATOR ACCESS
-                        </button>
-                    </div>
+                     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg shadow-2xl border border-slate-700 p-8 text-center">
+                        <h2 className="text-xl font-bold text-white mb-4 uppercase tracking-widest">Portal Access</h2>
+                        <p className="text-slate-400 mb-6 text-sm">Please ensure the SQL link is healthy to enable secure authentication.</p>
+                        <div className="space-y-4">
+                            <button disabled className="w-full bg-slate-700/50 text-slate-500 py-3 rounded font-bold cursor-not-allowed border border-slate-600">WAITING FOR DATABASE...</button>
+                        </div>
+                     </div>
                 </section>
-                <footer className="text-center py-12 mt-12 text-slate-600 text-xs tracking-widest">&copy; {new Date().getFullYear()} A-BABA EXCHANGE. ALL RIGHTS RESERVED.</footer>
+                <footer className="text-center py-12 mt-12 text-slate-600 text-xs tracking-widest uppercase">&copy; {new Date().getFullYear()} A-BABA EXCHANGE • SECURE GAMING INFRASTRUCTURE</footer>
             </div>
         </div>
     );

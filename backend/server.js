@@ -5,10 +5,14 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('./authMiddleware');
 const database = require('./database');
+const { GoogleGenAI } = require("@google/genai");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Initialize Gemini
+const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Initialize Database connection
 let dbReady = false;
@@ -28,26 +32,26 @@ try {
     console.error("[SERVER] FATAL: Database failed to start.");
 }
 
-// API Health Check / Status
+// Global JSON response header and DB check middleware
+app.use('/api', (req, res, next) => {
+    res.setHeader('Content-Type', 'application/json');
+    if (!dbReady && req.path !== '/status') {
+        return res.status(503).json({ 
+            error: "Database Offline", 
+            details: dbError,
+            fix: "Execute 'npm install' in the backend directory and restart PM2 to fix binary mismatch."
+        });
+    }
+    next();
+});
+
+// Health Check
 app.get('/api/status', (req, res) => {
     res.json({ 
         status: dbReady ? "online" : "error", 
         database: dbReady ? "connected" : "failed",
         error: dbError 
     });
-});
-
-// Global JSON response header and DB check middleware
-app.use('/api', (req, res, next) => {
-    res.setHeader('Content-Type', 'application/json');
-    if (!dbReady) {
-        return res.status(503).json({ 
-            error: "Database Offline", 
-            details: dbError,
-            fix: "Run 'npm install' in the backend folder and restart PM2."
-        });
-    }
-    next();
 });
 
 // --- PUBLIC ---
@@ -57,6 +61,32 @@ app.get('/api/games', (req, res) => {
         res.json(games);
     } catch (e) {
         res.status(500).json({ error: "Query failed", details: e.message });
+    }
+});
+
+// --- AI LUCKY PICK ---
+app.get('/api/user/ai-lucky-pick', authMiddleware, async (req, res) => {
+    try {
+        const type = req.query.type || '2-digit';
+        const gameName = req.query.gameName || 'Ali Baba';
+        
+        const prompt = `You are a mystical numerologist for a lottery platform. 
+        The user is playing a game called "${gameName}". 
+        Generate ${type === '2-digit' ? 'three different 2-digit numbers (00-99)' : 'three different 1-digit numbers (0-9)'}.
+        Provide the response in JSON format like: {"numbers": ["12", "45", "78"]} or {"numbers": ["4", "7", "2"]}.
+        Make the choice feel special and based on the cosmos. Only return JSON.`;
+
+        const response = await genAI.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt,
+            config: { responseMimeType: "application/json" }
+        });
+
+        const result = JSON.parse(response.text);
+        res.json(result);
+    } catch (e) {
+        console.error("[AI] Error:", e);
+        res.status(500).json({ error: "AI failed to suggest numbers." });
     }
 });
 
@@ -99,34 +129,6 @@ app.get('/api/admin/data', authMiddleware, (req, res) => {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
-});
-
-app.get('/api/dealer/data', authMiddleware, (req, res) => {
-    if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    try {
-        const users = database.getAllFromTable('users').filter(u => u.dealerId === req.user.id);
-        res.json({ users, bets: [] });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.get('/api/user/data', authMiddleware, (req, res) => {
-    if (req.user.role !== 'USER') return res.sendStatus(403);
-    try {
-        res.json({ games: database.getAllFromTable('games'), bets: [] });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Final error catch-all
-app.use((err, req, res, next) => {
-    console.error("[SERVER] Global Error:", err.stack);
-    res.status(500).json({ 
-        message: "Internal Server Error", 
-        error: err.message 
-    });
 });
 
 const PORT = process.env.PORT || 3001;
