@@ -1,142 +1,66 @@
 
-const fs = require('fs');
-const path = require('path');
+const { Client } = require('pg');
+require('dotenv').config();
 
-/**
- * NUCLEAR SQL RECREATOR
- * Force-wipes all SQL data and regenerates the schema from scratch.
- */
-function rebuild() {
-    console.log("==================================================");
-    console.log("   A-BABA EXCHANGE: START-FROM-START REMAKE   ");
-    console.log("==================================================");
+const connectionString = process.env.DATABASE_URL || 'postgresql://ababa_user:ababa123@localhost:5432/ababa_db';
 
-    const DB_PATH = path.join(__dirname, 'database.sqlite');
-    const SEED_FILE = path.join(__dirname, 'db.json');
-
-    // 1. Force wipe all database artifacts
-    const targets = [
-        DB_PATH, 
-        DB_PATH + '-wal', 
-        DB_PATH + '-shm', 
-        DB_PATH + '-journal'
-    ];
-    
-    console.log("[1/4] Destroying existing SQL artifacts (Purging Old Data)...");
-    targets.forEach(t => {
-        if (fs.existsSync(t)) {
-            try {
-                fs.unlinkSync(t);
-                console.log(`      WIPED: ${path.basename(t)}`);
-            } catch (err) {
-                console.error(`      ERROR: Cannot delete ${path.basename(t)}. Ensure PM2 is stopped.`);
-                console.error(`      FIX: Run 'pm2 stop ababa-backend' first.`);
-                process.exit(1);
-            }
-        }
-    });
-
-    // 2. Load driver (Binary check)
-    let Database;
+async function setup() {
+    const client = new Client({ connectionString });
     try {
-        Database = require('better-sqlite3');
-        console.log("[2/4] SQL Driver (better-sqlite3) validated.");
-    } catch (err) {
-        console.error("[2/4] FATAL: SQL Driver is corrupted (Binary Mismatch).");
-        console.error("      ERROR: " + err.message);
-        console.error("      FIX: Run 'rm -rf node_modules && npm install' on this server.");
-        process.exit(1);
-    }
+        await client.connect();
+        console.log("Connected to PostgreSQL for setup...");
 
-    // 3. Rebuild Schema
-    let db;
-    try {
-        db = new Database(DB_PATH);
-        db.pragma('journal_mode = WAL');
-        console.log("[3/4] Recreating system tables...");
-        db.exec(`
+        await client.query(`
+            DROP TABLE IF EXISTS bets CASCADE;
+            DROP TABLE IF EXISTS ledgers CASCADE;
+            DROP TABLE IF EXISTS users CASCADE;
+            DROP TABLE IF EXISTS dealers CASCADE;
+            DROP TABLE IF EXISTS admins CASCADE;
+            DROP TABLE IF EXISTS games CASCADE;
+
             CREATE TABLE admins (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, password TEXT NOT NULL, 
-                wallet REAL DEFAULT 0, prizeRates TEXT, avatarUrl TEXT
+                wallet NUMERIC DEFAULT 0, prizeRates TEXT
             );
             CREATE TABLE dealers (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, password TEXT NOT NULL, 
-                area TEXT, contact TEXT, wallet REAL DEFAULT 0, commissionRate REAL DEFAULT 0, 
-                isRestricted INTEGER DEFAULT 0, prizeRates TEXT, avatarUrl TEXT
+                area TEXT, contact TEXT, wallet NUMERIC DEFAULT 0, commissionRate NUMERIC DEFAULT 0, 
+                isRestricted BOOLEAN DEFAULT FALSE, prizeRates TEXT
             );
             CREATE TABLE users (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, password TEXT NOT NULL, 
-                dealerId TEXT NOT NULL, area TEXT, contact TEXT, wallet REAL DEFAULT 0, 
-                commissionRate REAL DEFAULT 0, isRestricted INTEGER DEFAULT 0, 
-                prizeRates TEXT, betLimits TEXT, avatarUrl TEXT,
+                dealerId TEXT NOT NULL, area TEXT, contact TEXT, wallet NUMERIC DEFAULT 0, 
+                isRestricted BOOLEAN DEFAULT FALSE, prizeRates TEXT,
                 FOREIGN KEY (dealerId) REFERENCES dealers(id)
             );
             CREATE TABLE games (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, drawTime TEXT NOT NULL, 
-                winningNumber TEXT, payoutsApproved INTEGER DEFAULT 0
-            );
-            CREATE TABLE bets (
-                id TEXT PRIMARY KEY, userId TEXT NOT NULL, dealerId TEXT NOT NULL, 
-                gameId TEXT NOT NULL, subGameType TEXT NOT NULL, numbers TEXT NOT NULL, 
-                amountPerNumber REAL NOT NULL, totalAmount REAL NOT NULL, timestamp TEXT NOT NULL,
-                FOREIGN KEY (userId) REFERENCES users(id),
-                FOREIGN KEY (dealerId) REFERENCES dealers(id),
-                FOREIGN KEY (gameId) REFERENCES games(id)
+                winningNumber TEXT, isMarketOpen BOOLEAN DEFAULT TRUE
             );
             CREATE TABLE ledgers (
-                id TEXT PRIMARY KEY, accountId TEXT NOT NULL, accountType TEXT NOT NULL, 
-                timestamp TEXT NOT NULL, description TEXT NOT NULL, 
-                debit REAL DEFAULT 0, credit REAL DEFAULT 0, balance REAL DEFAULT 0
+                id SERIAL PRIMARY KEY, accountId TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+                description TEXT NOT NULL, debit NUMERIC DEFAULT 0, credit NUMERIC DEFAULT 0, balance NUMERIC DEFAULT 0
             );
-            CREATE TABLE number_limits (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, gameType TEXT NOT NULL, 
-                numberValue TEXT NOT NULL, limitAmount REAL NOT NULL, UNIQUE(gameType, numberValue)
-            );
+
+            -- Seed Initial Admin
+            INSERT INTO admins (id, name, password, wallet, prizeRates) 
+            VALUES ('Guru', 'Guru', 'Pak@4646', 1000000, '{"oneDigitOpen":90,"oneDigitClose":90,"twoDigit":900}');
+
+            -- Seed Games
+            INSERT INTO games (id, name, drawTime) VALUES 
+            ('g1', 'Ali Baba', '18:15'), ('g2', 'GSM', '18:45'), ('g3', 'OYO TV', '20:15'),
+            ('g4', 'LS1', '20:45'), ('g5', 'OLA TV', '21:15'), ('g6', 'AK', '21:55'),
+            ('g7', 'LS2', '23:45'), ('g8', 'AKC', '00:55'), ('g9', 'LS3', '02:10');
+
+            -- Seed Initial Dealer
+            INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, prizeRates)
+            VALUES ('dealer01', 'ABD-001', 'Pak@123', 'KHI', '03323022123', 50000, 10, '{"oneDigitOpen":80,"oneDigitClose":80,"twoDigit":800}');
         `);
-        console.log("      SUCCESS: Schema reconstruction complete.");
-    } catch (e) {
-        console.error("      ERROR: Table creation failed.");
-        console.error(e.message);
-        process.exit(1);
+        console.log("Database Setup Complete!");
+    } catch (err) {
+        console.error("Setup Error:", err);
+    } finally {
+        await client.end();
     }
-
-    // 4. Seed Data
-    if (fs.existsSync(SEED_FILE)) {
-        console.log("[4/4] Migrating seed data from db.json...");
-        try {
-            const data = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
-            db.transaction(() => {
-                const insAdmin = db.prepare('INSERT INTO admins (id, name, password, wallet, prizeRates, avatarUrl) VALUES (?,?,?,?,?,?)');
-                insAdmin.run(data.admin.id, data.admin.name, data.admin.password, data.admin.wallet, JSON.stringify(data.admin.prizeRates), data.admin.avatarUrl);
-
-                const insGame = db.prepare('INSERT INTO games (id, name, drawTime) VALUES (?,?,?)');
-                data.games.forEach(g => insGame.run(g.id, g.name, g.drawTime));
-
-                const insDealer = db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?,?,?,?,?,?,?,?,?)');
-                data.dealers.forEach(d => insDealer.run(d.id, d.name, d.password, d.area, d.contact, d.wallet, d.commissionRate, JSON.stringify(d.prizeRates), d.avatarUrl));
-
-                const insUser = db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?,?,?,?,?,?,?,?,?,?)');
-                data.users.forEach(u => insUser.run(u.id, u.name, u.password, u.dealerId, u.area, u.contact, u.wallet, u.commissionRate, JSON.stringify(u.prizeRates), u.avatarUrl));
-
-                const insLedger = db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?,?,?,?,?,?,?,?)');
-                if (data.admin.ledger) {
-                    data.admin.ledger.forEach(l => {
-                        insLedger.run(l.id, data.admin.id, 'ADMIN', l.timestamp, l.description, l.debit, l.credit, l.balance);
-                    });
-                }
-            })();
-            console.log("      SUCCESS: Seed migration successful.");
-        } catch (e) {
-            console.error("      ERROR: Data migration failed.");
-            console.error(e.message);
-            process.exit(1);
-        }
-    }
-
-    db.close();
-    console.log("==================================================");
-    console.log("   REBUILD SUCCESSFUL! APP IS NOW CLEAN.   ");
-    console.log("==================================================");
 }
-
-rebuild();
+setup();
