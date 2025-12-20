@@ -1,13 +1,23 @@
 
-const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 
-const DB_PATH = path.join(__dirname, 'database.sqlite');
-let db;
+// Configure connection pool
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    // Alternatively, if DATABASE_URL is not provided, pg uses PGHOST, PGUSER, PGDATABASE, PGPASSWORD, PGPORT from .env automatically
+});
 
 const PKT_OFFSET_HOURS = 5;
-const OPEN_HOUR_PKT = 16; 
+const OPEN_HOUR_PKT = 16;
+
+/**
+ * Automatically converts SQLite style '?' placeholders to PG style '$1, $2...'
+ */
+function convertPlaceholders(sql) {
+    let index = 1;
+    return sql.replace(/\?/g, () => `$${index++}`);
+}
 
 function getGameCycle(drawTime) {
     const now = new Date();
@@ -44,49 +54,35 @@ function isGameOpen(drawTime) {
     return now >= openTime && now < closeTime;
 }
 
-const connect = () => {
-    db = new sqlite3.Database(DB_PATH, (err) => {
-        if (err) {
-            console.error('Failed to connect to database:', err);
-            process.exit(1);
-        }
-        console.error('Database connected successfully (SQLite3).');
-        db.run('PRAGMA journal_mode = WAL');
-        db.run('PRAGMA foreign_keys = ON');
-    });
+const connect = async () => {
+    try {
+        await pool.query('SELECT NOW()');
+        console.error('Database connected successfully (PostgreSQL).');
+    } catch (err) {
+        console.error('Failed to connect to PostgreSQL:', err);
+        process.exit(1);
+    }
 };
 
-const query = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-        });
-    });
+const query = async (sql, params = []) => {
+    const res = await pool.query(convertPlaceholders(sql), params);
+    return res.rows;
 };
 
-const get = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
-        db.get(sql, params, (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-        });
-    });
+const get = async (sql, params = []) => {
+    const res = await pool.query(convertPlaceholders(sql), params);
+    return res.rows[0];
 };
 
-const run = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
-        db.run(sql, params, function(err) {
-            if (err) reject(err);
-            else resolve({ id: this.lastID, changes: this.changes });
-        });
-    });
+const run = async (sql, params = []) => {
+    const res = await pool.query(convertPlaceholders(sql), params);
+    return { id: res.rows[0]?.id || null, changes: res.rowCount };
 };
 
 const verifySchema = async () => {
-    const row = await get("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'");
-    if (!row) {
-        console.error('CRITICAL: Database schema missing. Run npm run db:setup.');
+    const res = await get("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'admins'");
+    if (!res) {
+        console.error('CRITICAL: Database schema missing in PostgreSQL. Run npm run db:setup.');
         process.exit(1);
     }
 };
@@ -102,8 +98,10 @@ const findAccountById = async (id, table) => {
         account.isMarketOpen = isGameOpen(account.drawTime);
     }
 
-    if (account.prizeRates) account.prizeRates = JSON.parse(account.prizeRates);
-    if (account.betLimits) account.betLimits = JSON.parse(account.betLimits);
+    // PG automatically handles JSON in columns if typed as JSONB, 
+    // but here we maintain the string-based parsing for compatibility with existing setup-database logic if it seeds as strings
+    if (typeof account.prizeRates === 'string') account.prizeRates = JSON.parse(account.prizeRates);
+    if (typeof account.betLimits === 'string') account.betLimits = JSON.parse(account.betLimits);
     if (account.isRestricted !== undefined) account.isRestricted = !!account.isRestricted;
     
     return account;
@@ -123,9 +121,9 @@ const getAllFromTable = async (table, withLedger = false) => {
     return Promise.all(rows.map(async (acc) => {
         if (withLedger) acc.ledger = await query('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC', [acc.id]);
         if (table === 'games') acc.isMarketOpen = isGameOpen(acc.drawTime);
-        if (acc.prizeRates) acc.prizeRates = JSON.parse(acc.prizeRates);
-        if (acc.betLimits) acc.betLimits = JSON.parse(acc.betLimits);
-        if (acc.numbers) acc.numbers = JSON.parse(acc.numbers);
+        if (typeof acc.prizeRates === 'string') acc.prizeRates = JSON.parse(acc.prizeRates);
+        if (typeof acc.betLimits === 'string') acc.betLimits = JSON.parse(acc.betLimits);
+        if (typeof acc.numbers === 'string') acc.numbers = JSON.parse(acc.numbers);
         if (acc.isRestricted !== undefined) acc.isRestricted = !!acc.isRestricted;
         return acc;
     }));
@@ -133,8 +131,8 @@ const getAllFromTable = async (table, withLedger = false) => {
 
 const addLedgerEntry = async (accountId, accountType, description, debit, credit) => {
     const table = accountType.toLowerCase() + 's';
-    const lastEntry = await get('SELECT balance FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC, ROWID DESC LIMIT 1', [accountId]);
-    const lastBalance = lastEntry ? lastEntry.balance : 0;
+    const lastEntry = await get('SELECT balance FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC, id DESC LIMIT 1', [accountId]);
+    const lastBalance = lastEntry ? parseFloat(lastEntry.balance) : 0;
 
     if (debit > 0 && accountType !== 'ADMIN' && lastBalance < debit) {
         throw { status: 400, message: `Insufficient funds.` };
@@ -148,7 +146,20 @@ const addLedgerEntry = async (accountId, accountType, description, debit, credit
 
 module.exports = {
     connect, verifySchema, findAccountById, findAccountForLogin, getAllFromTable, addLedgerEntry, get, run, query,
-    runInTransaction: (fn) => db.serialize(fn),
+    runInTransaction: async (fn) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const result = await fn(client);
+            await client.query('COMMIT');
+            return result;
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e;
+        } finally {
+            client.release();
+        }
+    },
     updatePassword: async (id, contact, pass) => {
         for (const t of ['users', 'dealers']) {
             const res = await run(`UPDATE ${t} SET password = ? WHERE id = ? AND contact = ?`, [pass, id, contact]);
