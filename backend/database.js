@@ -20,17 +20,19 @@ const connect = () => {
         return _db;
     } catch (e) {
         console.error("--- CRITICAL DATABASE ERROR ---");
-        let detailedError = e.message;
+        console.error(e);
+        
+        let detailedError = "Database Initialization Failed";
         let suggestedFix = "Run 'npm install' in the backend folder and restart PM2.";
         
         if (e.code === 'ERR_DLOPEN_FAILED' || e.message.includes('NODE_MODULE_VERSION')) {
-            detailedError = "Binary Mismatch: The database driver needs to be recompiled for your current Node.js version.";
-            suggestedFix = "cd /var/www/html/A-babaexch/backend && rm -rf node_modules && npm install && pm2 restart ababa-backend";
+            detailedError = "Binary Mismatch: The SQL driver needs to be recompiled.";
+            suggestedFix = "Run: cd backend && rm -rf node_modules && npm install && pm2 restart ababa-backend";
         }
         
         const errorObject = new Error(detailedError);
         errorObject.fix = suggestedFix;
-        errorObject.original = e.message;
+        errorObject.raw = e.message; // Capture the raw error for frontend diagnostics
         throw errorObject;
     }
 };

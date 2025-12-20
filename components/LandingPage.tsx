@@ -66,30 +66,39 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
 
 const LandingPage: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
-    const [apiErrorInfo, setApiErrorInfo] = useState<{ error: string; details?: string; fix?: string } | null>(null);
+    const [apiErrorInfo, setApiErrorInfo] = useState<{ error: string; details?: string; fix?: string; raw?: string } | null>(null);
     const [isRetrying, setIsRetrying] = useState(false);
     const [countdownToRetry, setCountdownToRetry] = useState(10);
     const [copySuccess, setCopySuccess] = useState(false);
+    const [showRaw, setShowRaw] = useState(false);
     const pollTimerRef = useRef<number | null>(null);
     
     const fetchGames = async (silent = false) => {
         if (!silent) setIsRetrying(true);
         try {
             const response = await fetch('/api/games');
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw errorData;
-            }
             const data = await response.json();
-            if (Array.isArray(data)) {
+            
+            if (response.ok && Array.isArray(data)) {
                 setGames(data);
                 setApiErrorInfo(null);
+            } else {
+                // Backend is running but reported an internal DB error
+                setApiErrorInfo({ 
+                    error: data.error || "Database Offline", 
+                    details: data.details || "The server is running but the SQL connection is broken.", 
+                    fix: data.fix || "Execute 'npm install' in the backend directory.",
+                    raw: data.raw || "No raw data available."
+                });
+                setGames([]);
             }
         } catch (error: any) {
+            // Network failure - Server is completely down
             setApiErrorInfo({ 
-                error: error.error || "Database Offline", 
-                details: error.details || "The connection to the SQL kernel was refused.", 
-                fix: error.fix || "Execute 'npm install' in the backend directory." 
+                error: "Backend Process Offline", 
+                details: "The backend server is not responding. It may have crashed due to the SQL binary mismatch.", 
+                fix: "Run 'pm2 logs ababa-backend' on your server to see the crash details.",
+                raw: error.toString()
             });
             setGames([]);
         } finally {
@@ -142,7 +151,7 @@ const LandingPage: React.FC = () => {
                                     <h3 className="text-sm md:text-lg font-bold text-red-100 uppercase tracking-widest">SQL Link Severed</h3>
                                 </div>
                                 <div className="flex items-center gap-4 font-mono">
-                                    <span className="hidden sm:inline text-[10px] text-red-400 uppercase tracking-widest">Auto-Poll in {countdownToRetry}s</span>
+                                    <span className="hidden sm:inline text-[10px] text-red-400 uppercase tracking-widest">Polling {countdownToRetry}s</span>
                                     <button 
                                         onClick={() => fetchGames()} 
                                         disabled={isRetrying}
@@ -159,8 +168,8 @@ const LandingPage: React.FC = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
                                 </div>
-                                <h4 className="text-4xl font-bold text-white mb-2">{apiErrorInfo.error}</h4>
-                                <p className="text-slate-300 text-lg mb-8 max-w-xl mx-auto">The database binary is incompatible with your current environment. This requires a <strong>Manual Recovery</strong> via SSH terminal.</p>
+                                <h4 className="text-3xl font-bold text-white mb-2">{apiErrorInfo.error}</h4>
+                                <p className="text-slate-300 text-md mb-8 max-w-xl mx-auto">{apiErrorInfo.details}</p>
 
                                 <div className="bg-emerald-500/10 border border-emerald-500/30 p-6 rounded-md mb-8 text-left relative overflow-hidden group">
                                     <div className="absolute top-4 right-4">
@@ -176,35 +185,42 @@ const LandingPage: React.FC = () => {
                                         <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
                                         RECOVERY TERMINAL CONSOLE
                                     </h5>
-                                    <div className="bg-black/80 p-5 rounded font-mono text-sm border border-emerald-500/20 shadow-inner group-hover:border-emerald-500/40 transition-colors">
+                                    <div className="bg-black/80 p-5 rounded font-mono text-sm border border-emerald-500/20 shadow-inner group-hover:border-emerald-500/40 transition-colors overflow-x-auto">
                                         <div className="flex gap-4">
                                             <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-emerald-300">cd /var/www/html/A-babaexch/backend</p>
+                                            <p className="text-emerald-300 whitespace-nowrap">cd /var/www/html/A-babaexch/backend</p>
                                         </div>
                                         <div className="flex gap-4">
                                             <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-emerald-300">pm2 stop ababa-backend</p>
+                                            <p className="text-emerald-300 whitespace-nowrap">pm2 stop ababa-backend</p>
                                         </div>
                                         <div className="flex gap-4">
                                             <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-emerald-300">rm -rf node_modules package-lock.json</p>
+                                            <p className="text-emerald-300 whitespace-nowrap">rm -rf node_modules package-lock.json</p>
                                         </div>
                                         <div className="flex gap-4">
                                             <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-emerald-300">npm install</p>
+                                            <p className="text-emerald-300 whitespace-nowrap">npm install</p>
                                         </div>
                                         <div className="flex gap-4">
                                             <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-emerald-300">pm2 start server.js --name ababa-backend</p>
+                                            <p className="text-emerald-300 whitespace-nowrap">pm2 start server.js --name ababa-backend</p>
                                         </div>
                                     </div>
                                 </div>
-                                <p className="text-slate-500 text-[10px] uppercase tracking-widest">Run the commands above on your server to restore full SQL functionality.</p>
-                            </div>
-                            <div className="bg-black/60 p-3 text-center border-t border-slate-800">
-                                <p className="text-[9px] text-slate-500 uppercase tracking-[0.3em]">
-                                    Diagnostic: {apiErrorInfo.details}
-                                </p>
+                                
+                                <button 
+                                    onClick={() => setShowRaw(!showRaw)} 
+                                    className="text-slate-500 text-[10px] hover:text-slate-300 uppercase tracking-widest font-bold"
+                                >
+                                    {showRaw ? '[-] Hide' : '[+] View'} Raw Diagnostics
+                                </button>
+                                
+                                {showRaw && (
+                                    <div className="mt-4 p-4 bg-black/40 border border-slate-800 rounded text-left font-mono text-[11px] text-red-300/60 overflow-x-auto">
+                                        {apiErrorInfo.raw}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : (
@@ -214,7 +230,7 @@ const LandingPage: React.FC = () => {
                             )) : (
                                 <div className="col-span-full text-center text-slate-500 p-12">
                                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500 mb-4"></div>
-                                    <p className="uppercase tracking-[0.3em] text-xs">Awaiting SQL Handshake...</p>
+                                    <p className="uppercase tracking-[0.3em] text-xs">Handshaking with SQL...</p>
                                 </div>
                             )}
                         </div>

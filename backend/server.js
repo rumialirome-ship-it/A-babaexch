@@ -17,6 +17,7 @@ const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
 // Initialize Database connection
 let dbReady = false;
 let dbError = null;
+let dbRawError = null;
 
 try {
     database.connect();
@@ -29,18 +30,15 @@ try {
     }
 } catch (e) {
     dbError = e.message;
+    dbRawError = e.raw || e.toString();
     console.error("[SERVER] FATAL: Database failed to start.");
 }
 
 // Global JSON response header and DB check middleware
 app.use('/api', (req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
-    if (!dbReady && req.path !== '/status') {
-        return res.status(503).json({ 
-            error: "Database Offline", 
-            details: dbError,
-            fix: "Execute 'npm install' in the backend directory and restart PM2 to fix binary mismatch."
-        });
+    if (!dbReady && req.path !== '/status' && req.path !== '/games') {
+        // We let /games through so it can return the formatted error
     }
     next();
 });
@@ -50,12 +48,21 @@ app.get('/api/status', (req, res) => {
     res.json({ 
         status: dbReady ? "online" : "error", 
         database: dbReady ? "connected" : "failed",
-        error: dbError 
+        error: dbError,
+        raw: dbRawError
     });
 });
 
 // --- PUBLIC ---
 app.get('/api/games', (req, res) => {
+    if (!dbReady) {
+        return res.status(503).json({ 
+            error: dbError || "Database Offline", 
+            details: "The server is running but the SQL connection is broken.",
+            raw: dbRawError,
+            fix: "Execute 'npm install' in the backend directory and restart PM2."
+        });
+    }
     try {
         const games = database.getAllFromTable('games');
         res.json(games);
