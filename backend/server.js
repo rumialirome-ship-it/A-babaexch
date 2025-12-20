@@ -4,7 +4,6 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('./authMiddleware');
-const { GoogleGenAI } = require('@google/genai');
 const database = require('./database');
 const { v4: uuidv4 } = require('uuid');
 
@@ -35,44 +34,54 @@ app.get('/api/auth/verify', authMiddleware, async (req, res) => {
     } catch (e) { res.status(500).send(); }
 });
 
-// --- USER ---
+// --- PUBLIC ---
+app.get('/api/games', async (req, res) => {
+    try {
+        const games = await database.getAllFromTable('games');
+        res.json(games);
+    } catch (e) { res.status(500).send(); }
+});
+
+// --- USER ENDPOINTS ---
 app.get('/api/user/data', authMiddleware, async (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
-    const games = await database.getAllFromTable('games');
-    const allBets = await database.getAllFromTable('bets');
-    const userBets = allBets.filter(b => b.userId === req.user.id).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-    res.json({ games, bets: userBets });
+    try {
+        const games = await database.getAllFromTable('games');
+        const allBets = await database.query('SELECT * FROM bets WHERE userId = ? ORDER BY timestamp DESC', [req.user.id]);
+        res.json({ games, bets: allBets });
+    } catch (e) { res.status(500).send(); }
 });
 
 app.post('/api/user/bets', authMiddleware, async (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
     const { gameId, betGroups } = req.body;
     try {
-        // Simple betting logic restored
         const user = await database.findAccountById(req.user.id, 'users');
         const game = await database.findAccountById(gameId, 'games');
         if (!game.isMarketOpen) return res.status(400).json({ message: "Market closed" });
         
-        let cost = 0;
-        betGroups.forEach(g => cost += (g.numbers.length * g.amountPerNumber));
-        if (user.wallet < cost) return res.status(400).json({ message: "Insufficient balance" });
+        let totalCost = 0;
+        betGroups.forEach(g => totalCost += (g.numbers.length * g.amountPerNumber));
+        if (parseFloat(user.wallet) < totalCost) return res.status(400).json({ message: "Insufficient balance" });
 
         for (const group of betGroups) {
             const bid = uuidv4();
-            await database.run('INSERT INTO bets VALUES (?,?,?,?,?,?,?,?,?)',
+            await database.run('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?,?,?,?,?,?,?,?,?)',
                 [bid, user.id, user.dealerId, gameId, group.subGameType, JSON.stringify(group.numbers), group.amountPerNumber, group.numbers.length * group.amountPerNumber, new Date().toISOString()]);
         }
-        await database.addLedgerEntry(user.id, 'USER', `Bet on ${game.name}`, cost, 0);
+        await database.addLedgerEntry(user.id, 'USER', `Bet on ${game.name}`, totalCost, 0);
         res.status(201).json({ success: true });
     } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// --- DEALER ---
+// --- DEALER ENDPOINTS ---
 app.get('/api/dealer/data', authMiddleware, async (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    const users = (await database.getAllFromTable('users', true)).filter(u => u.dealerId === req.user.id);
-    const bets = (await database.getAllFromTable('bets')).filter(b => b.dealerId === req.user.id);
-    res.json({ users, bets });
+    try {
+        const users = (await database.getAllFromTable('users', true)).filter(u => u.dealerId === req.user.id);
+        const bets = await database.query('SELECT * FROM bets WHERE dealerId = ? ORDER BY timestamp DESC LIMIT 500', [req.user.id]);
+        res.json({ users, bets });
+    } catch (e) { res.status(500).send(); }
 });
 
 app.post('/api/dealer/topup/user', authMiddleware, async (req, res) => {
@@ -80,39 +89,63 @@ app.post('/api/dealer/topup/user', authMiddleware, async (req, res) => {
     const { userId, amount } = req.body;
     try {
         const dealer = await database.findAccountById(req.user.id, 'dealers');
-        if (dealer.wallet < amount) return res.status(400).json({ message: "Insufficient Dealer Balance" });
+        if (parseFloat(dealer.wallet) < amount) return res.status(400).json({ message: "Insufficient Dealer Balance" });
         await database.addLedgerEntry(req.user.id, 'DEALER', `Topup for ${userId}`, amount, 0);
         await database.addLedgerEntry(userId, 'USER', `Topup from Dealer`, 0, amount);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ message: e.message }); }
 });
 
-// --- ADMIN ---
+// --- ADMIN ENDPOINTS ---
 app.get('/api/admin/data', authMiddleware, async (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
-    res.json({
-        dealers: await database.getAllFromTable('dealers', true),
-        users: await database.getAllFromTable('users', true),
-        games: await database.getAllFromTable('games'),
-        bets: await database.getAllFromTable('bets')
-    });
+    try {
+        res.json({
+            dealers: await database.getAllFromTable('dealers', true),
+            users: await database.getAllFromTable('users', true),
+            games: await database.getAllFromTable('games'),
+            bets: await database.query('SELECT * FROM bets ORDER BY timestamp DESC LIMIT 1000')
+        });
+    } catch (e) { res.status(500).send(); }
+});
+
+app.get('/api/admin/summary', authMiddleware, async (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try {
+        const games = await database.getAllFromTable('games');
+        const bets = await database.getAllFromTable('bets');
+        
+        let totalStake = 0;
+        let totalPayouts = 0;
+        const gameSummaries = games.map(game => {
+            const gameBets = bets.filter(b => b.gameId === game.id);
+            const stake = gameBets.reduce((s, b) => s + parseFloat(b.totalAmount), 0);
+            totalStake += stake;
+            return {
+                gameName: game.name,
+                winningNumber: game.winningNumber || '-',
+                totalStake: stake,
+                totalPayouts: 0, // Placeholder
+                netProfit: stake
+            };
+        });
+
+        res.json({ games: gameSummaries, totals: { totalStake, totalPayouts: 0, netProfit: totalStake } });
+    } catch (e) { res.status(500).send(); }
 });
 
 app.post('/api/admin/games/:id/declare-winner', authMiddleware, async (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     const { winningNumber } = req.body;
-    await database.run('UPDATE games SET winningNumber = ? WHERE id = ?', [winningNumber, req.params.id]);
-    res.json({ success: true });
-});
-
-// --- PUBLIC ---
-app.get('/api/games', async (req, res) => {
-    const games = await database.getAllFromTable('games');
-    res.json(games);
+    try {
+        await database.run('UPDATE games SET winningNumber = ? WHERE id = ?', [winningNumber, req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).send(); }
 });
 
 const PORT = process.env.PORT || 3001;
-database.connect();
-database.verifySchema().then(() => {
-    app.listen(PORT, () => console.error(`>>> A-BABA SERVER RUNNING ON PORT ${PORT} <<<`));
+database.connect().then(() => {
+    database.verifySchema().then(() => {
+        app.listen(PORT, () => console.error(`>>> A-BABA SERVER READY ON PORT ${PORT} <<<`));
+    });
 });

@@ -2,18 +2,27 @@
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 
-// Configure connection pool
-const pool = new Pool({
+// Load environment variables if not already loaded
+require('dotenv').config();
+
+const poolConfig = {
     connectionString: process.env.DATABASE_URL,
-    // Alternatively, if DATABASE_URL is not provided, pg uses PGHOST, PGUSER, PGDATABASE, PGPASSWORD, PGPORT from .env automatically
-});
+    // Ensure SCRAM authentication doesn't fail if password is not explicitly in string
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+};
+
+// Fallback for local development if DATABASE_URL is partial
+if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes(':') && !process.env.DATABASE_URL.startsWith('postgres')) {
+    console.error('CRITICAL: DATABASE_URL appears invalid. It must be a full PostgreSQL connection string.');
+}
+
+const pool = new Pool(poolConfig);
 
 const PKT_OFFSET_HOURS = 5;
 const OPEN_HOUR_PKT = 16;
 
-/**
- * Automatically converts SQLite style '?' placeholders to PG style '$1, $2...'
- */
 function convertPlaceholders(sql) {
     let index = 1;
     return sql.replace(/\?/g, () => `$${index++}`);
@@ -56,10 +65,14 @@ function isGameOpen(drawTime) {
 
 const connect = async () => {
     try {
-        await pool.query('SELECT NOW()');
-        console.error('Database connected successfully (PostgreSQL).');
+        const client = await pool.connect();
+        console.error('############################################################');
+        console.error('>>> A-BABA POSTGRES ENGINE ONLINE <<<');
+        console.error('############################################################');
+        client.release();
     } catch (err) {
-        console.error('Failed to connect to PostgreSQL:', err);
+        console.error('CRITICAL: Failed to connect to PostgreSQL:', err.message);
+        console.error('Check your DATABASE_URL in the .env file.');
         process.exit(1);
     }
 };
@@ -82,7 +95,7 @@ const run = async (sql, params = []) => {
 const verifySchema = async () => {
     const res = await get("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'admins'");
     if (!res) {
-        console.error('CRITICAL: Database schema missing in PostgreSQL. Run npm run db:setup.');
+        console.error('CRITICAL: Database schema missing. Run "npm run db:setup" first.');
         process.exit(1);
     }
 };
@@ -92,14 +105,12 @@ const findAccountById = async (id, table) => {
     if (!account) return null;
 
     if (table !== 'games') {
-        const ledgers = await query('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC', [id]);
+        const ledgers = await query('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 100', [id]);
         account.ledger = ledgers;
     } else {
         account.isMarketOpen = isGameOpen(account.drawTime);
     }
 
-    // PG automatically handles JSON in columns if typed as JSONB, 
-    // but here we maintain the string-based parsing for compatibility with existing setup-database logic if it seeds as strings
     if (typeof account.prizeRates === 'string') account.prizeRates = JSON.parse(account.prizeRates);
     if (typeof account.betLimits === 'string') account.betLimits = JSON.parse(account.betLimits);
     if (account.isRestricted !== undefined) account.isRestricted = !!account.isRestricted;
@@ -119,7 +130,7 @@ const findAccountForLogin = async (loginId) => {
 const getAllFromTable = async (table, withLedger = false) => {
     const rows = await query(`SELECT * FROM ${table}`);
     return Promise.all(rows.map(async (acc) => {
-        if (withLedger) acc.ledger = await query('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC', [acc.id]);
+        if (withLedger) acc.ledger = await query('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 50', [acc.id]);
         if (table === 'games') acc.isMarketOpen = isGameOpen(acc.drawTime);
         if (typeof acc.prizeRates === 'string') acc.prizeRates = JSON.parse(acc.prizeRates);
         if (typeof acc.betLimits === 'string') acc.betLimits = JSON.parse(acc.betLimits);
