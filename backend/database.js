@@ -10,9 +10,9 @@ const connect = () => {
     if (_db) return _db;
     
     try {
-        console.log(`[DB] Attempting to link: ${DB_PATH}`);
+        console.log(`[DB] Establishing link to: ${DB_PATH}`);
         
-        // Ensure folder exists
+        // Ensure directory exists
         const dir = path.dirname(DB_PATH);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
@@ -22,7 +22,7 @@ const connect = () => {
         _db.pragma('journal_mode = WAL');
         _db.pragma('foreign_keys = ON');
         
-        // Connectivity test
+        // Quick health check
         _db.prepare("SELECT 1").get();
         
         console.log('[DB] SQL Link Established.');
@@ -34,8 +34,8 @@ const connect = () => {
         let msg = "Database Offline";
         let fix = "Run 'npm run db:setup' on the server.";
 
-        if (e.code === 'ERR_DLOPEN_FAILED' || e.message.includes('NODE_MODULE_VERSION')) {
-            msg = "Binary Mismatch: Reinstall SQL Driver";
+        if (e.code === 'ERR_DLOPEN_FAILED' || e.message.includes('NODE_MODULE_VERSION') || e.message.includes('self-register')) {
+            msg = "Binary Mismatch: Reinstall SQL Driver Required";
             fix = "Run: rm -rf node_modules && npm install && pm2 restart ababa-backend";
         } else if (!fs.existsSync(DB_PATH)) {
             msg = "Database Missing: SQL File Not Found";

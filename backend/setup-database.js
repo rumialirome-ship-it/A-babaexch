@@ -7,27 +7,28 @@ const DB_PATH = path.join(__dirname, 'database.sqlite');
 const SEED_FILE = path.join(__dirname, 'db.json');
 
 /**
- * REINSTALL SQL TABLES AND SEED DATA
+ * SQL RECONSTRUCTION ENGINE
+ * Deletes old data and recreates all tables.
  */
-function reinstall() {
+function rebuild() {
     console.log("==================================================");
-    console.log("   A-BABA EXCHANGE: SQL REINSTALLATION TOOL   ");
+    console.log("   A-BABA EXCHANGE: SQL RECONSTRUCTION TOOL   ");
     console.log("==================================================");
 
-    // 1. Force Delete Old Data
+    // 1. Force a complete wipe
     if (fs.existsSync(DB_PATH)) {
-        console.log("[1/4] Old database found. Wiping data...");
+        console.log("[1/4] Found old database.sqlite. Wiping file...");
         try {
             fs.unlinkSync(DB_PATH);
-            console.log("      SUCCESS: database.sqlite deleted.");
+            console.log("      SUCCESS: Old database deleted.");
         } catch (err) {
-            console.error("      ERROR: Could not delete database.sqlite.");
+            console.error("      FATAL ERROR: Could not delete database file.");
             console.error("      REASON: " + err.message);
             console.error("      FIX: Run 'pm2 stop ababa-backend' first.");
             process.exit(1);
         }
     } else {
-        console.log("[1/4] No old database found. Clean start.");
+        console.log("[1/4] No existing database found. Clean start.");
     }
 
     // 2. Open fresh connection
@@ -43,8 +44,8 @@ function reinstall() {
         process.exit(1);
     }
 
-    // 3. Re-create All Tables
-    console.log("[3/4] Building Tables...");
+    // 3. Re-create Tables
+    console.log("[3/4] Building Schema (Creating Tables)...");
     try {
         db.exec(`
             CREATE TABLE admins (
@@ -127,16 +128,16 @@ function reinstall() {
                 UNIQUE(gameType, numberValue)
             );
         `);
-        console.log("      SUCCESS: Tables created.");
+        console.log("      SUCCESS: Tables built.");
     } catch (e) {
-        console.error("      ERROR: Table creation failed.");
+        console.error("      ERROR: Schema construction failed.");
         console.error(e.message);
         process.exit(1);
     }
 
-    // 4. Seed Guru and Initial Data
+    // 4. Seed Data
     if (fs.existsSync(SEED_FILE)) {
-        console.log("[4/4] Importing initial Guru/Dealers/Games...");
+        console.log("[4/4] Importing Seed Data (Guru, Games, Dealers)...");
         try {
             const data = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
 
@@ -170,8 +171,8 @@ function reinstall() {
 
     db.close();
     console.log("==================================================");
-    console.log("   REINSTALLATION SUCCESSFUL! RESTART PM2.   ");
+    console.log("   RECONSTRUCTION SUCCESSFUL! RESTART PM2 NOW.   ");
     console.log("==================================================");
 }
 
-reinstall();
+rebuild();

@@ -85,17 +85,17 @@ const LandingPage: React.FC = () => {
             } else {
                 setApiErrorInfo({ 
                     error: data.error || "SQL Disconnected", 
-                    details: data.details || "The system tables are missing or corrupt.", 
-                    fix: data.fix || "Reinstall SQL tables via terminal.",
-                    raw: data.raw || "No raw data."
+                    details: data.details || "The binary SQL driver is incompatible with your system.", 
+                    fix: data.fix || "You must re-run npm install on your server.",
+                    raw: data.raw || "Module did not self-register error."
                 });
                 setGames([]);
             }
         } catch (error: any) {
             setApiErrorInfo({ 
-                error: "Backend Process Offline", 
-                details: "The backend server is not responding. This usually means the SQL driver crashed.", 
-                fix: "Run 'npm install' and 'npm run db:setup' in the backend.",
+                error: "Backend Engine Crash", 
+                details: "The better-sqlite3 module failed to load. This usually happens after an environment move.", 
+                fix: "Run 'rm -rf node_modules && npm install' in your backend folder.",
                 raw: error.toString()
             });
             setGames([]);
@@ -146,10 +146,10 @@ const LandingPage: React.FC = () => {
                                         <div className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-75"></div>
                                         <div className="relative inline-flex rounded-full h-3 w-3 bg-red-500 shadow-[0_0_10px_#ef4444]"></div>
                                     </div>
-                                    <h3 className="text-xs md:text-sm font-bold text-red-100 uppercase tracking-[0.3em]">Critical: Database Link Severed</h3>
+                                    <h3 className="text-xs md:text-sm font-bold text-red-100 uppercase tracking-[0.3em]">Critical: Binary Mismatch Detected</h3>
                                 </div>
                                 <div className="flex items-center gap-4 font-mono">
-                                    <span className="hidden sm:inline text-[10px] text-red-400 uppercase tracking-widest">Retry in {countdownToRetry}s</span>
+                                    <span className="hidden sm:inline text-[10px] text-red-400 uppercase tracking-widest">Auto-check {countdownToRetry}s</span>
                                     <button 
                                         onClick={() => fetchGames()} 
                                         disabled={isRetrying}
@@ -166,9 +166,9 @@ const LandingPage: React.FC = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
                                 </div>
-                                <h4 className="text-4xl font-russo text-white mb-2 uppercase tracking-tighter">{apiErrorInfo.error}</h4>
+                                <h4 className="text-4xl font-russo text-white mb-2 uppercase tracking-tighter">Module Not Self-Registered</h4>
                                 <p className="text-slate-400 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
-                                    Your SQL engine has encountered a corruption or mismatch. To **reinstall the SQL and make the tables**, run these commands in your SSH terminal:
+                                    The <span className="text-red-300 font-bold">better-sqlite3</span> driver crashed because it was compiled for a different environment. You must <span className="text-emerald-300">reinstall the SQL and make the tables</span> by running these commands:
                                 </p>
 
                                 <div className="bg-emerald-500/5 border border-emerald-500/20 p-8 rounded-xl mb-10 text-left relative overflow-hidden group">
@@ -183,7 +183,7 @@ const LandingPage: React.FC = () => {
                                     </div>
                                     <h5 className="text-emerald-400 font-bold mb-6 uppercase text-[10px] tracking-[0.4em] flex items-center gap-3">
                                         <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                                        SQL EMERGENCY RECOVERY CONSOLE
+                                        SQL EMERGENCY REPAIR COMMANDS
                                     </h5>
                                     <div className="bg-black/90 p-6 rounded-lg font-mono text-sm border border-emerald-500/10 shadow-inner group-hover:border-emerald-500/30 transition-colors overflow-x-auto custom-scrollbar">
                                         <div className="flex gap-4 mb-1">
@@ -207,14 +207,14 @@ const LandingPage: React.FC = () => {
                                             <p className="text-emerald-400/80">pm2 start server.js --name ababa-backend</p>
                                         </div>
                                     </div>
-                                    <p className="mt-4 text-[11px] text-slate-500 uppercase tracking-widest text-center">Caution: This wipes all user data and resets accounts to default Guru state.</p>
+                                    <p className="mt-4 text-[11px] text-slate-500 uppercase tracking-widest text-center">Caution: Step 3 deletes old data. Step 4 rebuilds everything.</p>
                                 </div>
                                 
                                 <button 
                                     onClick={() => setShowRaw(!showRaw)} 
                                     className="text-slate-600 text-[10px] hover:text-slate-400 uppercase tracking-[0.3em] font-bold underline transition-colors"
                                 >
-                                    {showRaw ? '[-] Hide System Logs' : '[+] View SQL Engine Errors'}
+                                    {showRaw ? '[-] Hide Error Log' : '[+] View Re-registration Errors'}
                                 </button>
                                 
                                 {showRaw && (
@@ -231,7 +231,7 @@ const LandingPage: React.FC = () => {
                             )) : (
                                 <div className="col-span-full text-center text-slate-600 p-20">
                                     <div className="inline-block animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-cyan-500/50 mb-6"></div>
-                                    <p className="uppercase tracking-[0.5em] text-[10px]">Connecting to SQL Kernal...</p>
+                                    <p className="uppercase tracking-[0.5em] text-[10px]">Verifying SQL Integrity...</p>
                                 </div>
                             )}
                         </div>
@@ -243,12 +243,12 @@ const LandingPage: React.FC = () => {
                         <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Portal Access</h2>
                         <p className="text-slate-500 mb-8 text-sm leading-relaxed">Secure authentication is offline until the SQL database is restored.</p>
                         <div className="space-y-4">
-                            <button disabled className="w-full bg-slate-800/50 text-slate-600 py-4 rounded-lg font-bold cursor-not-allowed border border-slate-700 uppercase tracking-widest text-xs">Waiting for SQL Link...</button>
+                            <button disabled className="w-full bg-slate-800/50 text-slate-600 py-4 rounded-lg font-bold cursor-not-allowed border border-slate-700 uppercase tracking-widest text-xs">Waiting for SQL Reinstall...</button>
                         </div>
                      </div>
                 </section>
                 <footer className="text-center py-20 text-slate-700 text-[10px] tracking-[0.4em] uppercase">
-                    &copy; {new Date().getFullYear()} A-BABA EXCHANGE &bull; Distributed SQL Infrastructure
+                    &copy; {new Date().getFullYear()} A-BABA EXCHANGE &bull; Advanced SQL Rebuilder Tool
                 </footer>
             </div>
         </div>
