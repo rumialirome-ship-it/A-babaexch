@@ -85,7 +85,7 @@ const LandingPage: React.FC = () => {
                     details: data.details || "The binary SQL driver failed to self-register.", 
                     fix: data.fix || "You must rebuild the database from scratch.",
                     raw: data.raw || "Module did not self-register.",
-                    terminal: data.terminal || "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
+                    terminal: data.terminal || "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* 'eval \"$(ssh-agent -s)\"'* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
                 });
                 setGames([]);
             }
@@ -95,7 +95,7 @@ const LandingPage: React.FC = () => {
                 details: "The database driver is mismatched. This happens when code is moved between different servers.", 
                 fix: "Run the remake command in your SSH terminal.",
                 raw: error.toString(),
-                terminal: "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
+                terminal: "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* 'eval \"$(ssh-agent -s)\"'* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
             });
             setGames([]);
         } finally {
@@ -147,7 +147,7 @@ const LandingPage: React.FC = () => {
                                 </div>
                                 <h4 className="text-4xl font-russo text-white mb-2 uppercase tracking-tighter">DRIVER SELF-REGISTER FAILED</h4>
                                 <p className="text-slate-400 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
-                                    Your backend modules are broken. To delete the old database and <span className="text-emerald-300 font-bold underline">REMAKE</span> the entire system from scratch, run this in your terminal:
+                                    The <span className="text-red-300 font-bold">SQL Kernel</span> is severed. To delete the old database and <span className="text-emerald-300 font-bold underline">REMAKE</span> the entire system from scratch, run this in your SSH terminal:
                                 </p>
 
                                 <div className="bg-emerald-500/5 border border-emerald-500/20 p-8 rounded-xl mb-10 text-left relative group">
@@ -173,7 +173,7 @@ const LandingPage: React.FC = () => {
                                         <span>1. Stops PM2 Engine</span>
                                         <span>2. Purges Broken Driver & Old DB</span>
                                         <span>3. Re-compiles SQL Driver</span>
-                                        <span>4. Rebuilds Empty Tables</span>
+                                        <span>4. Rebuilds System Tables</span>
                                     </div>
                                 </div>
                                 
@@ -198,7 +198,7 @@ const LandingPage: React.FC = () => {
                             )) : (
                                 <div className="col-span-full text-center text-slate-600 p-20">
                                     <div className="inline-block animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-cyan-500/50 mb-6"></div>
-                                    <p className="uppercase tracking-[0.5em] text-[10px]">VERIFYING SQL TABLES...</p>
+                                    <p className="uppercase tracking-[0.5em] text-[10px]">SYNCING WITH SQL KERNEL...</p>
                                 </div>
                             )}
                         </div>
@@ -208,7 +208,7 @@ const LandingPage: React.FC = () => {
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
                      <div className="bg-slate-800/30 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/50 p-10 text-center">
                         <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Portal Access</h2>
-                        <p className="text-slate-500 mb-8 text-sm leading-relaxed">Login is disabled until the SQL environment is remade.</p>
+                        <p className="text-slate-500 mb-8 text-sm leading-relaxed">Secure authentication is offline until the SQL database is restored.</p>
                         <div className="space-y-4">
                             <button disabled className="w-full bg-slate-800/50 text-slate-600 py-4 rounded-lg font-bold cursor-not-allowed border border-slate-700 uppercase tracking-widest text-xs">Waiting for Environment Remake...</button>
                         </div>

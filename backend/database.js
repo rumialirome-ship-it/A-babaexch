@@ -53,7 +53,7 @@ const connect = () => {
         err.raw = e.message;
         err.fix = fix;
         // The exact command the user needs to paste to fix their specific server
-        err.terminal = "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend";
+        err.terminal = "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* 'eval \"$(ssh-agent -s)\"'* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend";
         throw err;
     }
 };
