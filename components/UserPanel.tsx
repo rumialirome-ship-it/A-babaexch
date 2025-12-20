@@ -21,7 +21,6 @@ const SummaryCard: React.FC<{ title: string; value: number; color: string }> = (
     </div>
 );
 
-// Defined the missing interface to fix the error on line 24
 interface BettingModalProps {
     game: Game | null;
     games: Game[];
@@ -40,7 +39,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     const [error, setError] = useState<string | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
 
-    // --- AI Lucky Pick Logic ---
     const handleAiLuckyPick = async () => {
         setAiLoading(true);
         setError(null);
@@ -168,7 +166,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                     )}
 
                     <div className="flex justify-end pt-2">
-                         <button onClick={handleBet} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors">PLACE BET</button>
+                         <button onClick={handleBet} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors uppercase tracking-widest">PLACE BET</button>
                     </div>
                 </div>
             </div>
@@ -226,13 +224,15 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
             {activeTab === 'games' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {games.map(game => (
-                        <div key={game.id} className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 flex flex-col items-center text-center">
+                        <div key={game.id} className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 flex flex-col items-center text-center group hover:border-sky-500/30 transition-all">
                             <h3 className="text-xl font-bold text-white mb-2">{game.name}</h3>
-                            <p className="text-slate-400 text-sm mb-4">Draw @ {formatTime12h(game.drawTime)}</p>
+                            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-4">
+                                Draw @ <span className="text-sky-400/80">{formatTime12h(game.drawTime)} PKT</span>
+                            </p>
                             <button 
                                 onClick={() => setSelectedGame(game)}
                                 disabled={!!game.winningNumber}
-                                className={`w-full py-2 px-4 rounded-md font-bold transition-all ${game.winningNumber ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-sky-600 hover:bg-sky-500 text-white'}`}
+                                className={`w-full py-2 px-4 rounded-md font-bold transition-all uppercase tracking-widest text-xs ${game.winningNumber ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-900/20'}`}
                             >
                                 {game.winningNumber ? 'MARKET CLOSED' : 'PLAY NOW'}
                             </button>
@@ -290,5 +290,4 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
     );
 };
 
-// Fixed error in App.tsx by adding default export
 export default UserPanel;

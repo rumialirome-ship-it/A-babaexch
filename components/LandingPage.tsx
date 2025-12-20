@@ -14,12 +14,13 @@ const formatTime12h = (time24: string) => {
 const MarketCard: React.FC<{ game: Game }> = ({ game }) => {
   const { status, text } = useCountdown(game.drawTime);
   const isWinner = !!game.winningNumber;
-  const color = isWinner ? 'emerald' : 'cyan';
 
   return (
     <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700 hover:border-cyan-500/50 transition-all text-center group">
       <h3 className="text-2xl font-bold text-white mb-1 uppercase tracking-tight">{game.name}</h3>
-      <p className="text-slate-500 text-xs mb-4">Draw @ {formatTime12h(game.drawTime)}</p>
+      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-4">
+        Draw @ <span className="text-cyan-400/80">{formatTime12h(game.drawTime)} PKT</span>
+      </p>
       
       <div className="bg-black/40 p-5 rounded-lg border border-slate-700 group-hover:bg-black/60 transition-colors">
         {isWinner ? (
@@ -72,7 +73,7 @@ const LandingPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6 py-16">
         <header className="text-center mb-20">
           <h1 className="text-7xl font-black text-cyan-500 tracking-tighter mb-4 glitch-text" data-text="A-BABA EXCHANGE">A-BABA EXCHANGE</h1>
-          <p className="text-slate-500 uppercase tracking-[0.6em] text-xs font-semibold">Premium Distributed Lottery Ledger</p>
+          <p className="text-slate-500 uppercase tracking-[0.6em] text-xs font-semibold">Premium Lottery Infrastructure • <span className="text-cyan-400">Pakistani Standard Time</span></p>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
@@ -80,7 +81,7 @@ const LandingPage: React.FC = () => {
             <h2 className="text-2xl font-bold text-white mb-8 uppercase tracking-widest border-l-4 border-cyan-500 pl-4">Live Markets</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {games.length > 0 ? games.map(g => <MarketCard key={g.id} game={g} />) : (
-                <div className="col-span-full py-20 text-center animate-pulse text-slate-700 uppercase tracking-[0.3em]">Connecting to Engine...</div>
+                <div className="col-span-full py-20 text-center animate-pulse text-slate-700 uppercase tracking-[0.3em]">Connecting to PKT Engine...</div>
               )}
             </div>
           </div>
