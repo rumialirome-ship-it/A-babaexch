@@ -206,13 +206,25 @@ const LandingPage: React.FC = () => {
                 </section>
 
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
-                     <div className="bg-slate-800/30 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/50 p-10 text-center">
-                        <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Portal Access</h2>
-                        <p className="text-slate-500 mb-8 text-sm leading-relaxed">Secure authentication is offline until the SQL database is restored.</p>
-                        <div className="space-y-4">
-                            <button disabled className="w-full bg-slate-800/50 text-slate-600 py-4 rounded-lg font-bold cursor-not-allowed border border-slate-700 uppercase tracking-widest text-xs">Waiting for Environment Remake...</button>
+                    {apiErrorInfo ? (
+                        <div className="bg-red-900/20 backdrop-blur-md rounded-2xl shadow-2xl border border-red-500/50 p-10 text-center">
+                            <h2 className="text-2xl font-russo text-red-400 mb-6 uppercase tracking-tight">Portal Access Locked</h2>
+                            <p className="text-slate-400 mb-8 text-sm leading-relaxed">Secure authentication is offline until the SQL database is restored. Please use the recovery terminal above.</p>
+                            <div className="flex justify-center">
+                                <div className="animate-bounce p-2 bg-red-500/20 rounded-full border border-red-500/50">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
+                                </div>
+                            </div>
                         </div>
-                     </div>
+                    ) : (
+                        <div className="bg-slate-800/30 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/50 p-10 text-center">
+                            <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Portal Access</h2>
+                            <p className="text-slate-500 mb-8 text-sm leading-relaxed">Select your market above to view winners, or login below to manage your account.</p>
+                            <div className="space-y-4">
+                                <p className="text-slate-400 text-xs italic">Select a game from "Global Markets" to continue.</p>
+                            </div>
+                        </div>
+                    )}
                 </section>
                 <footer className="text-center py-20 text-slate-700 text-[10px] tracking-[0.4em] uppercase">
                     &copy; {new Date().getFullYear()} A-BABA EXCHANGE &bull; Distributed SQL Infrastructure

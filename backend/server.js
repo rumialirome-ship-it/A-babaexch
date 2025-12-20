@@ -18,6 +18,7 @@ const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
 let dbReady = false;
 let dbError = null;
 let dbRawError = null;
+let dbFixTerminal = null;
 
 const tryInitDB = () => {
     try {
@@ -26,15 +27,18 @@ const tryInitDB = () => {
             dbReady = true;
             dbError = null;
             dbRawError = null;
+            dbFixTerminal = null;
             console.log("[SERVER] Database is ready.");
             return true;
         } else {
             dbError = "Schema incomplete. Please run setup-database.js.";
+            dbFixTerminal = "npm run db:setup";
             console.error("[SERVER] " + dbError);
         }
     } catch (e) {
         dbError = e.message;
         dbRawError = e.raw || e.toString();
+        dbFixTerminal = e.terminal || "npm install";
         console.error("[SERVER] FATAL: Database failed to start.");
     }
     return false;
@@ -59,7 +63,8 @@ app.get('/api/status', (req, res) => {
         status: dbReady ? "online" : "error", 
         database: dbReady ? "connected" : "failed",
         error: dbError,
-        raw: dbRawError
+        raw: dbRawError,
+        terminal: dbFixTerminal
     });
 });
 
@@ -70,7 +75,8 @@ app.get('/api/games', (req, res) => {
             error: dbError || "Database Offline", 
             details: "The SQL link is severed. This usually means the binary driver crashed or the database file is missing.",
             raw: dbRawError,
-            fix: "Run: cd backend && pm2 stop ababa-backend && npm run db:setup && pm2 start server.js --name ababa-backend"
+            terminal: dbFixTerminal,
+            fix: "Run the remake command in your SSH terminal."
         });
     }
     try {
@@ -109,6 +115,7 @@ app.get('/api/user/ai-lucky-pick', authMiddleware, async (req, res) => {
 
 // --- AUTH ---
 app.post('/api/auth/login', (req, res) => {
+    if (!dbReady) return res.status(503).json({ message: "Database is offline. Fix required." });
     const { loginId, password } = req.body;
     try {
         const { account, role } = database.findAccountForLogin(loginId);
@@ -124,6 +131,7 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 app.get('/api/auth/verify', authMiddleware, (req, res) => {
+    if (!dbReady) return res.status(503).json({ message: "Database is offline." });
     try {
         const account = database.findAccountById(req.user.id, req.user.role.toLowerCase() + 's');
         if (!account) return res.status(404).json({ message: "Account not found." });
