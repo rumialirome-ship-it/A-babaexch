@@ -23,6 +23,50 @@ const PKT_OFFSET_HOURS = 5;
 const OPEN_HOUR_PKT = 16;
 
 /**
+ * Maps DB row keys to camelCase for Frontend
+ */
+function mapRow(row) {
+    if (!row) return null;
+    const mapped = {};
+    for (const key in row) {
+        let newKey = key;
+        if (key === 'prizerates') newKey = 'prizeRates';
+        if (key === 'betlimits') newKey = 'betLimits';
+        if (key === 'avatarurl') newKey = 'avatarUrl';
+        if (key === 'drawtime') newKey = 'drawTime';
+        if (key === 'winningnumber') newKey = 'winningNumber';
+        if (key === 'payoutsapproved') newKey = 'payoutsApproved';
+        if (key === 'isrestricted') newKey = 'isRestricted';
+        if (key === 'commissionrate') newKey = 'commissionRate';
+        if (key === 'dealerid') newKey = 'dealerId';
+        if (key === 'userid') newKey = 'userId';
+        if (key === 'gameid') newKey = 'gameId';
+        if (key === 'subgametype') newKey = 'subGameType';
+        if (key === 'amountpernumber') newKey = 'amountPerNumber';
+        if (key === 'totalamount') newKey = 'totalAmount';
+        if (key === 'accountid') newKey = 'accountId';
+        if (key === 'accounttype') newKey = 'accountType';
+        
+        mapped[newKey] = row[key];
+    }
+
+    // JSON Parsing safety
+    if (typeof mapped.prizeRates === 'string') {
+        try { mapped.prizeRates = JSON.parse(mapped.prizeRates); } catch(e) {}
+    }
+    if (typeof mapped.betLimits === 'string') {
+        try { mapped.betLimits = JSON.parse(mapped.betLimits); } catch(e) {}
+    }
+    if (typeof mapped.numbers === 'string') {
+        try { mapped.numbers = JSON.parse(mapped.numbers); } catch(e) {}
+    }
+    if (mapped.isRestricted !== undefined) mapped.isRestricted = !!mapped.isRestricted;
+    if (mapped.payoutsApproved !== undefined) mapped.payoutsApproved = !!mapped.payoutsApproved;
+
+    return mapped;
+}
+
+/**
  * Automatically converts SQLite style '?' placeholders to PG style '$1, $2...'
  */
 function convertPlaceholders(sql) {
@@ -31,7 +75,9 @@ function convertPlaceholders(sql) {
 }
 
 function getGameCycle(drawTime) {
-    if (!drawTime || !drawTime.includes(':')) return { openTime: new Date(), closeTime: new Date() };
+    if (!drawTime || typeof drawTime !== 'string' || !drawTime.includes(':')) {
+        return { openTime: new Date(), closeTime: new Date() };
+    }
     
     const now = new Date();
     const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
@@ -62,8 +108,8 @@ function getGameCycle(drawTime) {
 }
 
 function isGameOpen(drawTime) {
-    const now = new Date();
     const { openTime, closeTime } = getGameCycle(drawTime);
+    const now = new Date();
     return now >= openTime && now < closeTime;
 }
 
@@ -78,21 +124,18 @@ const connect = async () => {
     } catch (err) {
         console.error('CRITICAL: Failed to connect to PostgreSQL.');
         console.error('ERROR DETAIL:', err.message);
-        if (err.code === '28P01') {
-            console.error('FIX: Your database password in .env does not match the PostgreSQL user password.');
-        }
         process.exit(1);
     }
 };
 
 const query = async (sql, params = []) => {
     const res = await pool.query(convertPlaceholders(sql), params);
-    return res.rows;
+    return res.rows.map(mapRow);
 };
 
 const get = async (sql, params = []) => {
     const res = await pool.query(convertPlaceholders(sql), params);
-    return res.rows[0];
+    return mapRow(res.rows[0]);
 };
 
 const run = async (sql, params = []) => {
@@ -104,7 +147,7 @@ const verifySchema = async () => {
     try {
         const res = await get("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'admins'");
         if (!res) {
-            console.error('CRITICAL: Database schema missing in PostgreSQL. Run "npm run db:setup".');
+            console.error('CRITICAL: Database schema missing. Run "npm run db:setup".');
             process.exit(1);
         }
     } catch (e) {
@@ -118,15 +161,10 @@ const findAccountById = async (id, table) => {
     if (!account) return null;
 
     if (table !== 'games') {
-        const ledgers = await query('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 100', [id]);
-        account.ledger = ledgers;
+        account.ledger = await query('SELECT * FROM ledgers WHERE accountid = ? ORDER BY timestamp DESC LIMIT 100', [id]);
     } else {
         account.isMarketOpen = isGameOpen(account.drawTime);
     }
-
-    if (account.prizeRates && typeof account.prizeRates === 'string') account.prizeRates = JSON.parse(account.prizeRates);
-    if (account.betLimits && typeof account.betLimits === 'string') account.betLimits = JSON.parse(account.betLimits);
-    if (account.isRestricted !== undefined) account.isRestricted = !!account.isRestricted;
     
     return account;
 };
@@ -143,20 +181,19 @@ const findAccountForLogin = async (loginId) => {
 const getAllFromTable = async (table, withLedger = false) => {
     const rows = await query(`SELECT * FROM ${table}`);
     return Promise.all(rows.map(async (acc) => {
-        if (withLedger) acc.ledger = await query('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 50', [acc.id]);
-        if (table === 'games') acc.isMarketOpen = isGameOpen(acc.drawTime);
-        if (acc.prizeRates && typeof acc.prizeRates === 'string') acc.prizeRates = JSON.parse(acc.prizeRates);
-        if (acc.betLimits && typeof acc.betLimits === 'string') acc.betLimits = JSON.parse(acc.betLimits);
-        // Only parse numbers if they exist (usually for bets)
-        if (acc.numbers && typeof acc.numbers === 'string') acc.numbers = JSON.parse(acc.numbers);
-        if (acc.isRestricted !== undefined) acc.isRestricted = !!acc.isRestricted;
+        if (withLedger) {
+            acc.ledger = await query('SELECT * FROM ledgers WHERE accountid = ? ORDER BY timestamp DESC LIMIT 50', [acc.id]);
+        }
+        if (table === 'games') {
+            acc.isMarketOpen = isGameOpen(acc.drawTime);
+        }
         return acc;
     }));
 };
 
 const addLedgerEntry = async (accountId, accountType, description, debit, credit) => {
     const table = accountType.toLowerCase() + 's';
-    const lastEntry = await get('SELECT balance FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC, id DESC LIMIT 1', [accountId]);
+    const lastEntry = await get('SELECT balance FROM ledgers WHERE accountid = ? ORDER BY timestamp DESC, id DESC LIMIT 1', [accountId]);
     const lastBalance = lastEntry ? parseFloat(lastEntry.balance) : 0;
 
     if (debit > 0 && accountType !== 'ADMIN' && lastBalance < debit) {
@@ -164,7 +201,7 @@ const addLedgerEntry = async (accountId, accountType, description, debit, credit
     }
 
     const newBalance = lastBalance - debit + credit;
-    await run('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    await run('INSERT INTO ledgers (id, accountid, accounttype, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance]);
     await run(`UPDATE ${table} SET wallet = ? WHERE id = ?`, [newBalance, accountId]);
 };
