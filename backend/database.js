@@ -1,73 +1,114 @@
 
-const { Pool } = require('pg');
-require('dotenv').config();
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+const fs = require('fs');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://ababa_user:ababa123@localhost:5432/ababa_db',
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+const dbPath = path.resolve(__dirname, 'database.sqlite');
+
+// Ensure database file exists
+if (!fs.existsSync(dbPath)) {
+    console.warn("WARNING: database.sqlite not found. Please run 'npm run db:setup'.");
+}
+
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+        console.error('CRITICAL: Could not connect to database', err);
+    } else {
+        console.log('SQLITE ENGINE: Connected to local database file.');
+    }
 });
 
-// Helper to handle PostgreSQL's lowercase column names and JSON parsing
-const mapResult = (row) => {
-  if (!row) return null;
-  const safeParse = (str) => {
-    try { return typeof str === 'string' ? JSON.parse(str) : str; } 
-    catch (e) { return null; }
-  };
+// Helper for Promisified queries
+const query = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.all(sql, params, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+};
 
-  return {
-    ...row,
-    prizeRates: safeParse(row.prizerates),
-    betLimits: safeParse(row.betlimits),
-    isMarketOpen: row.ismarketopen,
-    drawTime: row.drawtime,
-    winningNumber: row.winningnumber,
-    isRestricted: row.isrestricted,
-    dealerId: row.dealerid,
-    commissionRate: row.commissionrate ? parseFloat(row.commissionrate) : 0,
-    wallet: row.wallet ? parseFloat(row.wallet) : 0
-  };
+const run = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.run(sql, params, function(err) {
+            if (err) reject(err);
+            else resolve({ id: this.lastID, changes: this.changes });
+        });
+    });
+};
+
+const get = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.get(sql, params, (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+        });
+    });
+};
+
+const mapResult = (row) => {
+    if (!row) return null;
+    const safeParse = (str) => {
+        if (!str) return null;
+        try { return typeof str === 'string' ? JSON.parse(str) : str; } 
+        catch (e) { return null; }
+    };
+
+    return {
+        ...row,
+        id: row.id,
+        name: row.name,
+        prizeRates: safeParse(row.prizeRates || row.prizerates),
+        betLimits: safeParse(row.betLimits || row.betlimits),
+        isMarketOpen: !!(row.isMarketOpen || row.ismarketopen),
+        drawTime: row.drawTime || row.drawtime,
+        winningNumber: row.winningNumber || row.winningnumber,
+        isRestricted: !!(row.isRestricted || row.isrestricted),
+        dealerId: row.dealerId || row.dealerid,
+        commissionRate: parseFloat(row.commissionRate || row.commissionrate || 0),
+        wallet: parseFloat(row.wallet || 0)
+    };
 };
 
 module.exports = {
-  pool,
-  query: (text, params) => pool.query(text, params),
-  
-  getAllFromTable: async (table) => {
-    const res = await pool.query(`SELECT * FROM ${table}`);
-    return res.rows.map(mapResult);
-  },
-
-  findAccountForLogin: async (loginId) => {
-    const tables = ['admins', 'dealers', 'users'];
-    for (const table of tables) {
-      const res = await pool.query(`SELECT * FROM ${table} WHERE id = $1`, [loginId]);
-      if (res.rows[0]) return { 
-        account: mapResult(res.rows[0]), 
-        role: table.slice(0, -1).toUpperCase() 
-      };
-    }
-    return { account: null, role: null };
-  },
-
-  findAccountById: async (id, table) => {
-    const res = await pool.query(`SELECT * FROM ${table} WHERE id = $1`, [id]);
-    if (!res.rows[0]) return null;
-    const acc = mapResult(res.rows[0]);
+    db,
+    query,
+    run,
+    get,
     
-    // Fetch ledger for this account
-    const ledgerRes = await pool.query(
-      'SELECT * FROM ledgers WHERE accountId = $1 ORDER BY timestamp DESC LIMIT 100', 
-      [id]
-    );
-    acc.ledger = ledgerRes.rows.map(l => ({
-        ...l,
-        debit: parseFloat(l.debit),
-        credit: parseFloat(l.credit),
-        balance: parseFloat(l.balance)
-    }));
-    return acc;
-  }
+    getAllFromTable: async (table) => {
+        const rows = await query(`SELECT * FROM ${table}`);
+        return rows.map(mapResult);
+    },
+
+    findAccountForLogin: async (loginId) => {
+        const tables = ['admins', 'dealers', 'users'];
+        for (const table of tables) {
+            const row = await get(`SELECT * FROM ${table} WHERE id = ?`, [loginId]);
+            if (row) return { 
+                account: mapResult(row), 
+                role: table.slice(0, -1).toUpperCase() 
+            };
+        }
+        return { account: null, role: null };
+    },
+
+    findAccountById: async (id, table) => {
+        const row = await get(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+        if (!row) return null;
+        const acc = mapResult(row);
+        
+        const ledgerRows = await query(
+            'SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 100', 
+            [id]
+        );
+        acc.ledger = ledgerRows.map(l => ({
+            ...l,
+            debit: parseFloat(l.debit || 0),
+            credit: parseFloat(l.credit || 0),
+            balance: parseFloat(l.balance || 0),
+            timestamp: new Date(l.timestamp)
+        }));
+        return acc;
+    }
 };

@@ -1,105 +1,109 @@
 
-const { Client } = require('pg');
-require('dotenv').config();
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+const fs = require('fs');
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://ababa_user:ababa123@localhost:5432/ababa_db';
+const dbPath = path.resolve(__dirname, 'database.sqlite');
 
-async function setup() {
-  const client = new Client({ connectionString });
-  try {
-    await client.connect();
-    console.log("INITIALIZING POSTGRESQL ENGINE (PKT STANDARDIZED)...");
+// Remove old DB if exists to ensure clean start
+if (fs.existsSync(dbPath)) {
+    fs.unlinkSync(dbPath);
+}
 
-    await client.query(`
-      DROP TABLE IF EXISTS bets CASCADE;
-      DROP TABLE IF EXISTS ledgers CASCADE;
-      DROP TABLE IF EXISTS users CASCADE;
-      DROP TABLE IF EXISTS dealers CASCADE;
-      DROP TABLE IF EXISTS admins CASCADE;
-      DROP TABLE IF EXISTS games CASCADE;
+const db = new sqlite3.Database(dbPath);
 
-      CREATE TABLE admins (
+console.log("INITIALIZING PKT STANDARDIZED SQLITE ENGINE...");
+
+db.serialize(() => {
+    // Create Tables
+    db.run(`CREATE TABLE admins (
         id TEXT PRIMARY KEY, 
         name TEXT NOT NULL, 
         password TEXT NOT NULL, 
-        wallet NUMERIC(20,2) DEFAULT 0, 
+        wallet REAL DEFAULT 0, 
         prizeRates TEXT
-      );
+    )`);
 
-      CREATE TABLE dealers (
+    db.run(`CREATE TABLE dealers (
         id TEXT PRIMARY KEY, 
         name TEXT NOT NULL, 
         password TEXT NOT NULL, 
         area TEXT, 
         contact TEXT, 
-        wallet NUMERIC(20,2) DEFAULT 0, 
-        commissionRate NUMERIC(5,2) DEFAULT 0, 
-        isRestricted BOOLEAN DEFAULT FALSE, 
+        wallet REAL DEFAULT 0, 
+        commissionRate REAL DEFAULT 0, 
+        isRestricted INTEGER DEFAULT 0, 
         prizeRates TEXT
-      );
+    )`);
 
-      CREATE TABLE users (
+    db.run(`CREATE TABLE users (
         id TEXT PRIMARY KEY, 
         name TEXT NOT NULL, 
         password TEXT NOT NULL, 
-        dealerId TEXT REFERENCES dealers(id), 
+        dealerId TEXT, 
         area TEXT, 
         contact TEXT, 
-        wallet NUMERIC(20,2) DEFAULT 0, 
-        isRestricted BOOLEAN DEFAULT FALSE, 
+        wallet REAL DEFAULT 0, 
+        isRestricted INTEGER DEFAULT 0, 
         prizeRates TEXT, 
-        betLimits TEXT
-      );
+        betLimits TEXT,
+        FOREIGN KEY(dealerId) REFERENCES dealers(id)
+    )`);
 
-      CREATE TABLE games (
+    db.run(`CREATE TABLE games (
         id TEXT PRIMARY KEY, 
         name TEXT NOT NULL, 
         drawTime TEXT NOT NULL, 
         winningNumber TEXT, 
-        isMarketOpen BOOLEAN DEFAULT TRUE
-      );
+        isMarketOpen INTEGER DEFAULT 1
+    )`);
 
-      CREATE TABLE ledgers (
-        id SERIAL PRIMARY KEY, 
+    db.run(`CREATE TABLE ledgers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
         accountId TEXT NOT NULL, 
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, 
         description TEXT NOT NULL, 
-        debit NUMERIC(20,2) DEFAULT 0, 
-        credit NUMERIC(20,2) DEFAULT 0, 
-        balance NUMERIC(20,2) DEFAULT 0
-      );
+        debit REAL DEFAULT 0, 
+        credit REAL DEFAULT 0, 
+        balance REAL DEFAULT 0
+    )`);
 
-      CREATE TABLE bets (
+    db.run(`CREATE TABLE bets (
         id TEXT PRIMARY KEY,
-        userId TEXT REFERENCES users(id),
-        dealerId TEXT REFERENCES dealers(id),
-        gameId TEXT REFERENCES games(id),
+        userId TEXT,
+        dealerId TEXT,
+        gameId TEXT,
         subGameType TEXT,
         numbers TEXT,
-        amountPerNumber NUMERIC(20,2),
-        totalAmount NUMERIC(20,2),
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        amountPerNumber REAL,
+        totalAmount REAL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(userId) REFERENCES users(id),
+        FOREIGN KEY(dealerId) REFERENCES dealers(id),
+        FOREIGN KEY(gameId) REFERENCES games(id)
+    )`);
 
-      -- Seed Data (Standard PKT Circuit)
-      INSERT INTO admins (id, name, password, wallet, prizeRates) 
-      VALUES ('Guru', 'Guru', 'Pak@4646', 1000000, '{"oneDigitOpen":90,"oneDigitClose":90,"twoDigit":900}');
+    // Seed Data
+    const adminPrizeRates = JSON.stringify({ oneDigitOpen: 90, oneDigitClose: 90, twoDigit: 900 });
+    db.run(`INSERT INTO admins (id, name, password, wallet, prizeRates) 
+            VALUES ('Guru', 'Guru', 'Pak@4646', 1000000, ?)`, [adminPrizeRates]);
 
-      INSERT INTO games (id, name, drawTime) VALUES 
-      ('g1', 'Ali Baba', '18:15'), ('g2', 'GSM', '18:45'), ('g3', 'OYO TV', '20:15'),
-      ('g4', 'LS1', '20:45'), ('g5', 'OLA TV', '21:15'), ('g6', 'AK', '21:55'),
-      ('g7', 'LS2', '23:45'), ('g8', 'AKC', '00:55'), ('g9', 'LS3', '02:10'), ('g10', 'LS4', '03:10');
+    const games = [
+        ['g1', 'Ali Baba', '18:15'], ['g2', 'GSM', '18:45'], ['g3', 'OYO TV', '20:15'],
+        ['g4', 'LS1', '20:45'], ['g5', 'OLA TV', '21:15'], ['g6', 'AK', '21:55'],
+        ['g7', 'LS2', '23:45'], ['g8', 'AKC', '00:55'], ['g9', 'LS3', '02:10'], ['g10', 'LS4', '03:10']
+    ];
+    const gameStmt = db.prepare(`INSERT INTO games (id, name, drawTime) VALUES (?, ?, ?)`);
+    games.forEach(g => gameStmt.run(g));
+    gameStmt.finalize();
 
-      INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, prizeRates)
-      VALUES ('dealer01', 'ABD-001', 'Pak@123', 'KHI', '03323022123', 50000, 10, '{"oneDigitOpen":80,"oneDigitClose":80,"twoDigit":800}');
-    `);
+    const dealerPrizeRates = JSON.stringify({ oneDigitOpen: 80, oneDigitClose: 80, twoDigit: 800 });
+    db.run(`INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, prizeRates)
+            VALUES ('dealer01', 'ABD-001', 'Pak@123', 'KHI', '03323022123', 50000, 10, ?)`, [dealerPrizeRates]);
+
     console.log("----------------------------------------");
-    console.log("POSTGRESQL SCHEMA DEPLOYED (PKT READY)");
+    console.log("SQLITE PKT SCHEMA DEPLOYED SUCCESSFULLY");
     console.log("----------------------------------------");
-  } catch (err) {
-    console.error("DEPLOYMENT FAILURE:", err.message);
-  } finally {
-    await client.end();
-  }
-}
-setup();
+});
+
+db.close();

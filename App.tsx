@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Role, Game, User, Dealer, Bet } from './types';
 import { useAuth } from './hooks/useAuth';
 import LandingPage from './components/LandingPage';
@@ -21,31 +21,44 @@ const App: React.FC = () => {
     bets: []
   });
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     if (!role) return;
-
-    const loadData = async () => {
-      const endpoint = role === Role.Admin ? '/api/admin/data' : (role === Role.Dealer ? '/api/dealer/data' : '/api/user/data');
-      try {
-        const res = await fetchWithAuth(endpoint);
-        if (res.ok) {
-          const result = await res.json();
-          setData({
-            games: result.games || [],
-            users: result.users || [],
-            dealers: result.dealers || [],
-            bets: result.bets || []
-          });
-        }
-      } catch (e) {
-        console.error("Data load failed", e);
+    const endpoint = role === Role.Admin ? '/api/admin/data' : (role === Role.Dealer ? '/api/dealer/data' : '/api/user/data');
+    try {
+      const res = await fetchWithAuth(endpoint);
+      if (res.ok) {
+        const result = await res.json();
+        setData({
+          games: result.games || [],
+          users: result.users || [],
+          dealers: result.dealers || [],
+          bets: result.bets || []
+        });
       }
-    };
+    } catch (e) {
+      console.error("Data load failed", e);
+    }
+  }, [role, fetchWithAuth]);
 
+  useEffect(() => {
     loadData();
     const itv = setInterval(loadData, 30000);
     return () => clearInterval(itv);
-  }, [role, fetchWithAuth]);
+  }, [loadData]);
+
+  // --- HANDLERS ---
+
+  const handleAdminAction = async (endpoint: string, body: any) => {
+    const res = await fetchWithAuth(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    if (res.ok) loadData();
+    else {
+      const err = await res.json();
+      alert(err.message || "Action failed");
+    }
+  };
 
   if (loading) return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -59,7 +72,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-white">
         <nav className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                <h1 className="font-black text-cyan-400 tracking-tighter text-xl">A-BABA</h1>
+                <h1 className="font-black text-cyan-400 tracking-tighter text-xl uppercase">A-BABA EXCHANGE</h1>
                 <div className="flex items-center gap-6">
                     <div className="text-right hidden sm:block">
                         <p className="text-[10px] text-slate-500 uppercase tracking-widest">{role}</p>
@@ -80,16 +93,20 @@ const App: React.FC = () => {
                 users={data.users} 
                 games={data.games} 
                 bets={data.bets} 
-                declareWinner={()=>{}} 
-                updateWinner={()=>{}} 
-                approvePayouts={()=>{}} 
-                topUpDealerWallet={()=>{}} 
-                withdrawFromDealerWallet={()=>{}} 
-                toggleAccountRestriction={()=>{}} 
-                onPlaceAdminBets={async ()=>{}} 
-                updateGameDrawTime={async ()=>{}} 
-                onSaveDealer={async ()=>{}} 
-                setUsers={()=>{}} 
+                // Fix: Correctly implemented placeholders with expected parameters and return types
+                declareWinner={(gameId, winningNumber) => handleAdminAction('/api/admin/declare-winner', { gameId, winningNumber })} 
+                updateWinner={(gameId, winningNumber) => handleAdminAction('/api/admin/declare-winner', { gameId, winningNumber })} 
+                approvePayouts={(gameId) => handleAdminAction('/api/admin/approve-payouts', { gameId })} 
+                topUpDealerWallet={(dealerId, amount) => handleAdminAction('/api/admin/topup-dealer', { dealerId, amount })} 
+                withdrawFromDealerWallet={(dealerId, amount) => handleAdminAction('/api/admin/withdraw-dealer', { dealerId, amount })} 
+                toggleAccountRestriction={(accountId, type) => handleAdminAction('/api/auth/toggle-restriction', { accountId, type })} 
+                onPlaceAdminBets={async (details) => handleAdminAction('/api/admin/place-bet', details)} 
+                updateGameDrawTime={async (gameId, drawTime) => handleAdminAction('/api/admin/update-draw-time', { gameId, drawTime })} 
+                onSaveDealer={(dealer) => handleAdminAction('/api/admin/save-dealer', dealer)} 
+                setUsers={(usersOrFn) => setData(prev => ({ 
+                    ...prev, 
+                    users: typeof usersOrFn === 'function' ? (usersOrFn as any)(prev.users) : usersOrFn 
+                }))} 
               />
             )}
             {role === Role.Dealer && (
@@ -98,11 +115,12 @@ const App: React.FC = () => {
                 users={data.users} 
                 bets={data.bets} 
                 games={data.games} 
-                onSaveUser={async ()=>{}} 
-                topUpUserWallet={async ()=>{}} 
-                withdrawFromUserWallet={async ()=>{}} 
-                toggleAccountRestriction={async ()=>{}} 
-                placeBetAsDealer={async ()=>{}} 
+                onSaveUser={(user) => handleAdminAction('/api/dealer/save-user', user)} 
+                topUpUserWallet={(userId, amount) => handleAdminAction('/api/dealer/topup-user', { userId, amount })} 
+                // Fix: Corrected withdrawFromUserWallet to be an async function matching the required signature to resolve line 116 type error
+                withdrawFromUserWallet={async (userId, amount) => handleAdminAction('/api/dealer/withdraw-user', { userId, amount })} 
+                toggleAccountRestriction={(accountId) => handleAdminAction('/api/auth/toggle-restriction', { accountId, type: 'user' })} 
+                placeBetAsDealer={(details) => handleAdminAction('/api/dealer/place-bet', details)} 
               />
             )}
             {role === Role.User && (
@@ -110,7 +128,7 @@ const App: React.FC = () => {
                 user={account as any} 
                 games={data.games} 
                 bets={data.bets} 
-                placeBet={async ()=>{}} 
+                placeBet={(details) => handleAdminAction('/api/user/place-bet', details)} 
               />
             )}
         </main>
