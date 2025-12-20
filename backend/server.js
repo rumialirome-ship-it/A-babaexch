@@ -35,7 +35,7 @@ app.get('/api/auth/verify', authMiddleware, async (req, res) => {
     } catch (e) { res.status(500).send(); }
 });
 
-// --- AI INSIGHTS (NEW) ---
+// --- AI INSIGHTS ---
 app.post('/api/admin/ai-insights', authMiddleware, async (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     if (!process.env.API_KEY) return res.status(500).json({ message: "Gemini API Key missing in backend .env" });
@@ -75,7 +75,7 @@ app.get('/api/user/data', authMiddleware, async (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
     try {
         const games = await database.getAllFromTable('games');
-        const allBets = await database.query('SELECT * FROM bets WHERE userId = ? ORDER BY timestamp DESC', [req.user.id]);
+        const allBets = await database.query('SELECT * FROM bets WHERE userid = ? ORDER BY timestamp DESC', [req.user.id]);
         res.json({ games, bets: allBets });
     } catch (e) { res.status(500).send(); }
 });
@@ -94,7 +94,7 @@ app.post('/api/user/bets', authMiddleware, async (req, res) => {
 
         for (const group of betGroups) {
             const bid = uuidv4();
-            await database.run('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?,?,?,?,?,?,?,?,?)',
+            await database.run('INSERT INTO bets (id, userid, dealerid, gameid, subgametype, numbers, amountpernumber, totalamount, timestamp) VALUES (?,?,?,?,?,?,?,?,?)',
                 [bid, user.id, user.dealerId, gameId, group.subGameType, JSON.stringify(group.numbers), group.amountPerNumber, group.numbers.length * group.amountPerNumber, new Date().toISOString()]);
         }
         await database.addLedgerEntry(user.id, 'USER', `Bet on ${game.name}`, totalCost, 0);
@@ -107,7 +107,7 @@ app.get('/api/dealer/data', authMiddleware, async (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try {
         const users = (await database.getAllFromTable('users', true)).filter(u => u.dealerId === req.user.id);
-        const bets = await database.query('SELECT * FROM bets WHERE dealerId = ? ORDER BY timestamp DESC LIMIT 500', [req.user.id]);
+        const bets = await database.query('SELECT * FROM bets WHERE dealerid = ? ORDER BY timestamp DESC LIMIT 500', [req.user.id]);
         res.json({ users, bets });
     } catch (e) { res.status(500).send(); }
 });
@@ -153,11 +153,23 @@ app.get('/api/admin/summary', authMiddleware, async (req, res) => {
                 winningNumber: game.winningNumber || '-',
                 totalStake: stake,
                 totalPayouts: 0, 
+                totalDealerProfit: 0,
+                totalCommissions: 0,
                 netProfit: stake
             };
         });
 
-        res.json({ games: gameSummaries, totals: { totalStake, totalPayouts: 0, netProfit: totalStake } });
+        res.json({ 
+            games: gameSummaries, 
+            totals: { 
+                totalStake, 
+                totalPayouts: 0, 
+                totalDealerProfit: 0,
+                totalCommissions: 0,
+                netProfit: totalStake 
+            },
+            totalBets: bets.length
+        });
     } catch (e) { res.status(500).send(); }
 });
 
@@ -165,7 +177,7 @@ app.post('/api/admin/games/:id/declare-winner', authMiddleware, async (req, res)
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     const { winningNumber } = req.body;
     try {
-        await database.run('UPDATE games SET winningNumber = ? WHERE id = ?', [winningNumber, req.params.id]);
+        await database.run('UPDATE games SET winningnumber = ? WHERE id = ?', [winningNumber, req.params.id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ message: e.message }); }
 });

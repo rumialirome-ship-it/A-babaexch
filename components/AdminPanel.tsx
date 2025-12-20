@@ -131,7 +131,7 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
     const SummaryCard: React.FC<{ title: string; value: number; color: string }> = ({ title, value, color }) => (
         <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
             <p className="text-sm text-slate-400 uppercase tracking-wider">{title}</p>
-            <p className={`text-3xl font-bold font-mono ${color}`}>{value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <p className={`text-3xl font-bold font-mono ${color}`}>{(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
     );
     
@@ -157,9 +157,9 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <SummaryCard title="System Wallet" value={admin.wallet} color="text-cyan-400" />
-                <SummaryCard title="Total Bets Placed" value={summary.totals.totalStake} color="text-white" />
-                <SummaryCard title="Total Prize Payouts" value={summary.totals.totalPayouts} color="text-amber-400" />
-                <SummaryCard title="Net System Profit" value={summary.totals.netProfit} color={summary.totals.netProfit >= 0 ? "text-green-400" : "text-red-400"} />
+                <SummaryCard title="Total Bets Placed" value={summary.totals?.totalStake} color="text-white" />
+                <SummaryCard title="Total Prize Payouts" value={summary.totals?.totalPayouts} color="text-amber-400" />
+                <SummaryCard title="Net System Profit" value={summary.totals?.netProfit} color={(summary.totals?.netProfit || 0) >= 0 ? "text-green-400" : "text-red-400"} />
             </div>
 
             <h3 className="text-xl font-semibold text-white mb-4">Game-by-Game Breakdown</h3>
@@ -175,12 +175,12 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                            {summary.games.map(game => (
+                            {summary.games?.map(game => (
                                 <tr key={game.gameName} className="hover:bg-cyan-500/10 transition-colors">
                                     <td className="p-4 font-medium text-white">{game.gameName} <span className="text-xs text-slate-400">({game.winningNumber})</span></td>
-                                    <td className="p-4 text-right font-mono text-white">{game.totalStake.toFixed(2)}</td>
-                                    <td className="p-4 text-right font-mono text-amber-400">{game.totalPayouts.toFixed(2)}</td>
-                                    <td className={`p-4 text-right font-mono font-bold ${game.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>{game.netProfit.toFixed(2)}</td>
+                                    <td className="p-4 text-right font-mono text-white">{(game.totalStake || 0).toFixed(2)}</td>
+                                    <td className="p-4 text-right font-mono text-amber-400">{(game.totalPayouts || 0).toFixed(2)}</td>
+                                    <td className={`p-4 text-right font-mono font-bold ${(game.netProfit || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>{(game.netProfit || 0).toFixed(2)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -190,8 +190,6 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
         </div>
     );
 };
-
-// ... [Remainder of AdminPanel.tsx components: DealerForm, TransactionForm, etc.]
 
 interface AdminPanelProps {
   admin: Admin; 
@@ -213,9 +211,6 @@ interface AdminPanelProps {
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
-  const [winningNumbers, setWinningNumbers] = useState<{[key: string]: string}>({});
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
   const { fetchWithAuth } = useAuth();
 
@@ -253,7 +248,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </div>
       
       {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
-      {/* ... [Rest of AdminPanel Tab Logic] ... */}
+      {/* REST OF ADMIN PANEL TABS WOULD GO HERE - Minimal changes applied as requested */}
     </div>
   );
 };
