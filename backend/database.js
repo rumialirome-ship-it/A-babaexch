@@ -7,7 +7,6 @@ require('dotenv').config();
 
 const poolConfig = {
     connectionString: process.env.DATABASE_URL,
-    // Robust defaults for production PG
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
@@ -32,6 +31,8 @@ function convertPlaceholders(sql) {
 }
 
 function getGameCycle(drawTime) {
+    if (!drawTime || !drawTime.includes(':')) return { openTime: new Date(), closeTime: new Date() };
+    
     const now = new Date();
     const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
     const year = now.getUTCFullYear();
@@ -123,8 +124,8 @@ const findAccountById = async (id, table) => {
         account.isMarketOpen = isGameOpen(account.drawTime);
     }
 
-    if (typeof account.prizeRates === 'string') account.prizeRates = JSON.parse(account.prizeRates);
-    if (typeof account.betLimits === 'string') account.betLimits = JSON.parse(account.betLimits);
+    if (account.prizeRates && typeof account.prizeRates === 'string') account.prizeRates = JSON.parse(account.prizeRates);
+    if (account.betLimits && typeof account.betLimits === 'string') account.betLimits = JSON.parse(account.betLimits);
     if (account.isRestricted !== undefined) account.isRestricted = !!account.isRestricted;
     
     return account;
@@ -144,9 +145,10 @@ const getAllFromTable = async (table, withLedger = false) => {
     return Promise.all(rows.map(async (acc) => {
         if (withLedger) acc.ledger = await query('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 50', [acc.id]);
         if (table === 'games') acc.isMarketOpen = isGameOpen(acc.drawTime);
-        if (typeof acc.prizeRates === 'string') acc.prizeRates = JSON.parse(acc.prizeRates);
-        if (typeof acc.betLimits === 'string') acc.betLimits = JSON.parse(acc.betLimits);
-        if (typeof acc.numbers === 'string') acc.numbers = JSON.parse(acc.numbers);
+        if (acc.prizeRates && typeof acc.prizeRates === 'string') acc.prizeRates = JSON.parse(acc.prizeRates);
+        if (acc.betLimits && typeof acc.betLimits === 'string') acc.betLimits = JSON.parse(acc.betLimits);
+        // Only parse numbers if they exist (usually for bets)
+        if (acc.numbers && typeof acc.numbers === 'string') acc.numbers = JSON.parse(acc.numbers);
         if (acc.isRestricted !== undefined) acc.isRestricted = !!acc.isRestricted;
         return acc;
     }));
