@@ -6,43 +6,41 @@ const Database = require('better-sqlite3');
 const DB_PATH = path.join(__dirname, 'database.sqlite');
 const SEED_FILE = path.join(__dirname, 'db.json');
 
-function main() {
-    console.log("==================================================");
-    console.log("   A-BABA EXCHANGE: SQL RECONSTRUCTION TOOL   ");
-    console.log("==================================================");
+/**
+ * Clean and Rebuild SQL Database
+ */
+function rebuild() {
+    console.log("--------------------------------------------------");
+    console.log("   A-BABA EXCHANGE: SQL REINSTALLATION TOOL   ");
+    console.log("--------------------------------------------------");
 
-    // 1. Force a complete wipe
+    // 1. Remove old file
     if (fs.existsSync(DB_PATH)) {
-        console.log("[1/4] Existing database found. Wiping...");
+        console.log("[!] Existing database detected. Deleting...");
         try {
-            // Attempt to change permissions just in case it's read-only
-            fs.chmodSync(DB_PATH, 0o666);
             fs.unlinkSync(DB_PATH);
-            console.log("      SUCCESS: Old database deleted.");
-        } catch (err) {
-            console.error("      FATAL ERROR: Could not delete database.sqlite.");
-            console.error("      REASON: " + err.message);
-            console.error("      FIX: Run 'pm2 stop ababa-backend' first.");
+            console.log("[+] Success: Old database removed.");
+        } catch (e) {
+            console.error("[!] Error: Could not delete database file. Is PM2 running?");
+            console.error("    Try: 'pm2 stop ababa-backend' first.");
             process.exit(1);
         }
-    } else {
-        console.log("[1/4] No existing database found. Starting fresh.");
     }
 
-    // 2. Open fresh connection
+    // 2. Initialize new DB
     let db;
     try {
         db = new Database(DB_PATH);
         db.pragma('journal_mode = WAL');
-        console.log("[2/4] Created fresh SQLite container.");
+        console.log("[+] Success: Initialized fresh SQL container.");
     } catch (e) {
-        console.error("      FATAL: Connection failed.");
+        console.error("[!] FATAL: Failed to initialize SQLite engine.");
         console.error(e.message);
         process.exit(1);
     }
 
-    // 3. Re-create Tables
-    console.log("[3/4] Building Schema...");
+    // 3. Create Tables
+    console.log("[+] Building tables...");
     try {
         db.exec(`
             CREATE TABLE admins (
@@ -125,32 +123,37 @@ function main() {
                 UNIQUE(gameType, numberValue)
             );
         `);
-        console.log("      SUCCESS: Tables built.");
+        console.log("[+] Success: All tables created.");
     } catch (e) {
-        console.error("      ERROR: Schema construction failed.");
+        console.error("[!] Error: Schema build failed.");
         console.error(e.message);
         process.exit(1);
     }
 
     // 4. Seed Data
     if (fs.existsSync(SEED_FILE)) {
-        console.log("[4/4] Importing Seed Data (Guru, Games, Dealers)...");
+        console.log("[+] Seeding data from db.json...");
         try {
             const data = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
 
             db.transaction(() => {
+                // Admin
                 const insAdmin = db.prepare('INSERT INTO admins (id, name, password, wallet, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?)');
                 insAdmin.run(data.admin.id, data.admin.name, data.admin.password, data.admin.wallet, JSON.stringify(data.admin.prizeRates), data.admin.avatarUrl);
 
+                // Games
                 const insGame = db.prepare('INSERT INTO games (id, name, drawTime) VALUES (?, ?, ?)');
                 data.games.forEach(g => insGame.run(g.id, g.name, g.drawTime));
 
+                // Dealers
                 const insDealer = db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
                 data.dealers.forEach(d => insDealer.run(d.id, d.name, d.password, d.area, d.contact, d.wallet, d.commissionRate, JSON.stringify(d.prizeRates), d.avatarUrl));
 
+                // Users
                 const insUser = db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
                 data.users.forEach(u => insUser.run(u.id, u.name, u.password, u.dealerId, u.area, u.contact, u.wallet, u.commissionRate, JSON.stringify(u.prizeRates), u.avatarUrl));
 
+                // Ledger
                 const insLedger = db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
                 if (data.admin.ledger) {
                     data.admin.ledger.forEach(l => {
@@ -158,18 +161,18 @@ function main() {
                     });
                 }
             })();
-            console.log("      SUCCESS: Data imported.");
+            console.log("[+] Success: All initial data imported.");
         } catch (e) {
-            console.error("      ERROR: Data import failed.");
+            console.error("[!] Error: Data seeding failed.");
             console.error(e.message);
             process.exit(1);
         }
     }
 
     db.close();
-    console.log("==================================================");
-    console.log("   RECONSTRUCTION SUCCESSFUL! RESTART PM2 NOW.   ");
-    console.log("==================================================");
+    console.log("--------------------------------------------------");
+    console.log("   REINSTALLATION COMPLETE. START APP NOW.   ");
+    console.log("--------------------------------------------------");
 }
 
-main();
+rebuild();

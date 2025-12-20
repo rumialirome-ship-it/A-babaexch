@@ -85,17 +85,17 @@ const LandingPage: React.FC = () => {
             } else {
                 setApiErrorInfo({ 
                     error: data.error || "Database Offline", 
-                    details: data.details || "The server is running but the SQL connection is broken.", 
-                    fix: data.fix || "Execute 'npm install' and 'npm run db:setup' in the backend directory.",
-                    raw: data.raw || "No raw data available."
+                    details: data.details || "The server is running but the SQL kernel is disconnected.", 
+                    fix: data.fix || "Execute 'npm install' and 'npm run db:setup' in the backend.",
+                    raw: data.raw || "No diagnostic logs available."
                 });
                 setGames([]);
             }
         } catch (error: any) {
             setApiErrorInfo({ 
-                error: "Backend Process Offline", 
-                details: "The backend server is not responding. It may have crashed due to a database binary mismatch.", 
-                fix: "Run 'pm2 restart ababa-backend' or 'npm install' in the backend.",
+                error: "Backend Engine Crash", 
+                details: "The backend process is not responding. This usually means the better-sqlite3 driver crashed.", 
+                fix: "Run 'npm install' on the server and restart PM2.",
                 raw: error.toString()
             });
             setGames([]);
@@ -132,90 +132,93 @@ const LandingPage: React.FC = () => {
             <div className="max-w-7xl mx-auto">
                 <header className="text-center my-12 md:my-20">
                     <h1 className="text-5xl md:text-7xl font-extrabold mb-3 tracking-wider glitch-text" data-text="A-BABA EXCHANGE">A-BABA EXCHANGE</h1>
-                    <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto font-sans">The Premier Digital Lottery Platform. Play daily games, manage your wallet, and win big.</p>
+                    <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto font-sans uppercase tracking-[0.2em]">High Performance Gaming Infrastructure</p>
                 </header>
 
                 <section id="games" className="mb-20">
-                    <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Today's Games</h2>
+                    <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Global Markets</h2>
                     
                     {apiErrorInfo ? (
-                        <div className="max-w-4xl mx-auto bg-slate-900/60 border border-red-500/50 rounded-lg overflow-hidden backdrop-blur-md shadow-[0_0_50px_rgba(239,68,68,0.25)]">
-                            <div className="bg-red-600/20 p-4 border-b border-red-500/30 flex items-center justify-between">
+                        <div className="max-w-4xl mx-auto bg-slate-900/80 border border-red-500/50 rounded-xl overflow-hidden backdrop-blur-xl shadow-[0_0_80px_rgba(239,68,68,0.2)]">
+                            <div className="bg-red-600/10 p-4 border-b border-red-500/30 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="relative flex items-center justify-center">
                                         <div className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-75"></div>
                                         <div className="relative inline-flex rounded-full h-3 w-3 bg-red-500 shadow-[0_0_10px_#ef4444]"></div>
                                     </div>
-                                    <h3 className="text-sm md:text-lg font-bold text-red-100 uppercase tracking-widest">SQL Link Severed</h3>
+                                    <h3 className="text-xs md:text-sm font-bold text-red-100 uppercase tracking-[0.3em]">Critical: SQL Link Down</h3>
                                 </div>
                                 <div className="flex items-center gap-4 font-mono">
-                                    <span className="hidden sm:inline text-[10px] text-red-400 uppercase tracking-widest">Polling {countdownToRetry}s</span>
                                     <button 
                                         onClick={() => fetchGames()} 
                                         disabled={isRetrying}
-                                        className="bg-red-600 hover:bg-red-500 text-white text-[10px] md:text-xs font-bold py-1.5 px-4 rounded transition-all active:scale-95 disabled:opacity-50"
+                                        className="bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold py-1.5 px-4 rounded-full transition-all active:scale-95 disabled:opacity-50"
                                     >
-                                        {isRetrying ? 'LINKING...' : 'RECONNECT'}
+                                        {isRetrying ? 'RECONNECTING...' : 'MANUAL RECONNECT'}
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="p-8 text-center">
-                                <div className="text-red-400 mb-6 flex justify-center scale-125">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            <div className="p-10 text-center">
+                                <div className="text-red-500 mb-6 flex justify-center opacity-50">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
                                 </div>
-                                <h4 className="text-3xl font-bold text-white mb-2">{apiErrorInfo.error}</h4>
-                                <p className="text-slate-300 text-md mb-8 max-w-xl mx-auto">The system cannot connect to your database. To delete the old SQL and create a new one, execute the following commands in your SSH terminal.</p>
+                                <h4 className="text-4xl font-russo text-white mb-4 uppercase tracking-tighter">{apiErrorInfo.error}</h4>
+                                <p className="text-slate-400 text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
+                                    The SQL Kernel failed to initialize tables. This is usually caused by a <span className="text-red-300 font-bold">Node.js version change</span> on your server. Follow the recovery protocol below.
+                                </p>
 
-                                <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-md mb-8 text-left relative overflow-hidden group">
-                                    <div className="absolute top-4 right-4">
+                                <div className="bg-emerald-500/5 border border-emerald-500/20 p-8 rounded-xl mb-10 text-left relative overflow-hidden group">
+                                    <div className="absolute top-6 right-8">
                                         <button 
                                             onClick={handleCopyWipe}
-                                            className="bg-amber-600/20 hover:bg-amber-600/40 text-amber-400 text-[10px] px-3 py-1.5 rounded border border-amber-500/40 transition-all uppercase font-bold flex items-center gap-2"
+                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-5 py-2 rounded-full transition-all uppercase font-bold flex items-center gap-2 shadow-lg shadow-emerald-900/20"
                                         >
-                                            {copySuccess ? 'COPIED!' : 'COPY WIPE & REBUILD COMMANDS'}
+                                            {copySuccess ? 'COPIED TO CLIPBOARD' : 'COPY REINSTALL SCRIPT'}
                                             {!copySuccess && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>}
                                         </button>
                                     </div>
-                                    <h5 className="text-amber-400 font-bold mb-4 uppercase text-[10px] tracking-widest flex items-center gap-2">
-                                        <div className="h-1.5 w-1.5 bg-amber-500 rounded-full animate-pulse"></div>
-                                        DATABASE RECONSTRUCTION PROCEDURE
+                                    <h5 className="text-emerald-400 font-bold mb-6 uppercase text-[10px] tracking-[0.4em] flex items-center gap-3">
+                                        <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                                        SQL REINSTALLATION PROTOCOL
                                     </h5>
-                                    <div className="bg-black/80 p-5 rounded font-mono text-sm border border-amber-500/20 shadow-inner group-hover:border-amber-500/40 transition-colors overflow-x-auto">
-                                        <div className="flex gap-4">
-                                            <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-amber-300 whitespace-nowrap">cd /var/www/html/A-babaexch/backend</p>
+                                    <div className="bg-black/90 p-6 rounded-lg font-mono text-sm border border-emerald-500/10 shadow-inner group-hover:border-emerald-500/30 transition-colors overflow-x-auto custom-scrollbar">
+                                        <div className="flex gap-4 mb-1">
+                                            <span className="text-slate-600 select-none">1.</span>
+                                            <p className="text-emerald-400/80 whitespace-nowrap">cd /var/www/html/A-babaexch/backend</p>
+                                        </div>
+                                        <div className="flex gap-4 mb-1">
+                                            <span className="text-slate-600 select-none">2.</span>
+                                            <p className="text-emerald-400/80 whitespace-nowrap">pm2 stop ababa-backend</p>
+                                        </div>
+                                        <div className="flex gap-4 mb-1">
+                                            <span className="text-slate-600 select-none">3.</span>
+                                            <p className="text-red-400 whitespace-nowrap">rm database.sqlite</p>
+                                        </div>
+                                        <div className="flex gap-4 mb-1">
+                                            <span className="text-slate-600 select-none">4.</span>
+                                            <p className="text-emerald-400 whitespace-nowrap">npm run db:setup</p>
                                         </div>
                                         <div className="flex gap-4">
-                                            <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-amber-300 whitespace-nowrap">pm2 stop ababa-backend</p>
-                                        </div>
-                                        <div className="flex gap-4">
-                                            <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-amber-300 whitespace-nowrap">rm database.sqlite</p>
-                                        </div>
-                                        <div className="flex gap-4">
-                                            <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-amber-300 whitespace-nowrap">npm run db:setup</p>
-                                        </div>
-                                        <div className="flex gap-4">
-                                            <span className="text-slate-600 select-none">$</span>
-                                            <p className="text-amber-300 whitespace-nowrap">pm2 start server.js --name ababa-backend</p>
+                                            <span className="text-slate-600 select-none">5.</span>
+                                            <p className="text-emerald-400/80 whitespace-nowrap">pm2 start server.js --name ababa-backend</p>
                                         </div>
                                     </div>
+                                    <p className="mt-4 text-[11px] text-slate-500 uppercase tracking-widest text-center">Caution: Step 3 will wipe current bets and reset accounts to Guru default.</p>
                                 </div>
                                 
                                 <button 
                                     onClick={() => setShowRaw(!showRaw)} 
-                                    className="text-slate-500 text-[10px] hover:text-slate-300 uppercase tracking-widest font-bold"
+                                    className="text-slate-600 text-[10px] hover:text-slate-400 uppercase tracking-[0.3em] font-bold underline transition-colors"
                                 >
-                                    {showRaw ? '[-] Hide' : '[+] View'} Detailed Error
+                                    {showRaw ? '[-] Collapse Diagnostics' : '[+] View Raw System Logs'}
                                 </button>
                                 
                                 {showRaw && (
-                                    <div className="mt-4 p-4 bg-black/40 border border-slate-800 rounded text-left font-mono text-[11px] text-red-300/60 overflow-x-auto">
+                                    <div className="mt-6 p-6 bg-black/60 border border-slate-800 rounded-lg text-left font-mono text-[11px] text-red-300/40 overflow-x-auto">
+                                        <p className="mb-2 text-red-400/60 font-bold uppercase underline">Internal Error Report:</p>
                                         {apiErrorInfo.raw}
                                     </div>
                                 )}
@@ -226,9 +229,9 @@ const LandingPage: React.FC = () => {
                             {games.length > 0 ? games.map(game => (
                                 <GameDisplayCard key={game.id} game={game} onClick={() => document.getElementById('login')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />
                             )) : (
-                                <div className="col-span-full text-center text-slate-500 p-12">
-                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-cyan-500 mb-4"></div>
-                                    <p className="uppercase tracking-[0.3em] text-xs">Synchronizing SQL...</p>
+                                <div className="col-span-full text-center text-slate-600 p-20">
+                                    <div className="inline-block animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-cyan-500/50 mb-6"></div>
+                                    <p className="uppercase tracking-[0.5em] text-[10px]">Synchronizing with SQL Kernel...</p>
                                 </div>
                             )}
                         </div>
@@ -236,15 +239,17 @@ const LandingPage: React.FC = () => {
                 </section>
 
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
-                     <div className="bg-slate-800/50 backdrop-blur-sm rounded-lg shadow-2xl border border-slate-700 p-8 text-center">
-                        <h2 className="text-xl font-bold text-white mb-4 uppercase tracking-widest">Portal Access</h2>
-                        <p className="text-slate-400 mb-6 text-sm">Please ensure the SQL link is healthy to enable secure authentication.</p>
+                     <div className="bg-slate-800/30 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/50 p-10 text-center">
+                        <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Portal Access</h2>
+                        <p className="text-slate-500 mb-8 text-sm leading-relaxed">Secure authentication is offline until the SQL database is restored.</p>
                         <div className="space-y-4">
-                            <button disabled className="w-full bg-slate-700/50 text-slate-500 py-3 rounded font-bold cursor-not-allowed border border-slate-600">WAITING FOR DATABASE...</button>
+                            <button disabled className="w-full bg-slate-800/50 text-slate-600 py-4 rounded-lg font-bold cursor-not-allowed border border-slate-700 uppercase tracking-widest text-xs">Waiting for Database Link...</button>
                         </div>
                      </div>
                 </section>
-                <footer className="text-center py-12 mt-12 text-slate-600 text-xs tracking-widest uppercase">&copy; {new Date().getFullYear()} A-BABA EXCHANGE • SECURE GAMING INFRASTRUCTURE</footer>
+                <footer className="text-center py-20 text-slate-700 text-[10px] tracking-[0.4em] uppercase">
+                    &copy; {new Date().getFullYear()} A-BABA EXCHANGE &bull; Distributed Gaming Ledger v1.4
+                </footer>
             </div>
         </div>
     );
