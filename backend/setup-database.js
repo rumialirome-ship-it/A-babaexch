@@ -8,7 +8,7 @@ async function setup() {
   const client = new Client({ connectionString });
   try {
     await client.connect();
-    console.log("REBUILDING DATABASE...");
+    console.log("INITIALIZING POSTGRESQL ENGINE...");
 
     await client.query(`
       DROP TABLE IF EXISTS bets CASCADE;
@@ -19,29 +19,69 @@ async function setup() {
       DROP TABLE IF EXISTS games CASCADE;
 
       CREATE TABLE admins (
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, password TEXT NOT NULL, 
-        wallet NUMERIC DEFAULT 0, prizeRates TEXT
-      );
-      CREATE TABLE dealers (
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, password TEXT NOT NULL, 
-        area TEXT, contact TEXT, wallet NUMERIC DEFAULT 0, commissionRate NUMERIC DEFAULT 0, 
-        isRestricted BOOLEAN DEFAULT FALSE, prizeRates TEXT
-      );
-      CREATE TABLE users (
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, password TEXT NOT NULL, 
-        dealerId TEXT REFERENCES dealers(id), area TEXT, contact TEXT, 
-        wallet NUMERIC DEFAULT 0, isRestricted BOOLEAN DEFAULT FALSE, 
-        prizeRates TEXT, betLimits TEXT
-      );
-      CREATE TABLE games (
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, drawTime TEXT NOT NULL, 
-        winningNumber TEXT, isMarketOpen BOOLEAN DEFAULT TRUE
-      );
-      CREATE TABLE ledgers (
-        id SERIAL PRIMARY KEY, accountId TEXT NOT NULL, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
-        description TEXT NOT NULL, debit NUMERIC DEFAULT 0, credit NUMERIC DEFAULT 0, balance NUMERIC DEFAULT 0
+        id TEXT PRIMARY KEY, 
+        name TEXT NOT NULL, 
+        password TEXT NOT NULL, 
+        wallet NUMERIC(20,2) DEFAULT 0, 
+        prizeRates TEXT
       );
 
+      CREATE TABLE dealers (
+        id TEXT PRIMARY KEY, 
+        name TEXT NOT NULL, 
+        password TEXT NOT NULL, 
+        area TEXT, 
+        contact TEXT, 
+        wallet NUMERIC(20,2) DEFAULT 0, 
+        commissionRate NUMERIC(5,2) DEFAULT 0, 
+        isRestricted BOOLEAN DEFAULT FALSE, 
+        prizeRates TEXT
+      );
+
+      CREATE TABLE users (
+        id TEXT PRIMARY KEY, 
+        name TEXT NOT NULL, 
+        password TEXT NOT NULL, 
+        dealerId TEXT REFERENCES dealers(id), 
+        area TEXT, 
+        contact TEXT, 
+        wallet NUMERIC(20,2) DEFAULT 0, 
+        isRestricted BOOLEAN DEFAULT FALSE, 
+        prizeRates TEXT, 
+        betLimits TEXT
+      );
+
+      CREATE TABLE games (
+        id TEXT PRIMARY KEY, 
+        name TEXT NOT NULL, 
+        drawTime TEXT NOT NULL, 
+        winningNumber TEXT, 
+        isMarketOpen BOOLEAN DEFAULT TRUE
+      );
+
+      CREATE TABLE ledgers (
+        id SERIAL PRIMARY KEY, 
+        accountId TEXT NOT NULL, 
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        description TEXT NOT NULL, 
+        debit NUMERIC(20,2) DEFAULT 0, 
+        credit NUMERIC(20,2) DEFAULT 0, 
+        balance NUMERIC(20,2) DEFAULT 0
+      );
+
+      CREATE TABLE bets (
+        id TEXT PRIMARY KEY,
+        userId TEXT REFERENCES users(id),
+        dealerId TEXT REFERENCES dealers(id),
+        gameId TEXT REFERENCES games(id),
+        subGameType TEXT,
+        numbers TEXT,
+        amountPerNumber NUMERIC(20,2),
+        totalAmount NUMERIC(20,2),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Seed Data
       INSERT INTO admins (id, name, password, wallet, prizeRates) 
       VALUES ('Guru', 'Guru', 'Pak@4646', 1000000, '{"oneDigitOpen":90,"oneDigitClose":90,"twoDigit":900}');
 
@@ -53,9 +93,11 @@ async function setup() {
       INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, prizeRates)
       VALUES ('dealer01', 'ABD-001', 'Pak@123', 'KHI', '03323022123', 50000, 10, '{"oneDigitOpen":80,"oneDigitClose":80,"twoDigit":800}');
     `);
-    console.log("DATABASE SETUP SUCCESSFUL!");
+    console.log("----------------------------------------");
+    console.log("POSTGRESQL SCHEMA DEPLOYED SUCCESSFULLY");
+    console.log("----------------------------------------");
   } catch (err) {
-    console.error("DATABASE SETUP FAILED:", err.message);
+    console.error("DEPLOYMENT FAILURE:", err.message);
   } finally {
     await client.end();
   }
