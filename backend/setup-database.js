@@ -1,52 +1,60 @@
 
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
-
-const DB_PATH = path.join(__dirname, 'database.sqlite');
-const SEED_FILE = path.join(__dirname, 'db.json');
 
 /**
- * SQL RECONSTRUCTION ENGINE
- * Deletes old data and recreates all tables.
+ * SQL RECREATOR & RENEWER
+ * This script wipes the existing SQL data and builds fresh tables.
  */
-function rebuild() {
+function renew() {
     console.log("==================================================");
-    console.log("   A-BABA EXCHANGE: SQL RECONSTRUCTION TOOL   ");
+    console.log("   A-BABA EXCHANGE: SQL RENEWAL & RECREATOR   ");
     console.log("==================================================");
 
-    // 1. Force a complete wipe
-    if (fs.existsSync(DB_PATH)) {
-        console.log("[1/4] Found old database.sqlite. Wiping file...");
-        try {
-            fs.unlinkSync(DB_PATH);
-            console.log("      SUCCESS: Old database deleted.");
-        } catch (err) {
-            console.error("      FATAL ERROR: Could not delete database file.");
-            console.error("      REASON: " + err.message);
-            console.error("      FIX: Run 'pm2 stop ababa-backend' first.");
-            process.exit(1);
+    const DB_PATH = path.join(__dirname, 'database.sqlite');
+    const SEED_FILE = path.join(__dirname, 'db.json');
+
+    // 1. Aggressively delete all existing database artifacts
+    const filesToDelete = [
+        DB_PATH,
+        DB_PATH + '-wal',
+        DB_PATH + '-shm',
+        DB_PATH + '-journal'
+    ];
+
+    console.log("[1/4] Wiping old SQL data...");
+    filesToDelete.forEach(file => {
+        if (fs.existsSync(file)) {
+            try {
+                fs.unlinkSync(file);
+                console.log(`      DELETED: ${path.basename(file)}`);
+            } catch (err) {
+                console.error(`      ERROR: Could not delete ${path.basename(file)}`);
+                console.error(`      FIX: Run 'pm2 stop ababa-backend' first.`);
+                process.exit(1);
+            }
         }
-    } else {
-        console.log("[1/4] No existing database found. Clean start.");
+    });
+
+    // 2. Load better-sqlite3
+    let Database;
+    try {
+        Database = require('better-sqlite3');
+    } catch (err) {
+        console.error("[!] FATAL: better-sqlite3 driver is broken.");
+        console.error("    The binary module did not self-register.");
+        console.error("    FIX: Run 'rm -rf node_modules && npm install'");
+        process.exit(1);
     }
 
-    // 2. Open fresh connection
+    // 3. Create fresh DB and Tables
     let db;
     try {
         db = new Database(DB_PATH);
         db.pragma('journal_mode = WAL');
-        db.pragma('foreign_keys = ON');
-        console.log("[2/4] Created fresh SQL container.");
-    } catch (e) {
-        console.error("      FATAL: Connection failed.");
-        console.error(e.message);
-        process.exit(1);
-    }
+        console.log("[2/4] Initialized fresh SQL kernel.");
 
-    // 3. Re-create Tables
-    console.log("[3/4] Building Schema (Creating Tables)...");
-    try {
+        console.log("[3/4] Recreating tables...");
         db.exec(`
             CREATE TABLE admins (
                 id TEXT PRIMARY KEY, 
@@ -128,16 +136,16 @@ function rebuild() {
                 UNIQUE(gameType, numberValue)
             );
         `);
-        console.log("      SUCCESS: Tables built.");
+        console.log("      SUCCESS: Tables renewed.");
     } catch (e) {
-        console.error("      ERROR: Schema construction failed.");
+        console.error("      ERROR: SQL Reconstruction failed.");
         console.error(e.message);
         process.exit(1);
     }
 
     // 4. Seed Data
     if (fs.existsSync(SEED_FILE)) {
-        console.log("[4/4] Importing Seed Data (Guru, Games, Dealers)...");
+        console.log("[4/4] Seeding initial accounts from db.json...");
         try {
             const data = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
 
@@ -161,9 +169,9 @@ function rebuild() {
                     });
                 }
             })();
-            console.log("      SUCCESS: Initial data imported.");
+            console.log("      SUCCESS: Guru account and games restored.");
         } catch (e) {
-            console.error("      ERROR: Data import failed.");
+            console.error("      ERROR: Data seeding failed.");
             console.error(e.message);
             process.exit(1);
         }
@@ -171,8 +179,8 @@ function rebuild() {
 
     db.close();
     console.log("==================================================");
-    console.log("   RECONSTRUCTION SUCCESSFUL! RESTART PM2 NOW.   ");
+    console.log("   RECREATION COMPLETE! PLEASE RESTART PM2.   ");
     console.log("==================================================");
 }
 
-rebuild();
+renew();
