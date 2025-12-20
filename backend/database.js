@@ -7,17 +7,13 @@ let _db = null;
 
 /**
  * SQL KERNEL CONNECTOR
- * Employs lazy-loading to ensure the Express server stays alive 
- * even if the native SQL driver is corrupted or mismatched.
+ * Handles native binary mismatches and provides clear recovery instructions.
  */
 const connect = () => {
     if (_db) return _db;
     
     try {
-        // Native binary requirement - where the "self-register" error happens
         const Database = require('better-sqlite3');
-        
-        console.log(`[DB] Linking SQL Engine to: ${DB_PATH}`);
         
         const dir = path.dirname(DB_PATH);
         if (!fs.existsSync(dir)) {
@@ -28,32 +24,25 @@ const connect = () => {
         _db.pragma('journal_mode = WAL');
         _db.pragma('foreign_keys = ON');
         
-        // Connectivity Verification
         _db.prepare("SELECT 1").get();
-        
-        console.log('[DB] SQL Link Established Successfully.');
+        console.log('[DB] SQL Engine Online.');
         return _db;
     } catch (e) {
-        console.error("!!! SQL ENGINE FAILURE !!!");
+        console.error("!!! DATABASE KERNEL PANIC !!!");
         console.error(e.message);
         
-        let msg = "SQL Driver Blocked";
-        let fix = "You must rebuild the native modules on this server.";
+        let msg = "Database Offline";
+        let fix = "Run the Nuclear Remake command.";
 
-        // Specifically catch the binary mismatch / self-register errors
         if (e.message.includes('self-register') || e.message.includes('NODE_MODULE_VERSION') || e.code === 'ERR_DLOPEN_FAILED') {
-            msg = "Binary Mismatch: SQL Driver Needs Re-Compiling";
-            fix = "Terminal Command: rm -rf node_modules && npm install";
-        } else if (!fs.existsSync(DB_PATH)) {
-            msg = "Table Desolation: Database File Missing";
-            fix = "Terminal Command: npm run db:setup";
+            msg = "Binary Mismatch Error";
+            fix = "SSH Command: rm -rf node_modules && npm install";
         }
 
         const err = new Error(msg);
         err.raw = e.message;
         err.fix = fix;
-        // The exact command the user needs to paste to fix their specific server
-        err.terminal = "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* 'eval \"$(ssh-agent -s)\"'* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend";
+        err.terminal = "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend";
         throw err;
     }
 };
@@ -79,7 +68,6 @@ const getAllFromTable = (table) => {
             return item;
         });
     } catch (err) {
-        console.error(`[DB] Query failed for ${table}:`, err.message);
         throw err;
     }
 };
@@ -89,12 +77,8 @@ module.exports = {
     verifySchema: () => {
         try {
             const db = getDB();
-            const required = ['admins', 'games', 'dealers'];
-            for (const table of required) {
-                const res = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(table);
-                if (!res) return false;
-            }
-            return true;
+            const res = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='admins'`).get();
+            return !!res;
         } catch (e) {
             return false;
         }
@@ -116,16 +100,6 @@ module.exports = {
         acc.prizeRates = safeParse(acc.prizeRates);
         acc.ledger = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC LIMIT 50').all(id);
         return acc;
-    },
-    saveDealer: (d) => {
-        const db = getDB();
-        return db.prepare('INSERT OR REPLACE INTO dealers (id, name, password, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?,?,?,?,?,?,?,?,?)')
-                 .run(d.id, d.name, d.password, d.area, d.contact, d.wallet, d.commissionRate, JSON.stringify(d.prizeRates), d.avatarUrl);
-    },
-    saveUser: (u) => {
-        const db = getDB();
-        return db.prepare('INSERT OR REPLACE INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, prizeRates, avatarUrl) VALUES (?,?,?,?,?,?,?,?,?,?)')
-                 .run(u.id, u.name, u.password, u.dealerId, u.area, u.contact, u.wallet, u.commissionRate, JSON.stringify(u.prizeRates), u.avatarUrl);
     },
     runInTransaction: (fn) => getDB().transaction(fn)()
 };

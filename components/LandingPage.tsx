@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Game, Role, User, Dealer, Admin } from '../types';
+import { Game } from '../types';
 import { useCountdown } from '../hooks/useCountdown';
 import { Icons, GAME_LOGOS } from '../constants';
 import { useAuth } from '../hooks/useAuth';
@@ -66,21 +66,19 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
 
 const LandingPage: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
-    const [apiErrorInfo, setApiErrorInfo] = useState<{ error: string; details?: string; fix?: string; raw?: string; terminal?: string } | null>(null);
+    const [apiErrorInfo, setApiErrorInfo] = useState<{ error: string; raw?: string; terminal?: string } | null>(null);
     const [isRetrying, setIsRetrying] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
-    const [showRaw, setShowRaw] = useState(false);
     const { login } = useAuth();
     
-    // Hardcoded roles for demo/restoration login
     const demoAccounts = {
         admin: { id: 'Guru', name: 'Guru', password: 'Pak@4646' },
         dealer: { id: 'dealer01', name: 'ABD-001', password: 'Pak@123' },
         user: { id: 'user01', name: 'ADU-001', password: 'Pak@123' }
     };
 
-    const fetchGames = async (silent = false) => {
-        if (!silent) setIsRetrying(true);
+    const fetchGames = async () => {
+        setIsRetrying(true);
         try {
             const response = await fetch('/api/games');
             const data = await response.json();
@@ -89,31 +87,25 @@ const LandingPage: React.FC = () => {
                 setGames(data);
                 setApiErrorInfo(null);
             } else {
-                setApiErrorInfo({ 
-                    error: data.error || "SQL Engine Halt", 
-                    details: data.details || "The binary SQL driver failed to self-register.", 
-                    fix: data.fix || "You must rebuild the database from scratch.",
-                    raw: data.raw || "Module did not self-register.",
-                    terminal: data.terminal || "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* 'eval \"$(ssh-agent -s)\"'* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
-                });
+                setApiErrorInfo(data);
                 setGames([]);
             }
         } catch (error: any) {
             setApiErrorInfo({ 
-                error: "Backend Driver Crash", 
-                details: "The database driver is mismatched. This happens when code is moved between different servers.", 
-                fix: "Run the remake command in your SSH terminal.",
+                error: "Backend Disconnected", 
                 raw: error.toString(),
-                terminal: "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* 'eval \"$(ssh-agent -s)\"'* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
+                terminal: "cd /var/www/html/A-babaexch/backend && pm2 stop ababa-backend && rm -rf node_modules package-lock.json database.sqlite* && npm install && npm run db:setup && pm2 start server.js --name ababa-backend"
             });
             setGames([]);
         } finally {
-            if (!silent) setIsRetrying(false);
+            setIsRetrying(false);
         }
     };
 
     useEffect(() => {
         fetchGames();
+        const interval = setInterval(fetchGames, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     const handleCopyFix = () => {
@@ -144,17 +136,14 @@ const LandingPage: React.FC = () => {
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Global Markets</h2>
                     
                     {apiErrorInfo ? (
-                        <div className="max-w-4xl mx-auto bg-slate-900/95 border border-red-500/50 rounded-xl overflow-hidden backdrop-blur-2xl shadow-[0_0_100px_rgba(239,68,68,0.25)]">
+                        <div className="max-w-4xl mx-auto bg-slate-900/95 border border-red-500/50 rounded-xl overflow-hidden backdrop-blur-2xl shadow-2xl">
                             <div className="bg-red-600/20 p-4 border-b border-red-500/30 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="relative flex items-center justify-center">
-                                        <div className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-75"></div>
-                                        <div className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></div>
-                                    </div>
-                                    <h3 className="text-xs md:text-sm font-bold text-red-200 uppercase tracking-[0.4em]">SYSTEM REMAKE REQUIRED</h3>
+                                    <div className="animate-pulse h-3 w-3 rounded-full bg-red-500"></div>
+                                    <h3 className="text-sm font-bold text-red-200 uppercase tracking-widest">SYSTEM REBUILD REQUIRED</h3>
                                 </div>
-                                <button onClick={() => fetchGames()} disabled={isRetrying} className="text-[10px] bg-red-500 hover:bg-red-400 text-white py-1 px-4 rounded-full font-bold uppercase transition-all">
-                                    {isRetrying ? 'REBUILDING...' : 'RETRY LINK'}
+                                <button onClick={fetchGames} className="text-[10px] bg-red-500 hover:bg-red-400 text-white py-1 px-4 rounded-full font-bold uppercase transition-all">
+                                    {isRetrying ? 'Checking...' : 'Check Status'}
                                 </button>
                             </div>
 
@@ -162,59 +151,45 @@ const LandingPage: React.FC = () => {
                                 <div className="text-red-500 mb-6 flex justify-center opacity-50">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                 </div>
-                                <h4 className="text-4xl font-russo text-white mb-2 uppercase tracking-tighter">DRIVER SELF-REGISTER FAILED</h4>
+                                <h4 className="text-4xl font-russo text-white mb-2 uppercase tracking-tighter">DRIVER OR SCHEMA HALTED</h4>
                                 <p className="text-slate-400 text-lg mb-8 max-w-2xl mx-auto leading-relaxed">
-                                    The <span className="text-red-300 font-bold">SQL Kernel</span> is severed. To delete the old database and <span className="text-emerald-300 font-bold underline">REMAKE</span> the entire system from scratch, run this in your SSH terminal:
+                                    The SQL engine is currently unresponsive. This happens when the server binary is mismatched. To perform a <span className="text-emerald-300 font-bold underline">TOTAL REINSTALL</span>, run this in your SSH terminal:
                                 </p>
 
                                 <div className="bg-emerald-500/5 border border-emerald-500/20 p-8 rounded-xl mb-10 text-left relative group">
                                     <div className="absolute top-6 right-8">
                                         <button 
                                             onClick={handleCopyFix}
-                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-5 py-2 rounded-full transition-all uppercase font-bold flex items-center gap-2"
+                                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] px-5 py-2 rounded-full transition-all uppercase font-bold"
                                         >
-                                            {copySuccess ? 'COPIED' : 'COPY REMAKE COMMAND'}
-                                            {!copySuccess && <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>}
+                                            {copySuccess ? 'COPIED!' : 'COPY REMAKE COMMAND'}
                                         </button>
                                     </div>
-                                    <h5 className="text-emerald-400 font-bold mb-6 uppercase text-[10px] tracking-[0.4em] flex items-center gap-3">
-                                        <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                                        "START FROM START" RECONSTRUCTION SCRIPT
-                                    </h5>
-                                    <div className="bg-black/90 p-6 rounded-lg font-mono text-sm border border-emerald-500/20 shadow-inner group-hover:border-emerald-500/40 transition-colors overflow-x-auto custom-scrollbar">
-                                        <p className="text-emerald-400 whitespace-nowrap leading-relaxed">
+                                    <h5 className="text-emerald-400 font-bold mb-6 uppercase text-[10px] tracking-[0.4em]">RECONSTRUCTION SCRIPT</h5>
+                                    <div className="bg-black/90 p-6 rounded-lg font-mono text-sm border border-emerald-500/20 shadow-inner overflow-x-auto">
+                                        <p className="text-emerald-400 whitespace-nowrap">
                                             {apiErrorInfo.terminal}
                                         </p>
                                     </div>
-                                    <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-between items-center text-[10px] text-slate-500 uppercase tracking-widest">
-                                        <span>1. Stops PM2 Engine</span>
-                                        <span>2. Purges Broken Driver & Old DB</span>
-                                        <span>3. Re-compiles SQL Driver</span>
-                                        <span>4. Rebuilds System Tables</span>
+                                    <div className="mt-6 flex flex-wrap gap-4 justify-between items-center text-[10px] text-slate-500 uppercase tracking-widest">
+                                        <span>1. Stop PM2</span>
+                                        <span>2. Purge Driver & DB</span>
+                                        <span>3. Reinstall Modules</span>
+                                        <span>4. Rebuild Schema</span>
                                     </div>
                                 </div>
                                 
-                                <button 
-                                    onClick={() => setShowRaw(!showRaw)} 
-                                    className="text-slate-600 text-[10px] hover:text-slate-400 uppercase tracking-[0.3em] font-bold underline transition-colors"
-                                >
-                                    {showRaw ? '[-] HIDE SYSTEM LOGS' : '[+] VIEW DETAILED LOGS'}
-                                </button>
-                                
-                                {showRaw && (
-                                    <div className="mt-6 p-6 bg-black/80 border border-slate-800 rounded-lg text-left font-mono text-[11px] text-red-300/60 overflow-x-auto">
-                                        {apiErrorInfo.raw}
-                                    </div>
-                                )}
+                                <div className="p-6 bg-black/80 border border-slate-800 rounded-lg text-left font-mono text-[11px] text-red-300/60 overflow-x-auto">
+                                    LOG: {apiErrorInfo.error} - {apiErrorInfo.raw}
+                                </div>
                             </div>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
                             {games.length > 0 ? games.map(game => (
-                                <GameDisplayCard key={game.id} game={game} onClick={() => document.getElementById('login')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />
+                                <GameDisplayCard key={game.id} game={game} onClick={() => document.getElementById('login')?.scrollIntoView({ behavior: 'smooth' })} />
                             )) : (
-                                <div className="col-span-full text-center text-slate-600 p-20">
-                                    <div className="inline-block animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-cyan-500/50 mb-6"></div>
+                                <div className="col-span-full text-center text-slate-600 p-20 animate-pulse">
                                     <p className="uppercase tracking-[0.5em] text-[10px]">SYNCING WITH SQL KERNEL...</p>
                                 </div>
                             )}
@@ -225,8 +200,8 @@ const LandingPage: React.FC = () => {
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
                     {apiErrorInfo ? (
                         <div className="bg-red-900/20 backdrop-blur-md rounded-2xl shadow-2xl border border-red-500/50 p-10 text-center">
-                            <h2 className="text-2xl font-russo text-red-400 mb-6 uppercase tracking-tight">Portal Access Locked</h2>
-                            <p className="text-slate-400 mb-8 text-sm leading-relaxed">Secure authentication is offline until the SQL database is restored. Please use the recovery terminal above.</p>
+                            <h2 className="text-2xl font-russo text-red-400 mb-6 uppercase tracking-tight">Portal Locked</h2>
+                            <p className="text-slate-400 mb-8 text-sm leading-relaxed">Authentication is offline. Fix the SQL Kernel to unlock the portals.</p>
                             <div className="flex justify-center">
                                 <div className="animate-bounce p-2 bg-red-500/20 rounded-full border border-red-500/50">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
@@ -242,7 +217,7 @@ const LandingPage: React.FC = () => {
                                     className="w-full text-left p-4 bg-slate-700/50 hover:bg-red-600/20 rounded-lg transition-all border border-slate-600 hover:border-red-500 group"
                                 >
                                     <p className="font-bold text-lg text-red-400 group-hover:text-red-200">Admin Portal</p>
-                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">Login as: {demoAccounts.admin.name}</p>
+                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">Login: {demoAccounts.admin.name}</p>
                                 </button>
 
                                 <button
@@ -250,7 +225,7 @@ const LandingPage: React.FC = () => {
                                     className="w-full text-left p-4 bg-slate-700/50 hover:bg-emerald-600/20 rounded-lg transition-all border border-slate-600 hover:border-emerald-500 group"
                                 >
                                     <p className="font-bold text-lg text-emerald-400 group-hover:text-emerald-200">Dealer Portal</p>
-                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">Login as: {demoAccounts.dealer.name}</p>
+                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">Login: {demoAccounts.dealer.name}</p>
                                 </button>
 
                                 <button
@@ -258,7 +233,7 @@ const LandingPage: React.FC = () => {
                                     className="w-full text-left p-4 bg-slate-700/50 hover:bg-sky-600/20 rounded-lg transition-all border border-slate-600 hover:border-sky-500 group"
                                 >
                                     <p className="font-bold text-lg text-sky-400 group-hover:text-sky-200">User Portal</p>
-                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">Login as: {demoAccounts.user.name}</p>
+                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">Login: {demoAccounts.user.name}</p>
                                 </button>
                             </div>
                         </div>

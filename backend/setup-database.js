@@ -4,7 +4,7 @@ const path = require('path');
 
 /**
  * NUCLEAR SQL RECREATOR
- * Wipes all SQL data and regenerates the schema from scratch.
+ * Force-wipes all SQL data and regenerates the schema from scratch.
  */
 function rebuild() {
     console.log("==================================================");
@@ -22,7 +22,7 @@ function rebuild() {
         DB_PATH + '-journal'
     ];
     
-    console.log("[1/4] Destroying existing SQL artifacts (Wiping Old Data)...");
+    console.log("[1/4] Destroying existing SQL artifacts (Purging Old Data)...");
     targets.forEach(t => {
         if (fs.existsSync(t)) {
             try {
@@ -36,14 +36,15 @@ function rebuild() {
         }
     });
 
-    // 2. Load driver (Check for binary mismatch here)
+    // 2. Load driver (Binary check)
     let Database;
     try {
         Database = require('better-sqlite3');
+        console.log("[2/4] SQL Driver (better-sqlite3) validated.");
     } catch (err) {
         console.error("[2/4] FATAL: SQL Driver is corrupted (Binary Mismatch).");
         console.error("      ERROR: " + err.message);
-        console.error("      FIX: You MUST run 'rm -rf node_modules && npm install' on this server.");
+        console.error("      FIX: Run 'rm -rf node_modules && npm install' on this server.");
         process.exit(1);
     }
 
@@ -52,9 +53,7 @@ function rebuild() {
     try {
         db = new Database(DB_PATH);
         db.pragma('journal_mode = WAL');
-        console.log("[2/4] Initialized fresh SQL instance.");
-
-        console.log("[3/4] Recreating tables and relations...");
+        console.log("[3/4] Recreating system tables...");
         db.exec(`
             CREATE TABLE admins (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, password TEXT NOT NULL, 
@@ -94,16 +93,16 @@ function rebuild() {
                 numberValue TEXT NOT NULL, limitAmount REAL NOT NULL, UNIQUE(gameType, numberValue)
             );
         `);
-        console.log("      SUCCESS: System tables recreated.");
+        console.log("      SUCCESS: Schema reconstruction complete.");
     } catch (e) {
-        console.error("      ERROR: Schema reconstruction failed.");
+        console.error("      ERROR: Table creation failed.");
         console.error(e.message);
         process.exit(1);
     }
 
-    // 4. Seed Data (Guru, initial Dealer, Games)
+    // 4. Seed Data
     if (fs.existsSync(SEED_FILE)) {
-        console.log("[4/4] Migrating initial data from seed (db.json)...");
+        console.log("[4/4] Migrating seed data from db.json...");
         try {
             const data = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
             db.transaction(() => {
@@ -126,9 +125,9 @@ function rebuild() {
                     });
                 }
             })();
-            console.log("      SUCCESS: Start-from-Start migration complete.");
+            console.log("      SUCCESS: Seed migration successful.");
         } catch (e) {
-            console.error("      ERROR: Migration failed.");
+            console.error("      ERROR: Data migration failed.");
             console.error(e.message);
             process.exit(1);
         }
@@ -136,7 +135,7 @@ function rebuild() {
 
     db.close();
     console.log("==================================================");
-    console.log("   REBUILD SUCCESSFUL! RUN 'pm2 start' NOW.   ");
+    console.log("   REBUILD SUCCESSFUL! APP IS NOW CLEAN.   ");
     console.log("==================================================");
 }
 
