@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Game } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Game, Role, User, Dealer, Admin } from '../types';
 import { useCountdown } from '../hooks/useCountdown';
 import { Icons, GAME_LOGOS } from '../constants';
+import { useAuth } from '../hooks/useAuth';
 
 const formatTime12h = (time24: string) => {
     const [hours, minutes] = time24.split(':').map(Number);
@@ -69,7 +70,15 @@ const LandingPage: React.FC = () => {
     const [isRetrying, setIsRetrying] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
     const [showRaw, setShowRaw] = useState(false);
+    const { login } = useAuth();
     
+    // Hardcoded roles for demo/restoration login
+    const demoAccounts = {
+        admin: { id: 'Guru', name: 'Guru', password: 'Pak@4646' },
+        dealer: { id: 'dealer01', name: 'ABD-001', password: 'Pak@123' },
+        user: { id: 'user01', name: 'ADU-001', password: 'Pak@123' }
+    };
+
     const fetchGames = async (silent = false) => {
         if (!silent) setIsRetrying(true);
         try {
@@ -113,6 +122,14 @@ const LandingPage: React.FC = () => {
             setCopySuccess(true);
             setTimeout(() => setCopySuccess(false), 2000);
         });
+    };
+
+    const handleLogin = async (id: string, pass: string) => {
+        try {
+            await login(id, pass);
+        } catch (e: any) {
+            alert(e.message);
+        }
     };
 
     return (
@@ -217,11 +234,32 @@ const LandingPage: React.FC = () => {
                             </div>
                         </div>
                     ) : (
-                        <div className="bg-slate-800/30 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/50 p-10 text-center">
-                            <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight">Portal Access</h2>
-                            <p className="text-slate-500 mb-8 text-sm leading-relaxed">Select your market above to view winners, or login below to manage your account.</p>
+                        <div className="bg-slate-800/30 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-700/50 p-10">
+                            <h2 className="text-2xl font-russo text-white mb-6 uppercase tracking-tight text-center">Portal Access</h2>
                             <div className="space-y-4">
-                                <p className="text-slate-400 text-xs italic">Select a game from "Global Markets" to continue.</p>
+                                <button
+                                    onClick={() => handleLogin(demoAccounts.admin.id, demoAccounts.admin.password)}
+                                    className="w-full text-left p-4 bg-slate-700/50 hover:bg-red-600/20 rounded-lg transition-all border border-slate-600 hover:border-red-500 group"
+                                >
+                                    <p className="font-bold text-lg text-red-400 group-hover:text-red-200">Admin Portal</p>
+                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">Login as: {demoAccounts.admin.name}</p>
+                                </button>
+
+                                <button
+                                    onClick={() => handleLogin(demoAccounts.dealer.id, demoAccounts.dealer.password)}
+                                    className="w-full text-left p-4 bg-slate-700/50 hover:bg-emerald-600/20 rounded-lg transition-all border border-slate-600 hover:border-emerald-500 group"
+                                >
+                                    <p className="font-bold text-lg text-emerald-400 group-hover:text-emerald-200">Dealer Portal</p>
+                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">Login as: {demoAccounts.dealer.name}</p>
+                                </button>
+
+                                <button
+                                    onClick={() => handleLogin(demoAccounts.user.id, demoAccounts.user.password)}
+                                    className="w-full text-left p-4 bg-slate-700/50 hover:bg-sky-600/20 rounded-lg transition-all border border-slate-600 hover:border-sky-500 group"
+                                >
+                                    <p className="font-bold text-lg text-sky-400 group-hover:text-sky-200">User Portal</p>
+                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">Login as: {demoAccounts.user.name}</p>
+                                </button>
                             </div>
                         </div>
                     )}
