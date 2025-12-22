@@ -28,31 +28,32 @@ body {
   height: 100vh;
   z-index: -1;
   background-color: #020617;
+  /* Grid animation and background-image removed for solid color layout */
 }
 
-/* --- SHIMMER ANIMATION --- */
-@keyframes shimmer {
-  0% { background-position: -1000px 0; }
-  100% { background-position: 1000px 0; }
-}
-
-.skeleton {
-  background: linear-gradient(90deg, #0f172a 25%, #1e293b 50%, #0f172a 75%);
-  background-size: 1000px 100%;
-  animation: shimmer 2s infinite linear;
-}
-
-/* Custom Scrollbar */
+/* Custom Scrollbar - Now applied to the whole document */
 html::-webkit-scrollbar { width: 8px; }
 html::-webkit-scrollbar-track { background: #0f172a; }
 html::-webkit-scrollbar-thumb { background-color: #0891b2; border-radius: 20px; border: 2px solid #0f172a; }
 
+/* Custom Scrollbar for mobile-scrollable elements */
 .mobile-scroll-x {
-  -webkit-overflow-scrolling: touch;
+  -webkit-overflow-scrolling: touch; /* Momentum scrolling on iOS */
 }
-.mobile-scroll-x::-webkit-scrollbar { height: 6px; width: 6px; }
-.mobile-scroll-x::-webkit-scrollbar-track { background: transparent; }
-.mobile-scroll-x::-webkit-scrollbar-thumb { background-color: rgba(8, 145, 178, 0.3); border-radius: 20px; }
+.mobile-scroll-x::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.mobile-scroll-x::-webkit-scrollbar-track {
+  background: transparent;
+}
+.mobile-scroll-x::-webkit-scrollbar-thumb {
+  background-color: rgba(8, 145, 178, 0.5); /* Semi-transparent cyan */
+  border-radius: 20px;
+}
+.mobile-scroll-x:hover::-webkit-scrollbar-thumb {
+  background-color: #0891b2; /* Solid cyan on hover */
+}
 
 
 /* Text Glitch Effect */
@@ -96,7 +97,7 @@ html::-webkit-scrollbar-thumb { background-color: #0891b2; border-radius: 20px; 
 
 /* Animated Checkmark Icon for Bet Confirmation */
 .animated-check {
-  height: 4rem;
+  height: 4rem; /* 64px */
   width: 4rem;
 }
 
@@ -105,7 +106,7 @@ html::-webkit-scrollbar-thumb { background-color: #0891b2; border-radius: 20px; 
   stroke-dashoffset: 166;
   stroke-width: 3;
   stroke-miterlimit: 10;
-  stroke: #4ade80;
+  stroke: #4ade80; /* Tailwind green-400 */
   fill: none;
   animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
 }
@@ -116,7 +117,7 @@ html::-webkit-scrollbar-thumb { background-color: #0891b2; border-radius: 20px; 
   stroke-dashoffset: 48;
   stroke-width: 4;
   stroke-linecap: round;
-  stroke: #4ade80;
+  stroke: #4ade80; /* Tailwind green-400 */
   fill: none;
   animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
 }
