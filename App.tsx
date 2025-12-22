@@ -108,6 +108,13 @@ const AppContent: React.FC = () => {
         await fetchData();
     }, [fetchWithAuth, fetchData]);
 
+    const onUpdateSelf = useCallback(async (updateData: any) => {
+        let url = role === Role.Dealer ? `/api/dealer/profile` : `/api/user/profile`;
+        const res = await fetchWithAuth(url, { method: 'PUT', body: JSON.stringify(updateData) });
+        if (!res.ok) throw new Error((await res.json()).message);
+        await fetchData();
+    }, [role, fetchWithAuth, fetchData]);
+
     const topUpUserWallet = useCallback(async (userId: string, amount: number) => {
         const res = await fetchWithAuth('/api/dealer/topup/user', { method: 'POST', body: JSON.stringify({ userId, amount }) });
         if (!res.ok) throw new Error((await res.json()).message);
@@ -198,11 +205,6 @@ const AppContent: React.FC = () => {
                 <div className="absolute inset-0 flex items-center justify-center font-bold text-cyan-400 text-2xl tracking-tighter">AB</div>
             </div>
             <div className="text-cyan-400/80 font-bold tracking-[0.4em] animate-pulse uppercase text-xs">Authenticating Session</div>
-            <div className="mt-6 flex gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/60 animate-bounce [animation-delay:-0.3s]"></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/60 animate-bounce [animation-delay:-0.15s]"></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-cyan-500/60 animate-bounce"></div>
-            </div>
         </div>
        );
     }
@@ -214,7 +216,7 @@ const AppContent: React.FC = () => {
             <Header />
             <main className="flex-grow">
                 {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
-                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} />}
+                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} onUpdateSelf={onUpdateSelf} bets={bets} games={games} />}
                 {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} onPlaceAdminBets={onPlaceAdminBets} updateGameDrawTime={updateGameDrawTime} />}
             </main>
         </div>
