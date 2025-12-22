@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
 import { Icons } from '../constants';
@@ -33,6 +32,14 @@ type SortDirection = 'asc' | 'desc';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
+const formatTime12h = (time24: string) => {
+    if (!time24 || !time24.includes(':')) return '--:--';
+    const [hours, minutes] = time24.split(':').map(Number);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+};
+
 const SortableHeader: React.FC<{
     label: string;
     sortKey: SortKey;
@@ -53,13 +60,12 @@ const SortableHeader: React.FC<{
     );
 };
 
-// --- INTERNAL COMPONENTS (UNCHANGED) ---
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'cyan' }) => {
     if (!isOpen) return null;
     const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className={`bg-slate-900/80 rounded-lg shadow-2xl w-full border border-${themeColor}-500/30 ${sizeClasses[size]} flex flex-col max-h-[90vh]`}>
+            <div className={`bg-slate-900 rounded-lg shadow-2xl w-full border border-${themeColor}-500/30 ${sizeClasses[size]} flex flex-col max-h-[90vh]`}>
                 <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
                     <h3 className={`text-lg font-bold text-${themeColor}-400 uppercase tracking-widest`}>{title}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
@@ -108,11 +114,9 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
 
 
 const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => Promise<void>; onCancel: () => void; adminPrizeRates: PrizeRates }> = ({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
-    // For new dealers, password is part of formData. For edits, it's handled separately.
     const [formData, setFormData] = useState(() => {
         const defaults = { id: '', name: '', password: '', area: '', contact: '', commissionRate: 0, prizeRates: { ...adminPrizeRates }, avatarUrl: '', wallet: '' };
         if (dealer) {
-            // Ensure formData has a consistent shape by always including a password property.
             return { ...dealer, password: '' };
         }
         return defaults;
@@ -970,7 +974,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
-  const [winningNumbers, setWinningNumbers] = useState<{[key: string]: string}>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingLedgerFor, setViewingLedgerFor] = useState<Dealer | Admin | null>(null);
   const [betSearchQuery, setBetSearchQuery] = useState('');
@@ -978,8 +981,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
   const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
-  const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
+  
+  // New modal states for Winner Declaration
+  const [declareWinnerModal, setDeclareWinnerModal] = useState<Game | null>(null);
+  const [editWinnerModal, setEditWinnerModal] = useState<Game | null>(null);
+  const [winningNumberInput, setWinningNumberInput] = useState('');
+
   const { fetchWithAuth } = useAuth();
 
   // State for Dealers tab
@@ -1065,35 +1073,38 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
           setSelectedDealer(undefined);
       } catch (error) {
           console.error("Failed to save dealer:", error);
-          // Error alert is handled by the parent component, so the modal remains open for correction.
       }
   };
 
-  const handleDeclareWinner = (gameId: string, gameName: string) => {
-    const num = winningNumbers[gameId];
-    const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
+  const handleDeclareWinnerSubmit = () => {
+    if (!declareWinnerModal) return;
+    const game = declareWinnerModal;
+    const num = winningNumberInput;
+    const isSingleDigitGame = game.name === 'AK' || game.name === 'AKC';
     const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
 
     if (isValid) {
-        declareWinner(gameId, num);
-        setWinningNumbers(prev => ({...prev, [gameId]: ''}));
+        declareWinner(game.id, num);
+        setDeclareWinnerModal(null);
+        setWinningNumberInput('');
     } else {
         alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
     }
   };
 
-  const handleUpdateWinner = (gameId: string, gameName: string) => {
-    const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
-    if (editingGame) {
-        const num = editingGame.number;
-        const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
+  const handleUpdateWinnerSubmit = () => {
+    if (!editWinnerModal) return;
+    const game = editWinnerModal;
+    const num = winningNumberInput;
+    const isSingleDigitGame = game.name === 'AK' || game.name === 'AKC';
+    const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
 
-        if (isValid) {
-            updateWinner(gameId, num);
-            setEditingGame(null);
-        } else {
-            alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
-        }
+    if (isValid) {
+        updateWinner(game.id, num);
+        setEditWinnerModal(null);
+        setWinningNumberInput('');
+    } else {
+        alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
     }
   };
 
@@ -1255,123 +1266,90 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 
       {activeTab === 'games' && (
         <div>
-            <h3 className="text-xl font-semibold mb-4 text-white">Declare Winning Numbers</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <h3 className="text-xl font-semibold mb-4 text-white">Manage Market Results</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {games.map(game => {
                     const isAK = game.name === 'AK';
-                    const isAKC = game.name === 'AKC';
-                    const isSingleDigitGame = isAK || isAKC;
                     const isAKPending = isAK && game.winningNumber && game.winningNumber.endsWith('_');
 
                     return (
-                    <div key={game.id} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                        <h4 className="font-bold text-lg text-white">{game.name}</h4>
-                        {game.winningNumber ? (
-                            game.payoutsApproved ? (
-                                <div className="flex items-center justify-between my-2">
-                                    <div>
-                                        <p className="text-sm text-slate-400">Winner Declared</p>
-                                        <p className="text-2xl font-bold text-emerald-400">{game.winningNumber}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-slate-700/50 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm">
+                    <div key={game.id} className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 flex flex-col justify-between h-full transition-all hover:border-slate-500">
+                        <div>
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 className="font-bold text-xl text-white uppercase tracking-wider">{game.name}</h4>
+                                    <p className="text-xs text-slate-500 font-mono">ID: {game.id}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs text-slate-400 uppercase">Draw Time</p>
+                                    <p className="text-sm font-bold text-cyan-400 font-mono">{formatTime12h(game.drawTime)}</p>
+                                </div>
+                            </div>
+                            
+                            <div className={`text-center p-4 rounded-md mb-4 bg-black/40 border ${game.winningNumber ? 'border-emerald-500/30' : 'border-slate-700'}`}>
+                                {game.winningNumber ? (
+                                    <>
+                                        <p className="text-xs text-slate-500 uppercase mb-1">Result</p>
+                                        <p className="text-4xl font-bold text-emerald-400 font-mono tracking-tighter">{game.winningNumber}</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="text-xs text-slate-500 uppercase mb-1">Status</p>
+                                        <p className="text-lg font-bold text-slate-600 uppercase italic">Result Pending</p>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {game.winningNumber ? (
+                                game.payoutsApproved ? (
+                                    <div className="flex items-center justify-center gap-2 bg-emerald-500/10 text-emerald-400 font-bold py-2 rounded-md border border-emerald-500/20 text-sm">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                                        <span>Approved</span>
+                                        PAYOUTS FINALIZED
                                     </div>
-                                </div>
-                            ) : editingGame?.id === game.id ? (
-                                <div className="my-2">
-                                    <p className="text-sm text-slate-400">Editing Number...</p>
-                                    <div className="flex items-center space-x-2 mt-1">
-                                        <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-900 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
-                                        <button onClick={() => handleUpdateWinner(game.id, game.name)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Save</button>
-                                        <button onClick={() => setEditingGame(null)} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Cancel</button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between my-2 gap-2">
-                                    {isAKPending ? (
-                                        <>
-                                            <div>
-                                                <p className="text-sm text-slate-400">Open Declared</p>
-                                                <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-sm text-slate-400">Waiting for AKC</p>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div>
-                                            <p className="text-sm text-slate-400">Pending Approval</p>
-                                            <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
-                                        </div>
-                                    )}
-                                    <div className='flex flex-col sm:flex-row gap-2 self-end sm:self-center'>
-                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="bg-slate-700 hover:bg-slate-600 text-amber-400 font-semibold py-2 px-3 rounded-md text-sm transition-colors">
-                                            Edit
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button 
+                                            onClick={() => { setEditWinnerModal(game); setWinningNumberInput(isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber!); }} 
+                                            className="bg-slate-700 hover:bg-slate-600 text-amber-400 font-bold py-2 rounded-md text-xs uppercase"
+                                        >
+                                            Edit Result
                                         </button>
                                         {!isAKPending && (
                                             <button 
-                                                onClick={() => { if (window.confirm(`Are you sure you want to approve payouts for ${game.name}? This action cannot be undone.`)) { approvePayouts(game.id); } }} 
-                                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors animate-pulse whitespace-nowrap"
+                                                onClick={() => { if (window.confirm(`Finalize payouts for ${game.name}? This cannot be reversed.`)) approvePayouts(game.id); }} 
+                                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-md text-xs uppercase shadow-lg shadow-emerald-600/20"
                                             >
-                                                Approve Payouts
+                                                Approve
                                             </button>
                                         )}
+                                        {isAKPending && (
+                                            <div className="col-span-2 text-center text-[10px] text-amber-300 font-bold uppercase tracking-tighter py-1">Waiting for AKC Close Number</div>
+                                        )}
                                     </div>
-                                </div>
-                            )
-                        ) : (
-                            <div className="flex items-center space-x-2 my-2">
-                                <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-800 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
-                                <button onClick={() => handleDeclareWinner(game.id, game.name)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Declare</button>
+                                )
+                            ) : (
+                                <button 
+                                    onClick={() => { setDeclareWinnerModal(game); setWinningNumberInput(''); }} 
+                                    className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-md text-sm uppercase shadow-lg shadow-red-600/20 transition-all active:scale-95"
+                                >
+                                    Declare Result
+                                </button>
+                            )}
+
+                            <div className="flex items-center justify-between text-[10px] pt-2 border-t border-slate-700/50">
+                                <span className="text-slate-500 uppercase font-bold">Draw Configuration</span>
+                                {editingDrawTime?.gameId === game.id ? (
+                                    <div className="flex gap-1">
+                                        <input type="time" value={editingDrawTime.time} onChange={(e) => setEditingDrawTime({ ...editingDrawTime, time: e.target.value })} className="bg-slate-900 px-1 rounded-sm text-white" />
+                                        <button onClick={async () => { await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time); setEditingDrawTime(null); }} className="text-emerald-400 font-bold">Save</button>
+                                    </div>
+                                ) : (
+                                    <button onClick={() => setEditingDrawTime({ gameId: game.id, time: game.drawTime })} className="text-cyan-400 hover:underline uppercase font-bold" disabled={!!game.winningNumber}>Change Time</button>
+                                )}
                             </div>
-                        )}
-                        <div className="text-sm text-slate-400 flex items-center gap-2">
-                          <span>Draw Time:</span>
-                          {editingDrawTime?.gameId === game.id ? (
-                              <>
-                                  <input 
-                                      type="time" 
-                                      value={editingDrawTime.time}
-                                      onChange={(e) => setEditingDrawTime({ ...editingDrawTime, time: e.target.value })}
-                                      className="bg-slate-900 p-1 rounded-md border border-slate-600 focus:ring-1 focus:ring-cyan-500 text-sm text-white"
-                                  />
-                                  <button 
-                                      onClick={async () => {
-                                          try {
-                                              await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time);
-                                              setEditingDrawTime(null);
-                                          } catch (error: any) {
-                                              alert(`Failed to update time: ${error.message}`);
-                                          }
-                                      }}
-                                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
-                                      Save
-                                  </button>
-                                  <button 
-                                      onClick={() => setEditingDrawTime(null)}
-                                      className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
-                                      Cancel
-                                  </button>
-                              </>
-                          ) : (
-                              <>
-                                  <span className="font-semibold text-slate-300">{game.drawTime}</span>
-                                  <button 
-                                      onClick={() => setEditingDrawTime({ gameId: game.id, time: game.drawTime })}
-                                      className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-2 rounded-md text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                      disabled={!!game.winningNumber}
-                                  >
-                                      Edit
-                                  </button>
-                              </>
-                          )}
                         </div>
-                        {(isAK || isAKC) && (
-                            <p className="text-xs text-slate-500 mt-2">
-                                Note: The AKC result provides the 'close' digit for the AK game.
-                            </p>
-                        )}
                     </div>
                 )})}
             </div>
@@ -1554,6 +1532,65 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
             <StatefulLedgerTableWrapper entries={viewingUserLedgerFor.ledger} />
         </Modal>
       )}
+
+      {/* WINNER DECLARATION MODAL */}
+      <Modal isOpen={!!declareWinnerModal} onClose={() => setDeclareWinnerModal(null)} title="Market Result Declaration" themeColor="red">
+          <div className="space-y-6">
+              <div className="text-center p-4 bg-slate-800/50 rounded-md border border-slate-700">
+                  <p className="text-xs text-slate-500 uppercase tracking-widest font-bold mb-1">Target Market</p>
+                  <p className="text-2xl font-bold text-white uppercase">{declareWinnerModal?.name}</p>
+                  <p className="text-sm text-red-400 font-mono mt-1">DRAW TIME: {formatTime12h(declareWinnerModal?.drawTime || '')}</p>
+              </div>
+              <div className="space-y-2">
+                  <label className="block text-sm font-bold text-slate-400 uppercase">Winning Number</label>
+                  <input 
+                      type="text" 
+                      maxLength={(declareWinnerModal?.name === 'AK' || declareWinnerModal?.name === 'AKC') ? 1 : 2} 
+                      autoFocus
+                      value={winningNumberInput} 
+                      onChange={e => setWinningNumberInput(e.target.value.replace(/\D/g, ''))} 
+                      className="w-full bg-slate-950 p-4 text-6xl text-center font-bold text-red-500 border-2 border-slate-700 rounded-md focus:ring-4 focus:ring-red-500/20" 
+                      placeholder="--" 
+                  />
+                  <p className="text-[10px] text-slate-500 text-center uppercase tracking-tighter">* Confirm double-digit for main markets, single-digit for AK/AKC.</p>
+              </div>
+              <button 
+                onClick={handleDeclareWinnerSubmit} 
+                className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-md font-bold text-lg uppercase tracking-widest transition-all shadow-lg shadow-red-600/20"
+              >
+                Broadcast Result
+              </button>
+          </div>
+      </Modal>
+
+      {/* WINNER EDIT MODAL */}
+      <Modal isOpen={!!editWinnerModal} onClose={() => setEditWinnerModal(null)} title="Update Declared Result" themeColor="amber">
+          <div className="space-y-6">
+              <div className="text-center p-4 bg-slate-800/50 rounded-md border border-slate-700">
+                  <p className="text-xs text-slate-500 uppercase tracking-widest font-bold mb-1">Editing Result For</p>
+                  <p className="text-2xl font-bold text-white uppercase">{editWinnerModal?.name}</p>
+                  <p className="text-sm text-amber-400 font-mono mt-1">CURRENT: {editWinnerModal?.winningNumber}</p>
+              </div>
+              <div className="space-y-2">
+                  <label className="block text-sm font-bold text-slate-400 uppercase">New Winning Number</label>
+                  <input 
+                      type="text" 
+                      maxLength={(editWinnerModal?.name === 'AK' || editWinnerModal?.name === 'AKC') ? 1 : 2} 
+                      autoFocus
+                      value={winningNumberInput} 
+                      onChange={e => setWinningNumberInput(e.target.value.replace(/\D/g, ''))} 
+                      className="w-full bg-slate-950 p-4 text-6xl text-center font-bold text-amber-500 border-2 border-slate-700 rounded-md focus:ring-4 focus:ring-amber-500/20" 
+                      placeholder="--" 
+                  />
+              </div>
+              <button 
+                onClick={handleUpdateWinnerSubmit} 
+                className="w-full py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-md font-bold text-lg uppercase tracking-widest transition-all"
+              >
+                Update & Broadcast
+              </button>
+          </div>
+      </Modal>
 
     </div>
   );

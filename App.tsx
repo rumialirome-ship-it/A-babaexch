@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates } from './types';
 import { Icons, GAME_LOGOS } from './constants';
@@ -110,7 +109,9 @@ const AppContent: React.FC = () => {
             fetchData(); // Initial fetch on login/account change
     
             if (role === Role.User || role === Role.Dealer) {
-                intervalId = setInterval(fetchData, 1000); // Poll every second
+                intervalId = setInterval(fetchData, 1000); // Poll every second for users/dealers
+            } else if (role === Role.Admin) {
+                intervalId = setInterval(fetchData, 5000); // Poll every 5 seconds for Admins
             }
         } else {
             // Clear data on logout
