@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
 import { Icons } from '../constants';
@@ -813,94 +812,11 @@ const NumberSummaryView: React.FC<{
         };
     }, [summary, numberFilter]);
 
-    const handleBetStateChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
-        setBetState(prev => ({
-            ...prev,
-            [e.target.name]: e.target.value,
-            error: null,
-            success: null,
-        }));
-    };
-    
-    const handleQuickBet = async (type: '2-digit' | '1-open' | '1-close') => {
-        const { userId, gameId, stake } = betState;
-        if (!userId || !gameId || !stake || Number(stake) <= 0) {
-            setBetState(prev => ({...prev, error: "Please select a user, a game, and enter a valid stake amount."}));
-            return;
-        }
-
-        setBetState(prev => ({...prev, isLoading: true, error: null, success: null}));
-        
-        const numbers = (type === '2-digit')
-            ? Array.from({ length: 100 }, (_, i) => String(i).padStart(2, '0'))
-            : Array.from({ length: 10 }, (_, i) => String(i));
-        
-        const subGameType = type === '1-open' 
-            ? SubGameType.OneDigitOpen 
-            : type === '1-close' 
-                ? SubGameType.OneDigitClose 
-                : SubGameType.TwoDigit;
-
-        try {
-            await onPlaceAdminBets({
-                userId,
-                gameId,
-                betGroups: [{
-                    subGameType: subGameType,
-                    numbers: numbers,
-                    amountPerNumber: Number(stake)
-                }]
-            });
-            setBetState(prev => ({...prev, isLoading: false, success: `Successfully placed bets on all ${type} numbers!`}));
-        } catch (err: any) {
-            setBetState(prev => ({...prev, isLoading: false, error: err.message || 'An unknown error occurred.'}));
-        }
-    };
-
     const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
-    const openGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
-    const activeUsers = useMemo(() => users.filter(u => !u.isRestricted), [users]);
     const finalSummary = filteredSummary || summary;
 
     return (
         <div>
-            <h3 className="text-xl font-semibold text-white mb-4">Admin Quick Bet</h3>
-            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Bet For User</label>
-                        <select name="userId" value={betState.userId} onChange={handleBetStateChange} className={inputClass}>
-                            <option value="">-- Select User --</option>
-                            {activeUsers.map(u => <option key={u.id} value={u.id}>{u.name} ({u.id})</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Game</label>
-                        <select name="gameId" value={betState.gameId} onChange={handleBetStateChange} className={inputClass}>
-                            <option value="">-- Select Game --</option>
-                            {openGames.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Stake Per Number</label>
-                        <input type="number" name="stake" value={betState.stake} onChange={handleBetStateChange} placeholder="e.g., 10" className={inputClass} />
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                    <button onClick={() => handleQuickBet('2-digit')} disabled={betState.isLoading} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed">
-                        {betState.isLoading ? 'Processing...' : 'Bet All 2-Digit (00-99)'}
-                    </button>
-                    <button onClick={() => handleQuickBet('1-open')} disabled={betState.isLoading} className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed">
-                        {betState.isLoading ? 'Processing...' : 'Bet All 1-Digit Open (0-9)'}
-                    </button>
-                    <button onClick={() => handleQuickBet('1-close')} disabled={betState.isLoading} className="bg-rose-600 hover:bg-rose-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed">
-                        {betState.isLoading ? 'Processing...' : 'Bet All 1-Digit Close (0-9)'}
-                    </button>
-                </div>
-                {betState.error && <div className="bg-red-500/20 text-red-300 p-3 rounded-md text-sm mt-2">{betState.error}</div>}
-                {betState.success && <div className="bg-green-500/20 text-green-300 p-3 rounded-md text-sm mt-2">{betState.success}</div>}
-            </div>
-            
             <h3 className="text-xl font-semibold text-white mb-4">Number-wise Stake Summary</h3>
             <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
