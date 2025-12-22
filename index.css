@@ -1,4 +1,5 @@
 
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -28,7 +29,16 @@ body {
   height: 100vh;
   z-index: -1;
   background-color: #020617;
-  /* Grid animation and background-image removed for solid color layout */
+  background-image: 
+    linear-gradient(rgba(14, 165, 233, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  animation: pan-grid 60s linear infinite;
+}
+
+@keyframes pan-grid {
+  0% { background-position: 0 0; }
+  100% { background-position: 500px 500px; }
 }
 
 /* Custom Scrollbar - Now applied to the whole document */

@@ -1,4 +1,6 @@
 
+
+
 export enum Role {
   Admin = 'ADMIN',
   Dealer = 'DEALER',
@@ -20,11 +22,6 @@ export interface LedgerEntry {
   balance: number;
 }
 
-export interface BetLimits {
-  oneDigit: number;
-  twoDigit: number;
-}
-
 export interface BaseAccount {
   id: string;
   name: string;
@@ -36,12 +33,17 @@ export interface BaseAccount {
   isRestricted: boolean;
   ledger: LedgerEntry[];
   avatarUrl?: string;
-  betLimits?: BetLimits;
+}
+
+export interface BetLimits {
+  oneDigit: number;
+  twoDigit: number;
 }
 
 export interface User extends BaseAccount {
   dealerId: string;
   prizeRates: PrizeRates;
+  betLimits?: BetLimits;
 }
 
 export interface Dealer extends BaseAccount {

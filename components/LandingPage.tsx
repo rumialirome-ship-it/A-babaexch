@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Game } from '../types';
 import { useCountdown } from '../hooks/useCountdown';
@@ -7,7 +6,6 @@ import { useAuth } from '../hooks/useAuth';
 
 // Helper function to format time to 12-hour AM/PM format
 const formatTime12h = (time24: string) => {
-    if (!time24 || !time24.includes(':')) return '--:--';
     const [hours, minutes] = time24.split(':').map(Number);
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hours12 = hours % 12 || 12; // Convert 0 to 12
@@ -31,15 +29,15 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
             }}
         >
             {/* Glow effect */}
-            <div className={`absolute -inset-0.5 bg-gradient-to-r from-${themeColor === 'emerald' ? 'emerald-500' : 'cyan-500'} to-blue-500 rounded-lg blur opacity-0 group-hover:opacity-75 transition duration-500`}></div>
+            <div className={`absolute -inset-0.5 bg-gradient-to-r from-${themeColor}-500 to-blue-500 rounded-lg blur opacity-0 group-hover:opacity-75 transition duration-500`}></div>
             {/* Main content */}
             <div className="relative z-10 w-full flex flex-col h-full">
                 <div className="flex-grow">
-                    <img src={logo} alt={`${game.name} logo`} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-slate-700 group-hover:border-cyan-400 transition-colors" />
+                    <img src={logo} alt={`${game.name} logo`} className="w-24 h-24 rounded-full mb-4 border-4 border-slate-700 group-hover:border-cyan-400 transition-colors" />
                     <h3 className="text-2xl text-white mb-1 uppercase tracking-wider">{game.name}</h3>
                     <p className="text-slate-400 text-sm">Draw @ {formatTime12h(game.drawTime)}</p>
                 </div>
-                <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor === 'emerald' ? 'emerald-400' : 'cyan-400'}/20`}>
+                <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor}-400/20`}>
                     {hasWinner ? (
                         <>
                             <div className="text-xs uppercase tracking-widest text-slate-400">WINNING NUMBER</div>
@@ -178,6 +176,7 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
                 </div>
                 <div className="p-8">
                     <form onSubmit={handleLoginSubmit} className="space-y-6">
+                        {/* Form fields identical to LoginPanel, just re-styled for the modal */}
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1 uppercase tracking-wider">Admin ID</label>
                             <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className={`w-full bg-slate-800/50 p-3 rounded-md border border-slate-600 focus:ring-2 ${theme.ring} focus:outline-none text-white`} />
@@ -247,6 +246,7 @@ const ResetPasswordModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
                     ) : (
                         <form onSubmit={handleResetSubmit} className="space-y-4">
                             <p className="text-sm text-slate-400 mb-2">Enter your Account ID and registered Contact to proceed.</p>
+                            {/* Form fields styled similarly to other forms */}
                              <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1">Account ID</label>
                                 <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 text-white" />
@@ -309,8 +309,6 @@ const AdminResetInfoModal: React.FC<{ isOpen: boolean; onClose: () => void; }> =
 
 const LandingPage: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [fetchError, setFetchError] = useState<string | null>(null);
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
@@ -319,15 +317,10 @@ const LandingPage: React.FC = () => {
         const fetchGames = async () => {
             try {
                 const response = await fetch('/api/games');
-                if (!response.ok) throw new Error('Could not fetch games from server.');
                 const data = await response.json();
                 setGames(data);
-                setFetchError(null);
             } catch (error) {
                 console.error("Failed to fetch games:", error);
-                setFetchError("Market data unavailable. Please ensure your database is running and setup correctly.");
-            } finally {
-                setLoading(false);
             }
         };
         fetchGames();
@@ -347,31 +340,11 @@ const LandingPage: React.FC = () => {
 
                 <section id="games" className="mb-20">
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Today's Games</h2>
-                    
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center p-20">
-                            <div className="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-4"></div>
-                            <p className="text-cyan-400 animate-pulse">Scanning Markets...</p>
-                        </div>
-                    ) : fetchError ? (
-                        <div className="max-w-md mx-auto bg-red-900/30 border border-red-500/50 p-6 rounded-lg text-center">
-                            <p className="text-red-400 mb-4">{fetchError}</p>
-                            <button onClick={() => window.location.reload()} className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-md transition-colors">
-                                Retry Connection
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-                            {games.map(game => (
-                                <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
-                            ))}
-                            {games.length === 0 && (
-                                <div className="col-span-full text-center text-slate-500 py-20 bg-slate-800/20 border border-dashed border-slate-700 rounded-lg">
-                                    No games currently active in the market.
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+                        {games.map(game => (
+                            <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
+                        ))}
+                    </div>
                 </section>
 
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
