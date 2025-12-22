@@ -1,13 +1,15 @@
 
 console.error('############################################################');
-console.error('--- EXECUTING LATEST SERVER.JS VERSION 5 ---');
+console.error('--- EXECUTING LATEST SERVER.JS VERSION 4 ---');
 console.error('############################################################');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('./authMiddleware');
+const { GoogleGenAI } = require('@google/genai');
 const database = require('./database');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 app.use(cors());
@@ -15,6 +17,7 @@ app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
+// --- AUTHENTICATION ROUTES ---
 app.post('/api/auth/login', (req, res) => {
     const { loginId, password } = req.body;
     const { account, role } = database.findAccountForLogin(loginId);
@@ -33,33 +36,32 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
     res.json({ account, role: req.user.role });
 });
 
-app.get('/api/games', (req, res) => {
-    res.json(database.getAllFromTable('games'));
-});
-
-// --- DEALER WALLET MANAGEMENT ---
-app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
-    if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    const { userId, amount } = req.body;
+// --- PROFILE UPDATE (Self Service) ---
+app.put('/api/:role/profile', authMiddleware, (req, res) => {
+    const { name, password } = req.body;
+    const table = req.user.role.toLowerCase() + 's';
     try {
-        database.topUpUserWallet(req.user.id, userId, amount);
-        res.json({ message: 'Top-up successful.' });
+        const currentAccount = database.findAccountById(req.user.id, table);
+        const updated = { ...currentAccount, name, password };
+        database.runInTransaction(() => {
+            if (req.user.role === 'DEALER') database.updateDealer(updated, req.user.id);
+            else database.updateUser(updated, req.user.id, currentAccount.dealerId);
+        });
+        res.json({ message: 'Profile updated.' });
     } catch (e) {
-        res.status(e.status || 500).json({ message: e.message });
+        res.status(500).json({ message: e.message });
     }
 });
 
-app.post('/api/dealer/withdraw/user', authMiddleware, (req, res) => {
-    if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    const { userId, amount } = req.body;
-    try {
-        database.withdrawFromUserWallet(req.user.id, userId, amount);
-        res.json({ message: 'Withdrawal successful.' });
-    } catch (e) {
-        res.status(e.status || 500).json({ message: e.message });
-    }
+// --- USER ROUTES ---
+app.get('/api/user/data', authMiddleware, (req, res) => {
+    if (req.user.role !== 'USER') return res.sendStatus(403);
+    const games = database.getAllFromTable('games');
+    const userBets = database.getAllFromTable('bets').filter(b => b.userId === req.user.id).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+    res.json({ games, bets: userBets });
 });
 
+// --- DEALER ROUTES ---
 app.get('/api/dealer/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     const users = database.findUsersByDealerId(req.user.id);
@@ -70,24 +72,29 @@ app.get('/api/dealer/data', authMiddleware, (req, res) => {
 app.post('/api/dealer/users', authMiddleware, (req, res) => {
     const { userData, initialDeposit = 0 } = req.body;
     try {
-        const newUser = database.createUser(userData, req.user.id, initialDeposit);
+        let newUser;
+        database.runInTransaction(() => { newUser = database.createUser(userData, req.user.id, initialDeposit); });
         res.status(201).json(newUser);
     } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
 app.put('/api/dealer/users/:id', authMiddleware, (req, res) => {
     try {
-        const updatedUser = database.updateUser(req.body, req.params.id, req.user.id);
+        let updatedUser;
+        database.runInTransaction(() => { updatedUser = database.updateUser(req.body, req.params.id, req.user.id); });
         res.json(updatedUser);
     } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
-app.put('/api/dealer/users/:id/toggle-restriction', authMiddleware, (req, res) => {
-    try {
-        const updatedUser = database.toggleUserRestrictionByDealer(req.params.id, req.user.id);
-        res.json(updatedUser);
-    } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+// Admin Routes (Inherit Existing Logic)
+app.get('/api/admin/data', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    res.json({
+        dealers: database.getAllFromTable('dealers', true),
+        users: database.getAllFromTable('users', true),
+        games: database.getAllFromTable('games'),
+        bets: database.getAllFromTable('bets')
+    });
 });
 
-// Admin and User routes remain consistent...
 app.listen(3001, () => { console.error('>>> A-BABA BACKEND IS LIVE ON PORT 3001 <<<'); });
