@@ -22,12 +22,13 @@ const TableSkeleton = () => (
     </div>
 );
 
+// Internal components
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'emerald' }) => {
     if (!isOpen) return null;
      const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className={`bg-slate-900 rounded-lg shadow-2xl w-full border border-${themeColor}-500/30 ${sizeClasses[size]} flex flex-col max-h-[90vh]`}>
+        <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+            <div className={`bg-slate-900/80 rounded-lg shadow-2xl w-full border border-${themeColor}-500/30 ${sizeClasses[size]} flex flex-col max-h-[90vh]`}>
                 <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
                     <h3 className={`text-lg font-bold text-${themeColor}-400 uppercase tracking-widest`}>{title}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
@@ -62,7 +63,11 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
                         </tr>
                     ))}
                     {entries.length === 0 && (
-                        <tr><td colSpan={5} className="p-8 text-center text-slate-500">No ledger entries found.</td></tr>
+                        <tr>
+                            <td colSpan={5} className="p-8 text-center text-slate-500">
+                                No ledger entries found.
+                            </td>
+                        </tr>
                     )}
                 </tbody>
             </table>
@@ -70,20 +75,20 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     </div>
 );
 
-const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>; onCancel: () => void; dealerPrizeRates: PrizeRates; dealerCommRate: number; dealerId: string }> = ({ user, users, onSave, onCancel, dealerPrizeRates, dealerCommRate, dealerId }) => {
+const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>; onCancel: () => void; dealerPrizeRates: PrizeRates, dealerId: string }> = ({ user, users, onSave, onCancel, dealerPrizeRates, dealerId }) => {
     const [formData, setFormData] = useState(() => {
         const defaults = {
             id: '', name: '', password: '', area: '', contact: '', commissionRate: 0, 
             prizeRates: { ...dealerPrizeRates }, avatarUrl: '', wallet: '',
-            betLimits: { oneDigit: 5000, twoDigit: 2000 }
+            betLimits: { oneDigit: '', twoDigit: '' }
         };
         if (user) {
             return {
                 ...user,
                 password: '',
                 betLimits: {
-                    oneDigit: user.betLimits?.oneDigit ?? 5000,
-                    twoDigit: user.betLimits?.twoDigit ?? 2000,
+                    oneDigit: user.betLimits?.oneDigit ?? '',
+                    twoDigit: user.betLimits?.twoDigit || '',
                 }
             };
         }
@@ -111,21 +116,27 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
         e.preventDefault();
         const newPassword = user ? password : formData.password!;
         if (newPassword && newPassword !== confirmPassword) { alert("New passwords do not match."); return; }
+        if (!user && !newPassword) { alert("Password is required for new users."); return; }
         
-        // Margin Validations
-        if (formData.commissionRate > dealerCommRate) { alert(`Your maximum allowed commission rate is ${dealerCommRate}%.`); return; }
-        if (formData.prizeRates.oneDigitOpen > dealerPrizeRates.oneDigitOpen) { alert(`Max prize for 1D Open is ${dealerPrizeRates.oneDigitOpen}x.`); return; }
-        if (formData.prizeRates.oneDigitClose > dealerPrizeRates.oneDigitClose) { alert(`Max prize for 1D Close is ${dealerPrizeRates.oneDigitClose}x.`); return; }
-        if (formData.prizeRates.twoDigit > dealerPrizeRates.twoDigit) { alert(`Max prize for 2D is ${dealerPrizeRates.twoDigit}x.`); return; }
+        const formId = (formData.id as string).toLowerCase();
+        if (!user && users.some(u => u.id.toLowerCase() === formId)) {
+            alert("This User Login ID is already taken.");
+            return;
+        }
 
         setIsLoading(true);
         try {
+            const betLimitsValue: any = {
+                oneDigit: Number((formData.betLimits as any).oneDigit) || 0,
+                twoDigit: Number((formData.betLimits as any).twoDigit) || 0,
+            };
             const finalData: User = {
                 ...formData,
                 id: (user ? user.id : formData.id) as string,
                 dealerId,
                 name: formData.name,
                 password: newPassword ? newPassword : (user ? user.password : ''),
+                betLimits: betLimitsValue,
             } as any;
             await onSave(finalData, user?.id, Number(formData.wallet) || 0);
         } finally {
@@ -137,123 +148,31 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">User Login ID</label>
-                    <input type="text" name="id" value={formData.id as string} onChange={handleChange} placeholder="User Login ID" className={inputClass} required disabled={!!user}/>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">User Name</label>
-                    <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Display Name" className={inputClass} required />
-                </div>
+            <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">User Login ID</label>
+                <input type="text" name="id" value={formData.id as string} onChange={handleChange} placeholder="User Login ID" className={inputClass} required disabled={!!user}/>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="relative">
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Password</label>
-                    <input type={isPasswordVisible ? 'text' : 'password'} name="password" value={user ? password : formData.password!} onChange={user ? (e) => setPassword(e.target.value) : handleChange} placeholder={user ? "New Password" : "Password"} className={inputClass + " pr-10"} required={!user} />
-                    <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute bottom-2.5 right-3 text-slate-400 hover:text-white">{isPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
-                </div>
-                <div className="relative">
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Confirm Password</label>
-                    <input type={isConfirmPasswordVisible ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm Password" className={inputClass + " pr-10"} required={!!(user ? password : formData.password)} />
-                    <button type="button" onClick={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} className="absolute bottom-2.5 right-3 text-slate-400 hover:text-white">{isConfirmPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
-                </div>
+            <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="User Display Name" className={inputClass} required />
+            <div className="relative">
+                 <input type={isPasswordVisible ? 'text' : 'password'} name="password" value={user ? password : formData.password!} onChange={user ? (e) => setPassword(e.target.value) : handleChange} placeholder={user ? "New Password (optional)" : "Password"} className={inputClass + " pr-10"} required={!user} />
+                <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">{isPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Area</label>
-                    <input type="text" name="area" value={formData.area} onChange={handleChange} className={inputClass} />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Contact</label>
-                    <input type="text" name="contact" value={formData.contact} onChange={handleChange} className={inputClass} />
-                </div>
-            </div>
-
+            <input type="url" name="avatarUrl" value={formData.avatarUrl || ''} onChange={handleChange} placeholder="Avatar Image URL (optional)" className={inputClass} />
+            <input type="text" name="area" value={formData.area} onChange={handleChange} placeholder="Area / Contact" className={inputClass} />
+            <input type="text" name="contact" value={formData.contact} onChange={handleChange} placeholder="Contact Number" className={inputClass} />
             {!user && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1 text-emerald-400 font-bold">Initial Wallet Load (PKR)</label>
-                  <input type="number" name="wallet" value={formData.wallet as string} onChange={handleChange} placeholder="0.00" className={inputClass} />
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Initial Wallet Amount (PKR)</label>
+                  <input type="number" name="wallet" value={formData.wallet as string} onChange={handleChange} placeholder="e.g. 5000" className={inputClass} />
                 </div>
             )}
-
-            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <h4 className="text-sm font-bold text-white mb-3 uppercase tracking-widest border-b border-slate-700 pb-1">Margins & Prizes</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-1">Commission Rate (%)</label>
-                        <input type="number" name="commissionRate" value={formData.commissionRate} onChange={handleChange} step="0.1" className={inputClass} />
-                        <p className="text-[10px] text-slate-500 mt-1">Your Max: {dealerCommRate}%</p>
-                    </div>
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-1">2-Digit Prize (x)</label>
-                        <input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} />
-                        <p className="text-[10px] text-slate-500 mt-1">Your Max: {dealerPrizeRates.twoDigit}x</p>
-                    </div>
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-1">1D Open Prize (x)</label>
-                        <input type="number" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} />
-                        <p className="text-[10px] text-slate-500 mt-1">Your Max: {dealerPrizeRates.oneDigitOpen}x</p>
-                    </div>
-                    <div>
-                        <label className="block text-sm text-slate-400 mb-1">1D Close Prize (x)</label>
-                        <input type="number" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} />
-                        <p className="text-[10px] text-slate-500 mt-1">Your Max: {dealerPrizeRates.oneDigitClose}x</p>
-                    </div>
-                </div>
-            </div>
-
+            
             <div className="flex justify-end space-x-3 pt-4">
-                <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors uppercase text-sm">Cancel</button>
-                <button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-8 rounded-md transition-colors disabled:opacity-50 uppercase text-sm">
-                    {isLoading ? 'Saving...' : 'Save User Profile'}
+                <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
+                <button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:opacity-50">
+                    {isLoading ? 'Saving...' : 'Save User'}
                 </button>
             </div>
-        </form>
-    );
-};
-
-const ProfileSettings: React.FC<{ dealer: Dealer; onUpdate: (data: any) => Promise<void> }> = ({ dealer, onUpdate }) => {
-    const [name, setName] = useState(dealer.name);
-    const [pass, setPass] = useState('');
-    const [confirm, setConfirm] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (pass && pass !== confirm) { alert("Passwords don't match."); return; }
-        setIsLoading(true);
-        try {
-            await onUpdate({ name, password: pass || dealer.password });
-            alert("Profile updated successfully!");
-            setPass(''); setConfirm('');
-        } finally { setIsLoading(false); }
-    };
-
-    const inputClass = "w-full bg-slate-800 p-3 rounded-md border border-slate-700 text-white focus:ring-2 focus:ring-emerald-500 outline-none";
-
-    return (
-        <form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-6 bg-slate-800/30 p-8 rounded-xl border border-slate-700">
-            <h3 className="text-xl font-bold text-white text-center uppercase tracking-widest mb-4">Account Settings</h3>
-            <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Display Name</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">New Password (leave blank to keep current)</label>
-                <input type="password" value={pass} onChange={e => setPass(e.target.value)} className={inputClass} />
-            </div>
-            {pass && (
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Confirm New Password</label>
-                    <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} className={inputClass} />
-                </div>
-            )}
-            <button type="submit" disabled={isLoading} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-md transition-all uppercase tracking-widest">
-                {isLoading ? 'Updating...' : 'Save Profile Changes'}
-            </button>
         </form>
     );
 };
@@ -265,12 +184,12 @@ interface DealerPanelProps {
   topUpUserWallet: (userId: string, amount: number) => Promise<void>;
   withdrawFromUserWallet: (userId: string, amount: number) => Promise<void>;
   toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => Promise<void>;
-  onUpdateSelf: (data: any) => Promise<void>;
   bets: Bet[];
   games: Game[];
+  placeBetAsDealer: (details: any) => Promise<void>;
 }
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, onUpdateSelf, bets, games }) => {
+const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
@@ -284,82 +203,50 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-            <h2 className="text-4xl font-black text-emerald-400 uppercase tracking-tighter">DEALER DESK</h2>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Operator ID: {dealer.id}</p>
-        </div>
-        <div className="hidden md:flex gap-6 items-center">
-             <div className="text-right">
-                <p className="text-[10px] text-slate-500 uppercase font-bold">Current Margin</p>
-                <p className="text-sm font-mono text-white">{dealer.commissionRate}% COMM / {dealer.prizeRates.twoDigit}x PRIZE</p>
-            </div>
-        </div>
-      </div>
-
-      <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-8 self-start flex-wrap border border-slate-700">
-        {[
-            {id: 'users', label: 'Network', icon: Icons.userGroup},
-            {id: 'history', label: 'My Ledger', icon: Icons.bookOpen},
-            {id: 'settings', label: 'Settings', icon: Icons.eye}
-        ].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2.5 px-6 text-xs font-bold uppercase tracking-widest rounded-md transition-all duration-300 ${activeTab === tab.id ? 'bg-slate-700 text-emerald-400 shadow-lg border border-emerald-500/20' : 'text-slate-500 hover:text-slate-300'}`}>
-             {tab.icon} <span>{tab.label}</span>
+      <h2 className="text-3xl font-bold text-emerald-400 mb-6 uppercase tracking-widest">Dealer Console</h2>
+      <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
+        {['users', 'wallet', 'history'].map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
+             <span className="uppercase">{tab}</span>
           </button>
         ))}
       </div>
 
        {activeTab === 'users' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-          <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h3 className="text-xl font-bold text-white uppercase tracking-widest">User Network ({users.length})</h3>
+        <div>
+          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+            <h3 className="text-xl font-semibold text-white">Users Management ({users.length})</h3>
             <div className="flex gap-2 w-full md:w-auto">
-                <div className="relative flex-grow">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">{Icons.search}</span>
-                    <input type="text" placeholder="Search accounts..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2.5 pl-10 rounded-md border border-slate-700 focus:ring-2 focus:ring-emerald-500 text-white w-full text-sm font-sans"/>
-                </div>
-                <button onClick={() => { setSelectedUser(undefined); setIsModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-6 rounded-md whitespace-nowrap transition-all shadow-lg shadow-emerald-600/20 active:scale-95 text-xs uppercase">
-                  Add Account
+                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 text-white w-full"/>
+                <button onClick={() => { setSelectedUser(undefined); setIsModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
+                  + Create User
                 </button>
             </div>
           </div>
           {users.length === 0 ? <TableSkeleton /> : (
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
                 <div className="overflow-x-auto mobile-scroll-x">
-                    <table className="w-full text-left min-w-[900px]">
+                    <table className="w-full text-left min-w-[800px]">
                         <thead className="bg-slate-800/50">
-                            <tr className="text-[10px] text-slate-500 uppercase tracking-widest">
-                                <th className="p-4">Identity</th>
-                                <th className="p-4">Contact/Area</th>
-                                <th className="p-4">Rates (C/P)</th>
-                                <th className="p-4">Wallet</th>
-                                <th className="p-4">Status</th>
-                                <th className="p-4 text-center">Operations</th>
+                            <tr>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wallet (PKR)</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
                             {filteredUsers.map(user => (
-                                <tr key={user.id} className="hover:bg-emerald-500/5 transition-colors text-sm">
+                                <tr key={user.id} className="hover:bg-emerald-500/10 transition-colors text-sm">
+                                    <td className="p-4 font-medium text-white">{user.name} <span className="text-[10px] text-slate-500 font-mono ml-2">({user.id})</span></td>
+                                    <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
+                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                     <td className="p-4">
-                                        <div className="font-bold text-white uppercase">{user.name}</div>
-                                        <div className="text-[10px] text-slate-500 font-mono tracking-tighter">{user.id}</div>
-                                    </td>
-                                    <td className="p-4 text-slate-400">
-                                        <div>{user.contact || '--'}</div>
-                                        <div className="text-xs">{user.area || '--'}</div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="text-emerald-400 font-bold">{user.commissionRate}%</div>
-                                        <div className="text-[10px] text-slate-500 font-mono">{user.prizeRates.twoDigit}x / {user.prizeRates.oneDigitOpen}x</div>
-                                    </td>
-                                    <td className="p-4 font-mono text-white font-bold">PKR {user.wallet.toLocaleString()}</td>
-                                    <td className="p-4"><span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400 border border-red-500/20' : 'bg-green-500/20 text-green-400 border border-green-500/20'}`}>{user.isRestricted ? 'LOCKED' : 'ACTIVE'}</span></td>
-                                    <td className="p-4">
-                                        <div className="flex gap-2 justify-center">
-                                            <button onClick={() => { setSelectedUser(user); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 p-2 rounded-md transition-all" title="Edit Profile">{Icons.plus}</button>
-                                            <button onClick={() => setViewingLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 p-2 rounded-md transition-all" title="View Ledger">{Icons.bookOpen}</button>
-                                            <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`p-2 rounded-md transition-all ${user.isRestricted ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`} title={user.isRestricted ? 'Unlock' : 'Lock'}>
-                                                {user.isRestricted ? Icons.checkCircle : Icons.close}
+                                        <div className="flex gap-2">
+                                            <button onClick={() => { setSelectedUser(user); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Edit</button>
+                                            <button onClick={() => setViewingLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Ledger</button>
+                                            <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors ${user.isRestricted ? 'text-green-300' : 'text-red-300'}`}>
+                                                {user.isRestricted ? 'Unrestrict' : 'Restrict'}
                                             </button>
                                         </div>
                                     </td>
@@ -373,21 +260,9 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
         </div>
       )}
 
-      {activeTab === 'history' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <h3 className="text-xl font-bold text-white mb-6 uppercase tracking-widest">Consolidated Dealer Ledger</h3>
-            <LedgerTable entries={dealer.ledger} />
-        </div>
-      )}
-
-      {activeTab === 'settings' && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 pt-8">
-              <ProfileSettings dealer={dealer} onUpdate={onUpdateSelf} />
-          </div>
-      )}
-
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedUser ? "Modify User Account" : "Open New Account"}>
-        <UserForm user={selectedUser} users={users} onSave={async (u, id, dep) => { await onSaveUser(u, id, dep); setIsModalOpen(false); }} onCancel={() => setIsModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerCommRate={dealer.commissionRate} dealerId={dealer.id} />
+      {/* MODALS */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedUser ? "Edit User" : "Create User"}>
+        <UserForm user={selectedUser} users={users} onSave={async (u, id, dep) => { await onSaveUser(u, id, dep); setIsModalOpen(false); }} onCancel={() => setIsModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerId={dealer.id} />
       </Modal>
 
       {viewingLedgerFor && (
