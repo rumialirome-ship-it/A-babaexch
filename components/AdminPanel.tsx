@@ -4,7 +4,42 @@ import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameT
 import { Icons } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 
-// --- TYPE DEFINITIONS FOR NEW DASHBOARD ---
+// --- DASHBOARD SKELETONS ---
+const DashboardSkeleton = () => (
+    <div className="space-y-6 mb-12">
+        <div className="h-6 w-48 skeleton rounded mb-4"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 h-32">
+                    <div className="h-3 w-20 skeleton rounded mb-4"></div>
+                    <div className="h-8 w-32 skeleton rounded"></div>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+const TableSkeleton = () => (
+    <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+        <table className="w-full text-left">
+            <thead className="bg-slate-800/80">
+                <tr>
+                    {Array.from({ length: 5 }).map((_, i) => <th key={i} className="p-4"><div className="h-3 w-16 skeleton rounded"></div></th>)}
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+                {Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={i}>
+                        {Array.from({ length: 5 }).map((_, j) => (
+                            <td key={j} className="p-4"><div className={`h-4 ${j === 0 ? 'w-32' : 'w-20'} skeleton rounded`}></div></td>
+                        ))}
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    </div>
+);
+
 interface GameSummary {
   gameName: string;
   winningNumber: string;
@@ -126,6 +161,7 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value, type, checked } = e.target;
@@ -141,7 +177,7 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const newPassword = dealer ? password : formData.password!;
         if (newPassword && newPassword !== confirmPassword) { alert("New passwords do not match."); return; }
@@ -153,40 +189,47 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
             return;
         }
 
-        let finalData: Dealer;
-        if (dealer) {
-            finalData = { 
-                ...dealer, 
-                ...formData, 
-                password: newPassword ? newPassword : dealer.password,
-                wallet: Number(formData.wallet) || 0,
-                commissionRate: Number(formData.commissionRate) || 0,
-                prizeRates: {
-                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
-                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
-                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
-                }
-            };
-        } else {
-            finalData = {
-                id: formData.id as string, 
-                name: formData.name, 
-                password: newPassword, 
-                area: formData.area,
-                contact: formData.contact, 
-                wallet: Number(formData.wallet) || 0,
-                commissionRate: Number(formData.commissionRate) || 0, 
-                isRestricted: false, 
-                prizeRates: {
-                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
-                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
-                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
-                },
-                ledger: [], 
-                avatarUrl: formData.avatarUrl,
-            };
+        setIsSaving(true);
+        try {
+            let finalData: Dealer;
+            if (dealer) {
+                finalData = { 
+                    ...dealer, 
+                    ...formData, 
+                    password: newPassword ? newPassword : dealer.password,
+                    wallet: Number(formData.wallet) || 0,
+                    commissionRate: Number(formData.commissionRate) || 0,
+                    prizeRates: {
+                        oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                        oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                        twoDigit: Number(formData.prizeRates.twoDigit) || 0,
+                    }
+                };
+            } else {
+                finalData = {
+                    id: formData.id as string, 
+                    name: formData.name, 
+                    password: newPassword, 
+                    area: formData.area,
+                    contact: formData.contact, 
+                    wallet: Number(formData.wallet) || 0,
+                    commissionRate: Number(formData.commissionRate) || 0, 
+                    isRestricted: false, 
+                    prizeRates: {
+                        oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                        oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                        twoDigit: Number(formData.prizeRates.twoDigit) || 0,
+                    },
+                    ledger: [], 
+                    avatarUrl: formData.avatarUrl,
+                };
+            }
+            await onSave(finalData, dealer?.id);
+        } catch (e) {
+            alert("Save failed. Please check inputs.");
+        } finally {
+            setIsSaving(false);
         }
-        onSave(finalData, dealer?.id);
     };
 
     const displayPassword = dealer ? password : formData.password!;
@@ -234,7 +277,9 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
 
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Save Dealer</button>
+                <button type="submit" disabled={isSaving} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:opacity-50">
+                    {isSaving ? 'Saving...' : 'Save Dealer'}
+                </button>
             </div>
         </form>
     );
@@ -248,11 +293,12 @@ const DealerTransactionForm: React.FC<{
 }> = ({ dealers, onTransaction, onCancel, type }) => {
     const [selectedDealerId, setSelectedDealerId] = useState<string>('');
     const [amount, setAmount] = useState<number | ''>('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
     
     const inputClass = `w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-${themeColor}-500 focus:outline-none text-white`;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedDealerId || !amount || amount <= 0) {
             alert(`Please select a dealer and enter a valid positive amount.`);
@@ -261,7 +307,12 @@ const DealerTransactionForm: React.FC<{
         const dealerName = dealers.find(d => d.id === selectedDealerId)?.name || 'the selected dealer';
         const confirmationAction = type === 'Top-Up' ? 'to' : 'from';
         if (window.confirm(`Are you sure you want to ${type.toLowerCase()} PKR ${amount} ${confirmationAction} ${dealerName}'s wallet?`)) {
-            onTransaction(selectedDealerId, Number(amount));
+            setIsSubmitting(true);
+            try {
+                await onTransaction(selectedDealerId, Number(amount));
+            } finally {
+                setIsSubmitting(false);
+            }
         }
     };
 
@@ -280,8 +331,8 @@ const DealerTransactionForm: React.FC<{
             </div>
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                <button type="submit" className={`font-bold py-2 px-4 rounded-md transition-colors text-white ${type === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
-                    {type}
+                <button type="submit" disabled={isSubmitting} className={`font-bold py-2 px-4 rounded-md transition-colors text-white disabled:opacity-50 ${type === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
+                    {isSubmitting ? 'Processing...' : type}
                 </button>
             </div>
         </form>
@@ -291,7 +342,7 @@ const DealerTransactionForm: React.FC<{
 // --- NEW DASHBOARD COMPONENT ---
 const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }> = ({ summary, admin }) => {
     if (!summary) {
-        return <div className="text-center p-8 text-slate-400">Loading financial summary...</div>;
+        return <DashboardSkeleton />;
     }
 
     const SummaryCard: React.FC<{ title: string; value: number; color: string }> = ({ title, value, color }) => (
@@ -372,7 +423,6 @@ const NumberLimitsView: React.FC = () => {
             setLimits(data);
         } catch (error) {
             console.error("Failed to fetch number limits:", error);
-            alert("Failed to fetch number limits.");
         } finally {
             setIsLoading(false);
         }
@@ -422,7 +472,6 @@ const NumberLimitsView: React.FC = () => {
             setFormState({ gameType: '2-digit', numberValue: '', limitAmount: 0 });
             await fetchLimits();
         } catch (error) {
-            console.error("Failed to save limit:", error);
             alert("Failed to save limit.");
         }
     };
@@ -433,7 +482,6 @@ const NumberLimitsView: React.FC = () => {
                 await fetchWithAuth(`/api/admin/number-limits/${limitId}`, { method: 'DELETE' });
                 await fetchLimits();
             } catch (error) {
-                console.error("Failed to delete limit:", error);
                 alert("Failed to delete limit.");
             }
         }
@@ -982,11 +1030,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
+  const [isLoadingMain, setIsLoadingMain] = useState(true);
   
   // New modal states for Winner Declaration
   const [declareWinnerModal, setDeclareWinnerModal] = useState<Game | null>(null);
   const [editWinnerModal, setEditWinnerModal] = useState<Game | null>(null);
   const [winningNumberInput, setWinningNumberInput] = useState('');
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
 
   const { fetchWithAuth } = useAuth();
 
@@ -1043,11 +1093,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         setSummaryData(data);
       } catch (error) {
         console.error("Error fetching financial summary:", error);
+      } finally {
+        setIsLoadingMain(false);
       }
     };
 
     if (activeTab === 'dashboard') {
       fetchSummary();
+    } else {
+        setIsLoadingMain(false);
     }
   }, [activeTab, fetchWithAuth]);
 
@@ -1076,7 +1130,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       }
   };
 
-  const handleDeclareWinnerSubmit = () => {
+  const handleDeclareWinnerSubmit = async () => {
     if (!declareWinnerModal) return;
     const game = declareWinnerModal;
     const num = winningNumberInput;
@@ -1084,15 +1138,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
 
     if (isValid) {
-        declareWinner(game.id, num);
-        setDeclareWinnerModal(null);
-        setWinningNumberInput('');
+        setIsBroadcasting(true);
+        try {
+            await declareWinner(game.id, num);
+            setDeclareWinnerModal(null);
+            setWinningNumberInput('');
+        } finally {
+            setIsBroadcasting(false);
+        }
     } else {
         alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
     }
   };
 
-  const handleUpdateWinnerSubmit = () => {
+  const handleUpdateWinnerSubmit = async () => {
     if (!editWinnerModal) return;
     const game = editWinnerModal;
     const num = winningNumberInput;
@@ -1100,9 +1159,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
 
     if (isValid) {
-        updateWinner(game.id, num);
-        setEditWinnerModal(null);
-        setWinningNumberInput('');
+        setIsBroadcasting(true);
+        try {
+            await updateWinner(game.id, num);
+            setEditWinnerModal(null);
+            setWinningNumberInput('');
+        } finally {
+            setIsBroadcasting(false);
+        }
     } else {
         alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
     }
@@ -1222,45 +1286,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                 </button>
             </div>
           </div>
-          <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-             <div className="overflow-x-auto mobile-scroll-x">
-                 <table className="w-full text-left min-w-[800px]">
-                     <thead className="bg-slate-800/50">
-                         <tr>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID / Area</th>
-                              <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Commission</th>
-                             <SortableHeader label="Status" sortKey="status" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
-                         </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-800">
-                         {sortedDealers.map(dealer => (
-                             <tr key={dealer.id} className="hover:bg-cyan-500/10 transition-colors">
-                                 <td className="p-4 font-medium"><div className="flex items-center gap-3">
-                                     {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
-                                     <span className="font-semibold text-white">{dealer.name}</span>
-                                 </div></td>
-                                 <td className="p-4 text-slate-400"><div className="font-mono">{dealer.id}</div><div className="text-xs">{dealer.area}</div></td>
-                                 <td className="p-4 font-mono text-white">{dealer.wallet.toLocaleString()}</td>
-                                 <td className="p-4 text-slate-300">{dealer.commissionRate}%</td>
-                                 <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${dealer.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{dealer.isRestricted ? 'Restricted' : 'Active'}</span></td>
-                                 <td className="p-4">
-                                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                        <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
-                                        <button onClick={() => setViewingLedgerFor(dealer)} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
-                                        <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${dealer.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
-                                            {dealer.isRestricted ? 'Unrestrict' : 'Restrict'}
-                                        </button>
-                                      </div>
-                                 </td>
-                             </tr>
-                         ))}
-                     </tbody>
-                 </table>
-             </div>
-          </div>
+          {dealers.length === 0 ? <TableSkeleton /> : (
+            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="overflow-x-auto mobile-scroll-x">
+                    <table className="w-full text-left min-w-[800px]">
+                        <thead className="bg-slate-800/50">
+                            <tr>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID / Area</th>
+                                <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Commission</th>
+                                <SortableHeader label="Status" sortKey="status" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {sortedDealers.map(dealer => (
+                                <tr key={dealer.id} className="hover:bg-cyan-500/10 transition-colors">
+                                    <td className="p-4 font-medium"><div className="flex items-center gap-3">
+                                        {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
+                                        <span className="font-semibold text-white">{dealer.name}</span>
+                                    </div></td>
+                                    <td className="p-4 text-slate-400"><div className="font-mono">{dealer.id}</div><div className="text-xs">{dealer.area}</div></td>
+                                    <td className="p-4 font-mono text-white">{dealer.wallet.toLocaleString()}</td>
+                                    <td className="p-4 text-slate-300">{dealer.commissionRate}%</td>
+                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${dealer.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{dealer.isRestricted ? 'Restricted' : 'Active'}</span></td>
+                                    <td className="p-4">
+                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                            <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
+                                            <button onClick={() => setViewingLedgerFor(dealer)} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
+                                            <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${dealer.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                                {dealer.isRestricted ? 'Unrestrict' : 'Restrict'}
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1421,6 +1487,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                 </div>
             </div>
           </div>
+          {users.length === 0 ? <TableSkeleton /> : (
            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
                <div className="overflow-x-auto mobile-scroll-x">
                    <table className="w-full text-left min-w-[700px]">
@@ -1460,6 +1527,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                    </table>
                </div>
            </div>
+          )}
         </div>
       )}
       
@@ -1556,9 +1624,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
               </div>
               <button 
                 onClick={handleDeclareWinnerSubmit} 
-                className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-md font-bold text-lg uppercase tracking-widest transition-all shadow-lg shadow-red-600/20"
+                disabled={isBroadcasting}
+                className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-md font-bold text-lg uppercase tracking-widest transition-all shadow-lg shadow-red-600/20 disabled:opacity-50"
               >
-                Broadcast Result
+                {isBroadcasting ? 'Broadcasting...' : 'Confirm Winner'}
               </button>
           </div>
       </Modal>
@@ -1585,9 +1654,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
               </div>
               <button 
                 onClick={handleUpdateWinnerSubmit} 
-                className="w-full py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-md font-bold text-lg uppercase tracking-widest transition-all"
+                disabled={isBroadcasting}
+                className="w-full py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-md font-bold text-lg uppercase tracking-widest transition-all disabled:opacity-50"
               >
-                Update & Broadcast
+                {isBroadcasting ? 'Updating...' : 'Update & Broadcast'}
               </button>
           </div>
       </Modal>
