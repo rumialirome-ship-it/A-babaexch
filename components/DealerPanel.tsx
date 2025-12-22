@@ -6,22 +6,6 @@ import { useCountdown } from '../hooks/useCountdown';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
-const TableSkeleton = () => (
-    <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-        <table className="w-full text-left">
-            <tbody className="divide-y divide-slate-800">
-                {Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}>
-                        {Array.from({ length: 6 }).map((_, j) => (
-                            <td key={j} className="p-4"><div className="h-4 w-20 skeleton rounded"></div></td>
-                        ))}
-                    </tr>
-                ))}
-            </tbody>
-        </table>
-    </div>
-);
-
 // Internal components
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'emerald' }) => {
     if (!isOpen) return null;
@@ -65,7 +49,7 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
                     {entries.length === 0 && (
                         <tr>
                             <td colSpan={5} className="p-8 text-center text-slate-500">
-                                No ledger entries found.
+                                No ledger entries found for the selected date range.
                             </td>
                         </tr>
                     )}
@@ -87,7 +71,7 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
                 ...user,
                 password: '',
                 betLimits: {
-                    oneDigit: user.betLimits?.oneDigit ?? '',
+                    oneDigit: user.betLimits?.oneDigit ?? (user.betLimits as any)?.oneDigitOpen ?? '', // Handle old and new data structures
                     twoDigit: user.betLimits?.twoDigit || '',
                 }
             };
@@ -99,6 +83,7 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,36 +99,74 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
     
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
+
         const newPassword = user ? password : formData.password!;
-        if (newPassword && newPassword !== confirmPassword) { alert("New passwords do not match."); return; }
-        if (!user && !newPassword) { alert("Password is required for new users."); return; }
+        if (newPassword && newPassword !== confirmPassword) { setError("New passwords do not match."); return; }
+        if (!user && !newPassword) { setError("Password is required for new users."); return; }
         
         const formId = (formData.id as string).toLowerCase();
         if (!user && users.some(u => u.id.toLowerCase() === formId)) {
-            alert("This User Login ID is already taken.");
+            setError("This User Login ID is already taken. Please choose another one.");
             return;
         }
 
-        setIsLoading(true);
-        try {
-            const betLimitsValue: any = {
-                oneDigit: Number((formData.betLimits as any).oneDigit) || 0,
-                twoDigit: Number((formData.betLimits as any).twoDigit) || 0,
+        let finalData: User;
+        const initialDeposit = Number(formData.wallet) || 0;
+        const betLimitsValue: BetLimits = {
+            oneDigit: Number((formData.betLimits as any).oneDigit) || 0,
+            twoDigit: Number((formData.betLimits as any).twoDigit) || 0,
+        };
+
+        if (user) { // Editing
+            finalData = {
+                ...user,
+                name: formData.name,
+                password: newPassword ? newPassword : user.password,
+                area: formData.area,
+                contact: formData.contact,
+                avatarUrl: formData.avatarUrl,
+                betLimits: betLimitsValue,
+                commissionRate: Number(formData.commissionRate) || 0,
+                prizeRates: {
+                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
+                },
             };
-            const finalData: User = {
-                ...formData,
-                id: (user ? user.id : formData.id) as string,
+        } else { // Creating
+            finalData = {
+                id: formData.id as string,
                 dealerId,
                 name: formData.name,
-                password: newPassword ? newPassword : (user ? user.password : ''),
+                password: newPassword,
+                area: formData.area,
+                contact: formData.contact,
+                wallet: 0, // Wallet is set by parent logic
+                commissionRate: Number(formData.commissionRate) || 0,
                 betLimits: betLimitsValue,
-            } as any;
-            await onSave(finalData, user?.id, Number(formData.wallet) || 0);
+                isRestricted: false,
+                prizeRates: {
+                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
+                },
+                ledger: [],
+                avatarUrl: formData.avatarUrl,
+            };
+        }
+        
+        setIsLoading(true);
+        try {
+            await onSave(finalData, user?.id, initialDeposit);
+        } catch (err: any) {
+            setError(err.message || 'An unknown error occurred.');
         } finally {
             setIsLoading(false);
         }
     };
 
+    const displayPassword = user ? password : formData.password!;
     const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
 
     return (
@@ -154,9 +177,15 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
             </div>
             <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="User Display Name" className={inputClass} required />
             <div className="relative">
-                 <input type={isPasswordVisible ? 'text' : 'password'} name="password" value={user ? password : formData.password!} onChange={user ? (e) => setPassword(e.target.value) : handleChange} placeholder={user ? "New Password (optional)" : "Password"} className={inputClass + " pr-10"} required={!user} />
+                 <input type={isPasswordVisible ? 'text' : 'password'} name="password" value={displayPassword} onChange={user ? (e) => setPassword(e.target.value) : handleChange} placeholder={user ? "New Password (optional)" : "Password"} className={inputClass + " pr-10"} required={!user} />
                 <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">{isPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
             </div>
+            {displayPassword && (
+                 <div className="relative">
+                    <input type={isConfirmPasswordVisible ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm New Password" className={inputClass + " pr-10"} required />
+                    <button type="button" onClick={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">{isConfirmPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
+                </div>
+            )}
             <input type="url" name="avatarUrl" value={formData.avatarUrl || ''} onChange={handleChange} placeholder="Avatar Image URL (optional)" className={inputClass} />
             <input type="text" name="area" value={formData.area} onChange={handleChange} placeholder="Area / Contact" className={inputClass} />
             <input type="text" name="contact" value={formData.contact} onChange={handleChange} placeholder="Contact Number" className={inputClass} />
@@ -166,10 +195,44 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
                   <input type="number" name="wallet" value={formData.wallet as string} onChange={handleChange} placeholder="e.g. 5000" className={inputClass} />
                 </div>
             )}
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Commission Rate (%)</label>
+              <input type="number" name="commissionRate" value={formData.commissionRate} onChange={handleChange} placeholder="e.g. 2" className={inputClass} />
+            </div>
             
+            <fieldset className="border border-slate-600 p-4 rounded-md">
+                <legend className="px-2 text-sm font-medium text-slate-400">Bet Limits (Per Number)</legend>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="col-span-1 sm:col-span-2">
+                        <label className="text-sm">1 Digit Limit (per number)</label>
+                        <input type="number" name="betLimits.oneDigit" value={(formData.betLimits as any).oneDigit} onChange={handleChange} placeholder="e.g., 200" className={inputClass} />
+                    </div>
+                    <div className="col-span-1 sm:col-span-2">
+                        <label className="text-sm">2 Digit Limit (per number)</label>
+                        <input type="number" name="betLimits.twoDigit" value={(formData.betLimits as any).twoDigit} onChange={handleChange} placeholder="e.g., 500" className={inputClass} />
+                    </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-2">This is the maximum stake a user can place on a single number (e.g., "47") per game draw. 0 means no limit.</p>
+            </fieldset>
+
+            <fieldset className="border border-slate-600 p-4 rounded-md">
+                <legend className="px-2 text-sm font-medium text-slate-400">Prize Rates</legend>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div><label className="text-sm">1 Digit Open</label><input type="number" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
+                    <div><label className="text-sm">1 Digit Close</label><input type="number" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
+                    <div className="col-span-1 sm:col-span-2"><label className="text-sm">2 Digit</label><input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
+                </div>
+            </fieldset>
+
+             {error && (
+                <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mt-4" role="alert">
+                    {error}
+                </div>
+            )}
+
             <div className="flex justify-end space-x-3 pt-4">
                 <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                <button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:opacity-50">
+                <button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-wait">
                     {isLoading ? 'Saving...' : 'Save User'}
                 </button>
             </div>
@@ -177,101 +240,748 @@ const UserForm: React.FC<{ user?: User; users: User[]; onSave: (user: User, orig
     );
 };
 
-interface DealerPanelProps {
-  dealer: Dealer;
-  users: User[];
-  onSaveUser: (userData: User, originalId: string | undefined, initialDeposit?: number) => Promise<void>;
-  topUpUserWallet: (userId: string, amount: number) => Promise<void>;
-  withdrawFromUserWallet: (userId: string, amount: number) => Promise<void>;
-  toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => Promise<void>;
-  bets: Bet[];
-  games: Game[];
-  placeBetAsDealer: (details: any) => Promise<void>;
-}
+const UserTransactionForm: React.FC<{ 
+    users: User[]; 
+    onTransaction: (userId: string, amount: number) => Promise<void>; 
+    onCancel: () => void;
+    type: 'Top-Up' | 'Withdrawal';
+}> = ({ users, onTransaction, onCancel, type }) => {
+    const [selectedUserId, setSelectedUserId] = useState<string>('');
+    const [amount, setAmount] = useState<number | ''>('');
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer }) => {
-  const [activeTab, setActiveTab] = useState('users');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
-  const [viewingLedgerFor, setViewingLedgerFor] = useState<User | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+    const inputClass = `w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-${themeColor}-500 focus:outline-none text-white`;
 
-  const filteredUsers = useMemo(() => users.filter(u => 
-        u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        u.id.toLowerCase().includes(searchQuery.toLowerCase())
-    ), [users, searchQuery]);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        if (!selectedUserId || !amount || amount <= 0) {
+            setError(`Please select a user and enter a valid positive amount.`);
+            return;
+        }
+        const userName = users.find(u => u.id === selectedUserId)?.name || 'the selected user';
+        const confirmationAction = type === 'Top-Up' ? 'to' : 'from';
+        if (window.confirm(`Are you sure you want to ${type.toLowerCase()} PKR ${amount} ${confirmationAction} ${userName}'s wallet?`)) {
+            setIsLoading(true);
+            try {
+                await onTransaction(selectedUserId, Number(amount));
+                onCancel(); // Close modal on success
+            } catch (err: any) {
+                setError(err.message || 'An unknown error occurred.');
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    };
 
-  return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
-      <h2 className="text-3xl font-bold text-emerald-400 mb-6 uppercase tracking-widest">Dealer Console</h2>
-      <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
-        {['users', 'wallet', 'history'].map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
-             <span className="uppercase">{tab}</span>
-          </button>
-        ))}
-      </div>
-
-       {activeTab === 'users' && (
-        <div>
-          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-            <h3 className="text-xl font-semibold text-white">Users Management ({users.length})</h3>
-            <div className="flex gap-2 w-full md:w-auto">
-                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 text-white w-full"/>
-                <button onClick={() => { setSelectedUser(undefined); setIsModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
-                  + Create User
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
+            <div>
+                <label htmlFor="user-select" className="block text-sm font-medium text-slate-400 mb-1">Select User</label>
+                <select id="user-select" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className={inputClass} required >
+                    <option value="" disabled>-- Choose a user --</option>
+                    {users.map(user => <option key={user.id} value={user.id}>{user.name} ({user.id})</option>)}
+                </select>
+            </div>
+            <div>
+                <label htmlFor="amount-input" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
+                <input id="amount-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 1000" className={inputClass} min="1" required />
+            </div>
+             {error && (
+                <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mt-2" role="alert">
+                    {error}
+                </div>
+            )}
+            <div className="flex justify-end space-x-3 pt-4">
+                <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
+                <button type="submit" disabled={isLoading} className={`font-bold py-2 px-4 rounded-md transition-colors text-white disabled:bg-slate-600 disabled:cursor-wait ${type === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
+                    {isLoading ? 'Processing...' : type}
                 </button>
             </div>
-          </div>
-          {users.length === 0 ? <TableSkeleton /> : (
+        </form>
+    );
+};
+
+const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = ({ bets, games, users }) => {
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const getBetOutcome = (bet: Bet) => {
+        const game = games.find(g => g.id === bet.gameId);
+        const user = users.find(u => u.id === bet.userId);
+        if (!game || !user || !game.winningNumber || game.winningNumber.includes('_')) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
+
+        const winningNumber = game.winningNumber;
+        let winningNumbersCount = 0;
+
+        bet.numbers.forEach(num => {
+            let isWin = false;
+            switch (bet.subGameType) {
+                case SubGameType.OneDigitOpen:
+                    if (winningNumber.length === 2) { isWin = num === winningNumber[0]; }
+                    break;
+                case SubGameType.OneDigitClose:
+                    if (game.name === 'AKC') { isWin = num === winningNumber; } 
+                    else if (winningNumber.length === 2) { isWin = num === winningNumber[1]; }
+                    break;
+                default: // Covers TwoDigit, Bulk, Combo
+                    isWin = num === winningNumber;
+                    break;
+            }
+            if (isWin) winningNumbersCount++;
+        });
+        
+        if (winningNumbersCount > 0) {
+            const getPrizeMultiplier = (rates: PrizeRates, subGameType: SubGameType) => {
+                switch (subGameType) {
+                    case SubGameType.OneDigitOpen: return rates.oneDigitOpen;
+                    case SubGameType.OneDigitClose: return rates.oneDigitClose;
+                    default: return rates.twoDigit;
+                }
+            };
+            const payout = winningNumbersCount * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
+            return { status: 'Win', payout, color: 'text-green-400' };
+        }
+        return { status: 'Lost', payout: 0, color: 'text-red-400' };
+    };
+
+    const filteredBets = useMemo(() => {
+        return bets.filter(bet => {
+            const betDateStr = bet.timestamp.toISOString().split('T')[0];
+            if (startDate && betDateStr < startDate) return false;
+            if (endDate && betDateStr > endDate) return false;
+
+            if (searchTerm.trim()) {
+                const user = users.find(u => u.id === bet.userId);
+                const game = games.find(g => g.id === bet.gameId);
+                const lowerSearchTerm = searchTerm.trim().toLowerCase();
+
+                const userNameMatch = user?.name.toLowerCase().includes(lowerSearchTerm);
+                const gameNameMatch = game?.name.toLowerCase().includes(lowerSearchTerm);
+                
+                if (!userNameMatch && !gameNameMatch) return false;
+            }
+
+            return true;
+        }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [bets, games, users, startDate, endDate, searchTerm]);
+
+    const handleClearFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setSearchTerm('');
+    };
+    
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
+
+    return (
+        <div>
+            <h3 className="text-xl font-semibold mb-4 text-white">User Bet History</h3>
+            
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div className="md:col-span-2 lg:col-span-1">
+                        <label className="block text-sm font-medium text-slate-400 mb-1">User / Game</label>
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="e.g., ADU-001, LS3" className={inputClass} />
+                    </div>
+                    <div className="flex items-center">
+                        <button onClick={handleClearFilters} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Clear Filters</button>
+                    </div>
+                </div>
+            </div>
+
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto mobile-scroll-x">
+                <div className="overflow-x-auto max-h-[60vh] mobile-scroll-x">
                     <table className="w-full text-left min-w-[800px]">
-                        <thead className="bg-slate-800/50">
+                        <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                             <tr>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wallet (PKR)</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Timestamp</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Bet Details</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake (PKR)</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Payout (PKR)</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
-                            {filteredUsers.map(user => (
-                                <tr key={user.id} className="hover:bg-emerald-500/10 transition-colors text-sm">
-                                    <td className="p-4 font-medium text-white">{user.name} <span className="text-[10px] text-slate-500 font-mono ml-2">({user.id})</span></td>
-                                    <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
-                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
-                                    <td className="p-4">
-                                        <div className="flex gap-2">
-                                            <button onClick={() => { setSelectedUser(user); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Edit</button>
-                                            <button onClick={() => setViewingLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Ledger</button>
-                                            <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors ${user.isRestricted ? 'text-green-300' : 'text-red-300'}`}>
-                                                {user.isRestricted ? 'Unrestrict' : 'Restrict'}
-                                            </button>
-                                        </div>
+                           {filteredBets.map(bet => {
+                                const game = games.find(g => g.id === bet.gameId);
+                                const user = users.find(u => u.id === bet.userId);
+                                const outcome = getBetOutcome(bet);
+                                return (
+                                <tr key={bet.id} className="hover:bg-emerald-500/10 transition-colors">
+                                    <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{new Date(bet.timestamp).toLocaleString()}</td>
+                                    <td className="p-4 text-white font-medium">{user?.name || 'Unknown User'}</td>
+                                    <td className="p-4 text-slate-300 font-medium">{game?.name || 'Unknown Game'}</td>
+                                    <td className="p-4 text-slate-300">
+                                        <div className="font-semibold">{bet.subGameType}</div>
+                                        <div className="text-xs text-slate-400 max-w-[200px] truncate" title={bet.numbers.join(', ')}>{bet.numbers.join(', ')}</div>
                                     </td>
-                                </tr>
-                            ))}
+                                    <td className="p-4 text-right text-red-400 font-mono">{bet.totalAmount.toFixed(2)}</td>
+                                    <td className="p-4 text-right text-green-400 font-mono">{outcome.payout > 0 ? outcome.payout.toFixed(2) : '-'}</td>
+                                    <td className="p-4 text-right font-semibold"><span className={outcome.color}>{outcome.status}</span></td>
+                                </tr>);
+                           })}
+                           {filteredBets.length === 0 && (
+                               <tr>
+                                   <td colSpan={7} className="p-8 text-center text-slate-500">
+                                       {bets.length === 0 ? "No bets placed by your users yet." : "No bets found matching your filters."}
+                                   </td>
+                               </tr>
+                           )}
                         </tbody>
                     </table>
                 </div>
             </div>
-          )}
+        </div>
+    );
+};
+
+// --- NEW WALLET VIEW ---
+const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+    const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+
+    const { filteredEntries, summary } = useMemo(() => {
+        const filtered = dealer.ledger.filter(entry => {
+            const entryDateStr = entry.timestamp.toISOString().split('T')[0];
+            if (startDate && entryDateStr < startDate) return false;
+            if (endDate && entryDateStr > endDate) return false;
+            if (searchTerm.trim() && !entry.description.toLowerCase().includes(searchTerm.trim().toLowerCase())) return false;
+            return true;
+        });
+        
+        const summaryData = dealer.ledger.reduce((acc, entry) => {
+            const desc = entry.description.toLowerCase();
+            if (entry.credit > 0) {
+                if (desc.includes('top-up from admin')) acc.totalDeposits += entry.credit;
+                if (desc.includes('commission') || desc.includes('profit')) acc.totalEarnings += entry.credit;
+            }
+            if (entry.debit > 0) {
+                if (desc.includes('withdrawal by admin')) acc.totalWithdrawals += entry.debit;
+                if (desc.includes('top-up for user') || desc.includes('initial deposit for user')) acc.transfersToUsers += entry.debit;
+            }
+            return acc;
+        }, { totalDeposits: 0, totalWithdrawals: 0, transfersToUsers: 0, totalEarnings: 0 });
+
+        return { filteredEntries: filtered, summary: summaryData };
+    }, [dealer.ledger, startDate, endDate, searchTerm]);
+
+    const handleClearFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setSearchTerm('');
+    };
+    
+    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white";
+
+    return (
+        <div>
+            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h3 className="text-xl font-semibold text-white">My Wallet</h3>
+                <div className="flex gap-2 w-full md:w-auto">
+                    <button onClick={() => setIsTopUpModalOpen(true)} className="flex-1 flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                        {Icons.plus} Request Top-Up
+                    </button>
+                    <button onClick={() => setIsWithdrawModalOpen(true)} className="flex-1 flex items-center justify-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                        {Icons.minus} Request Withdrawal
+                    </button>
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center sm:col-span-2 md:col-span-3 lg:col-span-1">
+                    <p className="text-sm text-slate-400 uppercase">Current Balance</p>
+                    <p className="text-3xl font-bold font-mono text-emerald-400">{dealer.wallet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center">
+                    <p className="text-sm text-slate-400 uppercase">Total Deposits</p>
+                    <p className="text-2xl font-bold font-mono text-green-400">{summary.totalDeposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center">
+                    <p className="text-sm text-slate-400 uppercase">Total Withdrawals</p>
+                    <p className="text-2xl font-bold font-mono text-red-400">{summary.totalWithdrawals.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center">
+                    <p className="text-sm text-slate-400 uppercase">Transfers to Users</p>
+                    <p className="text-2xl font-bold font-mono text-amber-400">{summary.transfersToUsers.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 text-center">
+                    <p className="text-sm text-slate-400 uppercase">Total Earnings</p>
+                    <p className="text-2xl font-bold font-mono text-cyan-400">{summary.totalEarnings.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                </div>
+            </div>
+
+            <h4 className="text-lg font-semibold mb-4 text-white">Transaction History</h4>
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={`${inputClass} font-sans`} />
+                    </div>
+                    <div className="md:col-span-2 lg:col-span-1">
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Search Description</label>
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="e.g., Top-Up, Commission" className={inputClass} />
+                    </div>
+                    <div className="flex items-center">
+                        <button onClick={handleClearFilters} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Clear Filters</button>
+                    </div>
+                </div>
+            </div>
+
+            <LedgerTable entries={filteredEntries} />
+            {filteredEntries.length === 0 && (
+                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 mt-[-1px]">
+                    <p className="text-slate-500">
+                        {dealer.ledger.length === 0 ? "No transactions recorded yet." : "No transactions found for the selected filters."}
+                    </p>
+                </div>
+            )}
+            <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Request Top-Up" themeColor="emerald">
+                <p className="text-slate-300">Please contact your administrator directly to request a wallet top-up. Provide your Dealer ID for faster processing.</p>
+            </Modal>
+            <Modal isOpen={isWithdrawModalOpen} onClose={() => setIsWithdrawModalOpen(false)} title="Request Withdrawal" themeColor="amber">
+                <p className="text-slate-300">Please contact your administrator directly to request a withdrawal from your wallet.</p>
+            </Modal>
+        </div>
+    );
+};
+
+// --- NEW BETTING TERMINAL VIEW ---
+const OpenGameOption: React.FC<{ game: Game }> = ({ game }) => {
+    const { status, text } = useCountdown(game.drawTime);
+    if (status !== 'OPEN') return null;
+    return <option value={game.id}>{game.name} (Closes in: {text})</option>;
+};
+
+// FIX: This component was incomplete. Added full implementation including JSX return and event handlers.
+const BettingTerminalView: React.FC<{
+    users: User[];
+    games: Game[];
+    placeBetAsDealer: (details: { userId: string; gameId: string; betGroups: any[] }) => Promise<void>;
+}> = ({ users, games, placeBetAsDealer }) => {
+    const [selectedUserId, setSelectedUserId] = useState('');
+    const [selectedGameId, setSelectedGameId] = useState('');
+    const [bulkInput, setBulkInput] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+    const activeUsers = useMemo(() => users.filter(u => !u.isRestricted), [users]);
+    // FIX: Corrected dependency array from [users] to [games].
+    const openGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
+    const selectedUser = useMemo(() => users.find(u => u.id === selectedUserId), [users, selectedUserId]);
+    const selectedGameName = useMemo(() => games.find(g => g.id === selectedGameId)?.name, [games, selectedGameId]);
+    
+    const parsedBulkBet = useMemo(() => {
+        interface ParsedLine { originalText: string; numbers: string[]; stake: number; cost: number; subGameType: string; error?: string; }
+        const result = { lines: [] as ParsedLine[], totalCost: 0, totalNumbers: 0, error: null as string | null, betGroups: [] as { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] };
+        
+        const isAkcGame = selectedGameName === 'AKC';
+        const input = bulkInput.trim();
+        if (!input) return result;
+
+        const allLines = input.split('\n').filter(line => line.trim() !== '');
+        if (allLines.length === 0) return result;
+        
+        const stakeRegex = /\s+(?:r|rs)\s*(\d*\.?\d+)\s*$/i;
+        const linesWithStakes = allLines.map(line => line.match(stakeRegex)).filter(Boolean);
+        let globalStake: number | null = null;
+        if (linesWithStakes.length === 1) {
+            const match = linesWithStakes[0];
+            const parsedStake = parseFloat(match[1]);
+            if (!isNaN(parsedStake) && parsedStake > 0) { globalStake = parsedStake; }
+        }
+
+        const determineType = (token: string): SubGameType | null => {
+            if (isAkcGame) {
+                if (/^[xX]\d$/.test(token)) return SubGameType.OneDigitClose;
+                return null; // For AKC, only close numbers are valid
+            }
+            // Original logic for other games
+            if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
+            if (/^\d[xX]$/i.test(token)) return SubGameType.OneDigitOpen;
+            if (/^[xX]\d$/i.test(token)) return SubGameType.OneDigitClose;
+            return null;
+        };
+
+        const aggregatedGroups: Map<string, { subGameType: SubGameType; numbers: Set<string>; amountPerNumber: number }> = new Map();
+        
+        for (const lineText of allLines) {
+            const parsedLine: ParsedLine = { originalText: lineText, numbers: [], stake: 0, cost: 0, subGameType: SubGameType.TwoDigit, error: undefined };
+            let betPart = lineText.trim();
+            let lineStake: number | null = null;
+            
+            const isComboLine = /\b(k|combo)\b/i.test(betPart);
+
+            const localStakeMatch = lineText.match(stakeRegex);
+
+            if (globalStake) {
+                lineStake = globalStake;
+                if (localStakeMatch) { betPart = betPart.substring(0, localStakeMatch.index).trim(); }
+            } else if (localStakeMatch) {
+                const parsedStake = parseFloat(localStakeMatch[1]);
+                if (!isNaN(parsedStake) && parsedStake > 0) { lineStake = parsedStake; }
+                betPart = betPart.substring(0, localStakeMatch.index).trim();
+            }
+
+            if (isAkcGame && isComboLine) {
+                parsedLine.error = "Combo 'k' bets are not allowed for AKC game.";
+                result.lines.push(parsedLine);
+                continue; // Go to next line
+            }
+
+            const effectiveStake = lineStake;
+            betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
+            const tokens = betPart.replace(/,{1,2}|\.{2,}/g, ' ').split(/[\s,.-]+/).filter(Boolean);
+            if (tokens.length === 0) { if (betPart !== '') { parsedLine.error = "No numbers found."; result.lines.push(parsedLine); } continue; }
+            if (!effectiveStake || effectiveStake <= 0) { parsedLine.error = "Stake not found (e.g., '... r10')"; result.lines.push(parsedLine); continue; }
+            parsedLine.stake = effectiveStake;
+            const lineItems: { type: SubGameType, value: string }[] = [];
+            let lineHasError = false;
+            
+            if (isComboLine) {
+                const digits = betPart.replace(/\D/g, '');
+                const uniqueDigits = [...new Set(digits.split(''))];
+                if (uniqueDigits.length < 3 || uniqueDigits.length > 6) { 
+                    parsedLine.error = `Combo must have 3 to 6 unique digits.`; 
+                    lineHasError = true; 
+                } else {
+                    for (let i = 0; i < uniqueDigits.length; i++) {
+                        for (let j = 0; j < uniqueDigits.length; j++) { 
+                            if (i !== j) {
+                                lineItems.push({ type: SubGameType.Combo, value: uniqueDigits[i] + uniqueDigits[j] }); 
+                            }
+                        }
+                    }
+                }
+            } else {
+                for (const token of tokens) {
+                    const tokenType = determineType(token);
+                    if (!tokenType) { 
+                        parsedLine.error = `Invalid token for ${isAkcGame ? 'AKC' : 'this game'}`; 
+                        lineHasError = true;
+                        break;
+                    }
+                    if (tokenType === SubGameType.TwoDigit) {
+                        lineItems.push({ type: tokenType, value: token.padStart(2, '0') });
+                    } else if (tokenType === SubGameType.OneDigitOpen) {
+                        lineItems.push({ type: tokenType, value: token[0] });
+                    } else if (tokenType === SubGameType.OneDigitClose) {
+                        lineItems.push({ type: tokenType, value: token[1] });
+                    }
+                }
+            }
+
+            if (lineHasError) {
+                result.lines.push(parsedLine);
+                continue;
+            }
+
+            parsedLine.numbers = lineItems.map(item => item.value);
+            parsedLine.cost = lineItems.length * effectiveStake;
+            parsedLine.subGameType = lineItems.length > 0 ? lineItems[0].type : SubGameType.TwoDigit;
+            
+            result.totalCost += parsedLine.cost;
+            result.totalNumbers += parsedLine.numbers.length;
+            result.lines.push(parsedLine);
+            
+            // Aggregate for bet submission
+            lineItems.forEach(item => {
+                const groupKey = `${item.type}__${effectiveStake}`;
+                if (!aggregatedGroups.has(groupKey)) {
+                    aggregatedGroups.set(groupKey, { subGameType: item.type, numbers: new Set(), amountPerNumber: effectiveStake });
+                }
+                aggregatedGroups.get(groupKey)!.numbers.add(item.value);
+            });
+        }
+        
+        if (result.lines.some(l => l.error)) {
+            result.error = "One or more lines have errors.";
+        }
+
+        result.betGroups = Array.from(aggregatedGroups.values()).map(group => ({
+            ...group,
+            numbers: Array.from(group.numbers)
+        }));
+
+        return result;
+    }, [bulkInput, selectedGameName]);
+
+    const handleSubmit = async () => {
+        setError(null);
+        setSuccessMessage(null);
+        if (!selectedUserId || !selectedGameId || parsedBulkBet.betGroups.length === 0 || parsedBulkBet.error) {
+            setError("Please select a user, a game, and enter valid bets.");
+            return;
+        }
+        
+        const totalCost = parsedBulkBet.totalCost;
+        const user = users.find(u => u.id === selectedUserId);
+        if (user && user.wallet < totalCost) {
+            setError(`Insufficient wallet balance for ${user.name}. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}.`);
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            await placeBetAsDealer({
+                userId: selectedUserId,
+                gameId: selectedGameId,
+                betGroups: parsedBulkBet.betGroups
+            });
+            setSuccessMessage(`Successfully placed ${parsedBulkBet.totalNumbers} bets for a total of ${parsedBulkBet.totalCost.toFixed(2)} PKR for ${user?.name}.`);
+            setBulkInput(''); // Clear input on success
+        } catch (err: any) {
+            setError(err.message || 'An unknown error occurred.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white font-mono";
+    
+    return (
+        <div>
+            <h3 className="text-xl font-semibold text-white mb-4">Betting Terminal</h3>
+            <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="user-select-terminal" className="block text-sm font-medium text-slate-400 mb-1">Select User</label>
+                        <select id="user-select-terminal" value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className={inputClass} required>
+                            <option value="" disabled>-- Choose a user to bet for --</option>
+                            {activeUsers.map(user => <option key={user.id} value={user.id}>{user.name} ({user.id})</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="game-select-terminal" className="block text-sm font-medium text-slate-400 mb-1">Select Game</label>
+                        <select id="game-select-terminal" value={selectedGameId} onChange={(e) => setSelectedGameId(e.target.value)} className={inputClass} required disabled={!selectedUserId}>
+                            <option value="" disabled>-- Choose a game --</option>
+                            {openGames.map(game => <OpenGameOption key={game.id} game={game} />)}
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label htmlFor="bulk-input-terminal" className="block text-sm font-medium text-slate-400 mb-1">Bulk Bet Entry</label>
+                    <textarea 
+                        id="bulk-input-terminal" 
+                        rows={8} 
+                        value={bulkInput}
+                        onChange={(e) => setBulkInput(e.target.value)}
+                        className={inputClass}
+                        placeholder={"Example:\n43,9x,x2 rs20\n01,58, k 32807 r50"}
+                        disabled={!selectedGameId}
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Enter numbers separated by spaces or commas. Use 'x' for open/close (e.g., 5x, x8). Use 'k' for combos. Specify stake at the end of a line (e.g., r10).</p>
+                </div>
+                
+                {parsedBulkBet.lines.length > 0 && (
+                    <div className="bg-slate-900/50 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto space-y-2">
+                        {parsedBulkBet.lines.map((line, index) => (
+                            <div key={index} className={`p-2 rounded-md ${line.error ? 'bg-red-500/10 border-l-4 border-red-500' : 'bg-green-500/10 border-l-4 border-green-500'}`}>
+                                <div className="flex justify-between items-center font-mono text-sm">
+                                    <span className="truncate text-slate-300 w-2/3" title={line.originalText}>{line.originalText}</span>
+                                    {line.error ? (
+                                        <span className="text-red-400 font-semibold">{line.error}</span>
+                                    ) : (
+                                        <div className="flex items-center gap-4 text-xs">
+                                            <span className="text-slate-300">Bets: <span className="font-bold text-white">{line.numbers.length}</span></span>
+                                            <span className="text-slate-300">Cost: <span className="font-bold text-white">{line.cost.toFixed(2)}</span></span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                
+                <div className="text-sm bg-slate-800 p-3 rounded-md grid grid-cols-2 gap-2 text-center border border-slate-700">
+                    <div><p className="text-slate-400 text-xs uppercase">Total Bets</p><p className="font-bold text-white text-lg">{parsedBulkBet.totalNumbers}</p></div>
+                    <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedBulkBet.totalCost.toFixed(2)}</p></div>
+                </div>
+
+                {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-md text-sm mt-2">{error}</div>}
+                {successMessage && <div className="bg-green-500/20 text-green-300 p-3 rounded-md text-sm mt-2">{successMessage}</div>}
+
+                <div className="flex justify-end pt-2">
+                    <button 
+                        onClick={handleSubmit} 
+                        disabled={isLoading || !selectedUserId || !selectedGameId || parsedBulkBet.lines.length === 0 || !!parsedBulkBet.error}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed"
+                    >
+                        {isLoading ? 'Processing...' : 'Place Bets'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+interface DealerPanelProps {
+  dealer: Dealer;
+  users: User[];
+  onSaveUser: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>;
+  topUpUserWallet: (userId: string, amount: number) => Promise<void>;
+  withdrawFromUserWallet: (userId: string, amount: number) => Promise<void>;
+  toggleAccountRestriction: (userId: string, userType: 'user') => void;
+  bets: Bet[];
+  games: Game[];
+  placeBetAsDealer: (details: {
+    userId: string;
+    gameId: string;
+    betGroups: any[];
+  }) => Promise<void>;
+}
+
+
+const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer }) => {
+  const [activeTab, setActiveTab] = useState('users');
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+  const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const dealerUsers = useMemo(() => {
+        return users
+            .filter(user => user.dealerId === dealer.id)
+            .filter(user => 
+                user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                user.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (user.area || '').toLowerCase().includes(searchQuery.toLowerCase())
+            );
+  }, [users, dealer.id, searchQuery]);
+
+  const handleSaveUser = async (userData: User, originalId?: string, initialDeposit?: number) => {
+    await onSaveUser(userData, originalId, initialDeposit);
+    setIsUserModalOpen(false);
+    setSelectedUser(undefined);
+  };
+  
+   const tabs = [
+    { id: 'terminal', label: 'Betting Terminal', icon: Icons.clipboardList },
+    { id: 'users', label: 'Manage Users', icon: Icons.userGroup },
+    { id: 'wallet', label: 'My Wallet', icon: Icons.wallet },
+    { id: 'history', label: 'Bet History', icon: Icons.bookOpen },
+  ];
+
+  return (
+    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+      <h2 className="text-3xl font-bold text-emerald-400 mb-6 uppercase tracking-widest">Dealer Panel</h2>
+       <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
+                {tab.icon} <span>{tab.label}</span>
+            </button>
+        ))}
+      </div>
+      
+      {activeTab === 'terminal' && <BettingTerminalView users={dealerUsers} games={games} placeBetAsDealer={placeBetAsDealer} />}
+      {activeTab === 'wallet' && <WalletView dealer={dealer} />}
+      {activeTab === 'history' && <BetHistoryView bets={bets} games={games} users={users} />}
+
+      {activeTab === 'users' && (
+        <div>
+           <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+            <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">My Users ({dealerUsers.length})</h3>
+            <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
+                <div className="relative w-full sm:w-64">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                    <input type="text" placeholder="Search users..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none w-full"/>
+                </div>
+                <button onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} className="flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
+                  {Icons.plus} Create User
+                </button>
+            </div>
+          </div>
+          <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+            <div className="overflow-x-auto mobile-scroll-x">
+                <table className="w-full text-left min-w-[700px]">
+                    <thead className="bg-slate-800/50">
+                        <tr>
+                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Wallet (PKR)</th>
+                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                            <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                        {dealerUsers.map(user => (
+                            <tr key={user.id} className="hover:bg-emerald-500/10 transition-colors">
+                                <td className="p-4 font-medium"><div className="flex items-center gap-3">
+                                    {user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
+                                    <div>
+                                        <div className="font-semibold text-white">{user.name}</div>
+                                        <div className="text-xs text-slate-400 font-mono">{user.id}</div>
+                                    </div>
+                                </div></td>
+                                <td className="p-4 font-mono text-white">{user.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
+                                <td className="p-4 text-center">
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
+                                        <button onClick={() => { setSelectedUser(user); setIsUserModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
+                                        <button onClick={() => setViewingUserLedgerFor(user)} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
+                                        <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                            {user.isRestricted ? 'Unrestrict' : 'Restrict'}
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
+            <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                {Icons.plus} Top-Up User Wallet
+            </button>
+            <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center justify-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                {Icons.minus} Withdraw From User
+            </button>
+          </div>
         </div>
       )}
 
-      {/* MODALS */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedUser ? "Edit User" : "Create User"}>
-        <UserForm user={selectedUser} users={users} onSave={async (u, id, dep) => { await onSaveUser(u, id, dep); setIsModalOpen(false); }} onCancel={() => setIsModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerId={dealer.id} />
+      <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Edit User" : "Create User"}>
+          <UserForm user={selectedUser} users={users} onSave={handleSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={dealer.prizeRates} dealerId={dealer.id} />
       </Modal>
 
-      {viewingLedgerFor && (
-        <Modal isOpen={!!viewingLedgerFor} onClose={() => setViewingLedgerFor(null)} title={`Ledger for ${viewingLedgerFor.name}`} size="xl">
-            <LedgerTable entries={viewingLedgerFor.ledger} />
+      <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up User Wallet" themeColor="emerald">
+          <UserTransactionForm type="Top-Up" users={dealerUsers} onTransaction={(userId, amount) => topUpUserWallet(userId, amount)} onCancel={() => setIsTopUpModalOpen(false)} />
+      </Modal>
+
+      <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Withdraw from User Wallet" themeColor="amber">
+          <UserTransactionForm type="Withdrawal" users={dealerUsers} onTransaction={(userId, amount) => withdrawFromUserWallet(userId, amount)} onCancel={() => setIsWithdrawalModalOpen(false)} />
+      </Modal>
+
+      {viewingUserLedgerFor && (
+        <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger for ${viewingUserLedgerFor.name}`} size="xl">
+            <LedgerTable entries={viewingUserLedgerFor.ledger} />
         </Modal>
       )}
     </div>
   );
 };
 
+// FIX: Add default export to resolve import error in App.tsx
 export default DealerPanel;

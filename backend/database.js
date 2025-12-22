@@ -783,134 +783,126 @@ const placeBulkBets = (userId, gameId, betGroups, placedBy = 'USER') => {
         if (!dealer || !game || !admin) throw { status: 404, message: 'Dealer, Game or Admin not found' };
         if (!Array.isArray(betGroups) || betGroups.length === 0) throw { status: 400, message: 'Invalid bet format.' };
         
-        // 2. Centralized Game Open/Close Check
-        if (game.name === 'AKC') {
-            const invalidGroup = betGroups.find(g => g.subGameType !== '1 Digit Close');
-            if (invalidGroup) {
-                throw { status: 400, message: 'Only 1 Digit Close bets are allowed for the AKC game.' };
-            }
+        // --- NEW LOGIC: Setup for AK/AKC split ---
+        let akcGame = null;
+        let mainGameGroups = betGroups;
+        let akcGroups = [];
+
+        if (game.name === 'AK') {
+            akcGame = db.prepare("SELECT * FROM games WHERE name = 'AKC'").get();
+            if (!akcGame) throw { status: 500, message: "AKC game configuration not found. Cannot place close bets." };
+            akcGame.isMarketOpen = isGameOpen(akcGame.drawTime); // Manually check market status
+            
+            akcGroups = betGroups.filter(g => g.subGameType === '1 Digit Close');
+            mainGameGroups = betGroups.filter(g => g.subGameType !== '1 Digit Close');
+        } else if (game.name === 'AKC') {
+             const invalidGroup = betGroups.find(g => g.subGameType !== '1 Digit Close');
+             if (invalidGroup) {
+                 throw { status: 400, message: 'Only 1 Digit Close bets are allowed for the AKC game.' };
+             }
         }
-        if (!game.isMarketOpen) {
+        
+        // 2. Centralized Game Open/Close Check
+        if (mainGameGroups.length > 0 && !game.isMarketOpen) {
             throw { status: 400, message: `Betting is currently closed for ${game.name}.` };
         }
+        if (akcGroups.length > 0 && (!akcGame || !akcGame.isMarketOpen)) {
+             throw { status: 400, message: `Betting is currently closed for AKC.` };
+        }
 
-        // 3. Calculate total cost and aggregate numbers for checks
-        let totalTransactionAmount = 0;
-        const allNumbersInTx = new Map(); // For global limits check. Key: 'gameType-number', Value: total stake
-        const incomingStakes = new Map(); // For user limits check. Key: 'typeKey-num', Value: total stake
-
-        betGroups.forEach(group => {
-            if (!Array.isArray(group.numbers) || typeof group.amountPerNumber !== 'number' || group.amountPerNumber <= 0) {
-                throw { status: 400, message: 'Invalid bet data within a bet group.' };
-            }
-            totalTransactionAmount += group.numbers.length * group.amountPerNumber;
-
-            const isOneDigit = group.subGameType === '1 Digit Open' || group.subGameType === '1 Digit Close';
-            const userLimitTypeKey = isOneDigit ? 'oneDigit' : 'twoDigit';
-            const globalLimitGameType = group.subGameType === '1 Digit Open' ? '1-open' : group.subGameType === '1 Digit Close' ? '1-close' : '2-digit';
-            
-            group.numbers.forEach(num => {
-                const userKey = `${userLimitTypeKey}-${num}`;
-                incomingStakes.set(userKey, (incomingStakes.get(userKey) || 0) + group.amountPerNumber);
-                const globalKey = `${globalLimitGameType}-${num}`;
-                allNumbersInTx.set(globalKey, (allNumbersInTx.get(globalKey) || 0) + group.amountPerNumber);
-            });
-        });
-
-        // 4. Wallet Check
+        // 3. Calculate total cost and check wallet
+        const totalTransactionAmount = betGroups.reduce((sum, g) => sum + g.numbers.length * g.amountPerNumber, 0);
         if (user.wallet < totalTransactionAmount) {
             throw { status: 400, message: `Insufficient funds for user ${user.name}. Required: ${totalTransactionAmount.toFixed(2)}, Available: ${user.wallet.toFixed(2)}` };
         }
 
-        // 5. User Bet Limits Check
-        const oneDigitLimit = user.betLimits?.oneDigit || 0;
-        const twoDigitLimit = user.betLimits?.twoDigit || 0;
-
-        if (oneDigitLimit > 0 || twoDigitLimit > 0) {
-            const existingStakesForGame = getUserStakesForGame(userId, gameId);
-            for (const [key, incomingAmount] of incomingStakes.entries()) {
-                const [type, number] = key.split('-');
-                const limit = (type === 'oneDigit') ? oneDigitLimit : twoDigitLimit;
-
-                if (limit > 0) {
-                    const existingAmount = existingStakesForGame.get(key) || 0;
-                    if ((existingAmount + incomingAmount) > limit) {
-                        throw {
-                            status: 400,
-                            message: `User's bet limit of Rs ${limit.toFixed(2)} for number '${number}' has been exceeded. They have already staked Rs ${existingAmount.toFixed(2)} on this number.`
-                        };
+        // 4. User and Global Bet Limits Check (helper function)
+        const checkLimits = (targetGameId, groups) => {
+            if (!groups || groups.length === 0) return;
+            
+            // 4a. User Bet Limits
+            const oneDigitLimit = user.betLimits?.oneDigit || 0;
+            const twoDigitLimit = user.betLimits?.twoDigit || 0;
+            if (oneDigitLimit > 0 || twoDigitLimit > 0) {
+                const existingStakes = getUserStakesForGame(userId, targetGameId);
+                const incomingStakes = new Map();
+                groups.forEach(group => {
+                    const isOneDigit = group.subGameType.includes('1 Digit');
+                    const typeKey = isOneDigit ? 'oneDigit' : 'twoDigit';
+                    group.numbers.forEach(num => {
+                        const key = `${typeKey}-${num}`;
+                        incomingStakes.set(key, (incomingStakes.get(key) || 0) + group.amountPerNumber);
+                    });
+                });
+                for (const [key, incomingAmount] of incomingStakes.entries()) {
+                    const [type, number] = key.split('-');
+                    const limit = (type === 'oneDigit') ? oneDigitLimit : twoDigitLimit;
+                    if (limit > 0) {
+                        const existingAmount = existingStakes.get(key) || 0;
+                        if ((existingAmount + incomingAmount) > limit) {
+                            throw { status: 400, message: `User's bet limit of Rs ${limit.toFixed(2)} for number '${number}' has been exceeded.` };
+                        }
                     }
                 }
             }
-        }
-        
-        // 6. Global Number Limits Check
-        for (const [key, incomingStake] of allNumbersInTx.entries()) {
-            const [type, numberValue] = key.split('-');
-            const limit = getNumberLimit(type, numberValue);
-            if (!limit || limit.limitAmount <= 0) continue;
 
-            const currentStake = getCurrentStakeForNumber(type, numberValue);
-            
-            if ((currentStake + incomingStake) > limit.limitAmount) {
-                throw {
-                    status: 400,
-                    message: `Bet on number '${numberValue}' rejected. The global betting limit of PKR ${limit.limitAmount.toFixed(2)} has been reached or would be exceeded. Current stake is PKR ${currentStake.toFixed(2)}.`
-                };
-            }
+            // 4b. Global Number Limits
+            groups.forEach(group => {
+                const globalLimitGameType = group.subGameType === '1 Digit Open' ? '1-open' : group.subGameType === '1 Digit Close' ? '1-close' : '2-digit';
+                group.numbers.forEach(numberValue => {
+                    const limit = getNumberLimit(globalLimitGameType, numberValue);
+                    if (!limit || limit.limitAmount <= 0) return;
+                    const currentStake = getCurrentStakeForNumber(globalLimitGameType, numberValue);
+                    if ((currentStake + group.amountPerNumber) > limit.limitAmount) {
+                        throw { status: 400, message: `Global bet limit for number '${numberValue}' has been reached.` };
+                    }
+                });
+            });
+        };
+
+        checkLimits(game.id, mainGameGroups);
+        if (akcGame) {
+            checkLimits(akcGame.id, akcGroups);
         }
 
-        // 7. Process Ledger Entries
+        // 5. Process Ledger Entries (based on the grand total)
         const totalUserCommission = totalTransactionAmount * (user.commissionRate / 100);
         const totalDealerCommission = totalTransactionAmount * ((dealer.commissionRate - user.commissionRate) / 100);
+        const betDescription = `Bet placed on ${game.name}${akcGame ? ' & AKC' : ''} by ${placedBy}`;
         
-        let betDescription = `Bet placed on ${game.name}`;
-        if (placedBy === 'DEALER') {
-            betDescription = `Bet placed by Dealer on ${game.name}`;
-        } else if (placedBy === 'ADMIN') {
-            betDescription = `Bet placed by Admin on ${game.name}`;
-        }
-
-        // User Ledger: Debit full stake, then credit their commission back for clarity.
         addLedgerEntry(user.id, 'USER', betDescription, totalTransactionAmount, 0);
-        if (totalUserCommission > 0) {
-            addLedgerEntry(user.id, 'USER', `Commission earned for ${game.name} bet`, 0, totalUserCommission);
-        }
-
-        // Admin Ledger: Receives full stake, then pays out commissions to user and dealer.
-        addLedgerEntry(admin.id, 'ADMIN', `Stake from ${user.name} on ${game.name}`, 0, totalTransactionAmount);
-        if (totalUserCommission > 0) {
-            addLedgerEntry(admin.id, 'ADMIN', `Commission payout to user ${user.name}`, totalUserCommission, 0);
-        }
+        if (totalUserCommission > 0) addLedgerEntry(user.id, 'USER', `Commission earned`, 0, totalUserCommission);
+        addLedgerEntry(admin.id, 'ADMIN', `Stake from ${user.name}`, 0, totalTransactionAmount);
+        if (totalUserCommission > 0) addLedgerEntry(admin.id, 'ADMIN', `Commission to user ${user.name}`, totalUserCommission, 0);
         if (totalDealerCommission > 0) {
-            addLedgerEntry(admin.id, 'ADMIN', `Commission payout to dealer ${dealer.name}`, totalDealerCommission, 0);
-        }
-        
-        // Dealer Ledger: Receives their net commission from the system (Admin).
-        if (totalDealerCommission > 0) {
-            addLedgerEntry(dealer.id, 'DEALER', `Commission from ${user.name}'s bet on ${game.name}`, 0, totalDealerCommission);
+            addLedgerEntry(admin.id, 'ADMIN', `Commission to dealer ${dealer.name}`, totalDealerCommission, 0);
+            addLedgerEntry(dealer.id, 'DEALER', `Commission from ${user.name}'s bet`, 0, totalDealerCommission);
         }
 
-
-        // 8. Create Bet Records
+        // 6. Create Bet Records
         const createdBets = [];
-        betGroups.forEach(group => {
-            const { subGameType, numbers, amountPerNumber } = group;
-            const totalAmount = numbers.length * amountPerNumber;
-            const newBet = {
-                id: uuidv4(),
-                userId: user.id,
-                dealerId: dealer.id,
-                gameId,
-                subGameType,
-                numbers: JSON.stringify(numbers),
-                amountPerNumber,
-                totalAmount,
-                timestamp: new Date().toISOString()
-            };
-            createBet(newBet);
-            createdBets.push({ ...newBet, numbers });
-        });
+        const createRecordsForGame = (targetGameId, groups) => {
+             groups.forEach(group => {
+                const newBet = {
+                    id: uuidv4(),
+                    userId: user.id,
+                    dealerId: dealer.id,
+                    gameId: targetGameId,
+                    subGameType: group.subGameType,
+                    numbers: JSON.stringify(group.numbers),
+                    amountPerNumber: group.amountPerNumber,
+                    totalAmount: group.numbers.length * group.amountPerNumber,
+                    timestamp: new Date().toISOString()
+                };
+                createBet(newBet);
+                createdBets.push({ ...newBet, numbers: group.numbers });
+            });
+        };
+        
+        createRecordsForGame(game.id, mainGameGroups);
+        if (akcGame) {
+            createRecordsForGame(akcGame.id, akcGroups);
+        }
         
         finalResult = createdBets;
     });
@@ -939,34 +931,12 @@ const updateGameDrawTime = (gameId, newDrawTime) => {
 };
 
 function resetAllGames() {
-    // This function is designed to be idempotent. It can be run at any time.
-    // It finds all games that have a winner and checks if their market should be open *now*.
-    // If a market is open, it means a new cycle has begun, so the old winner is cleared.
-    const gamesToReset = db.prepare('SELECT id, drawTime, winningNumber FROM games WHERE winningNumber IS NOT NULL').all();
-    
-    if (gamesToReset.length === 0) {
-        console.log('Game Reset Check: No games with winning numbers to check.');
-        return;
-    }
-
-    let resetCount = 0;
-    const resetStmt = db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0 WHERE id = ?');
-    
-    runInTransaction(() => {
-        for (const game of gamesToReset) {
-            if (isGameOpen(game.drawTime)) {
-                resetStmt.run(game.id);
-                resetCount++;
-                console.log(`Resetting stale winner for game ID: ${game.id}`);
-            }
-        }
-    });
-
-    if (resetCount > 0) {
-        console.log(`Game Reset: Successfully reset ${resetCount} game(s).`);
-    } else {
-        console.log('Game Reset Check: No stale games found that required a reset.');
-    }
+    // This function is scheduled to run daily.
+    // Previously, it incorrectly cleared historical winning numbers, causing old bets to show as "Pending".
+    // The correct logic is to *never* delete historical game results. The market open/closed status
+    // is determined dynamically based on time, so no daily reset of game data is needed.
+    // This function is now intentionally left empty to ensure game history is always preserved.
+    console.log('Daily reset check: OK. Historical game data preserved.');
 }
 
 
