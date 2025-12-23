@@ -880,9 +880,10 @@ interface AdminPanelProps {
     betGroups: any[];
   }) => Promise<void>;
   updateGameDrawTime: (gameId: string, newDrawTime: string) => Promise<void>;
+  onRefreshData?: () => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -897,6 +898,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
   const { fetchWithAuth } = useAuth();
+  const [isRefreshingManual, setIsRefreshingManual] = useState(false);
 
   // State for Dealers tab
   const [dealerSortKey, setDealerSortKey] = useState<SortKey>('name');
@@ -1011,6 +1013,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
             alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
         }
     }
+  };
+
+  const handleManualRefresh = async () => {
+      if (!onRefreshData) return;
+      setIsRefreshingManual(true);
+      try {
+          await onRefreshData();
+      } finally {
+          setTimeout(() => setIsRefreshingManual(false), 500);
+      }
   };
 
   // --- Dealers Filtering & Sorting ---
@@ -1171,7 +1183,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 
       {activeTab === 'games' && (
         <div>
-            <h3 className="text-xl font-semibold mb-4 text-white">Declare Winning Numbers</h3>
+            <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-3">
+                    <h3 className="text-xl font-semibold text-white">Declare Winning Numbers</h3>
+                    <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded text-[10px] text-emerald-400 font-bold uppercase tracking-widest animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        Live Sync
+                    </div>
+                </div>
+                <button 
+                    onClick={handleManualRefresh}
+                    disabled={isRefreshingManual}
+                    className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 px-4 py-2 rounded-md transition-all text-xs font-bold uppercase tracking-widest disabled:opacity-50"
+                >
+                    <svg className={`w-4 h-4 ${isRefreshingManual ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    {isRefreshingManual ? 'Syncing...' : 'Refresh Data'}
+                </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {games.map(game => {
                     const isAK = game.name === 'AK';

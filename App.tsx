@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates } from './types';
 import { Icons, GAME_LOGOS } from './constants';
@@ -109,7 +108,8 @@ const AppContent: React.FC = () => {
         if (account) {
             fetchData(); // Initial fetch on login/account change
     
-            if (role === Role.User || role === Role.Dealer) {
+            // Admin now polls for data just like User and Dealer
+            if (role === Role.User || role === Role.Dealer || role === Role.Admin) {
                 intervalId = setInterval(fetchData, 1000); // Poll every second
             }
         } else {
@@ -316,7 +316,7 @@ const AppContent: React.FC = () => {
             <main className="flex-grow">
                 {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
                 {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} />}
-                {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} onPlaceAdminBets={onPlaceAdminBets} updateGameDrawTime={updateGameDrawTime} />}
+                {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} onPlaceAdminBets={onPlaceAdminBets} updateGameDrawTime={updateGameDrawTime} onRefreshData={fetchData} />}
             </main>
         </div>
     );
