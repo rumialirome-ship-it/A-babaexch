@@ -107,10 +107,10 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
   const intensity = elapsed / TOTAL_ROLL_TIME;
 
   return (
-    <div className={`fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-slate-950 transition-all duration-1000 ${isShaking ? 'animate-shake scale-105' : ''}`}>
+    <div className={`fixed inset-0 z-[1000] flex flex-col items-center overflow-y-auto overflow-x-hidden bg-slate-950 transition-all duration-1000 py-10 md:justify-center ${isShaking ? 'animate-shake scale-105' : ''}`}>
       
       {/* Background Prismatic Effects */}
-      <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
+      <div className="fixed inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
         {/* Prismatic Rotating Beams */}
         <div 
             className="w-[300vw] h-[300vw] opacity-40 animate-spotlight"
@@ -150,17 +150,17 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
       </div>
 
       {/* Impact Flash */}
-      {showFlash && <div className="absolute inset-0 bg-white z-[1100]"></div>}
+      {showFlash && <div className="fixed inset-0 bg-white z-[1100]"></div>}
 
       {phase === 'REVEAL' && <Confetti />}
 
-      <div className="relative z-[1010] text-center px-4 w-full max-w-4xl">
+      <div className="relative z-[1010] text-center px-4 w-full max-w-4xl flex flex-col items-center">
         {/* Animated Progress Header */}
-        <div className="mb-12">
-            <h2 className={`text-xl md:text-3xl font-black tracking-[0.5em] uppercase transition-all duration-1000 ${phase === 'REVEAL' ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]' : 'text-white/80'}`}>
+        <div className="mb-8 md:mb-12 w-full">
+            <h2 className={`text-lg md:text-3xl font-black tracking-[0.5em] uppercase transition-all duration-1000 ${phase === 'REVEAL' ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]' : 'text-white/80'}`}>
                 {phase === 'REVEAL' ? '✨ DRAW FINALIZED ✨' : TENSION_PHRASES[phraseIndex]}
             </h2>
-            <div className="h-1.5 w-64 md:w-96 mx-auto mt-4 bg-slate-800 rounded-full overflow-hidden border border-white/10">
+            <div className="h-1 w-48 md:h-1.5 md:w-96 mx-auto mt-4 bg-slate-800 rounded-full overflow-hidden border border-white/10">
                 <div 
                     className={`h-full transition-all duration-100 ease-linear ${intensity > 0.8 ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`} 
                     style={{ width: phase === 'REVEAL' ? '100%' : `${intensity * 100}%` }}
@@ -168,22 +168,22 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
             </div>
         </div>
 
-        <h1 className={`text-6xl md:text-9xl font-black uppercase tracking-tighter mb-12 transition-all duration-1000 ${phase === 'REVEAL' ? 'text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 scale-110' : 'text-slate-700'}`}>
+        <h1 className={`text-4xl md:text-9xl font-black uppercase tracking-tighter mb-8 md:mb-12 transition-all duration-1000 ${phase === 'REVEAL' ? 'text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 scale-110' : 'text-slate-700'}`}>
           {gameName}
         </h1>
 
         {/* The 3D Liquid Metal Ball */}
         <div className="relative inline-block group">
             {/* Massive Outer Glow */}
-            <div className={`absolute -inset-20 rounded-full blur-[100px] transition-all duration-1000 ${phase === 'REVEAL' ? 'bg-amber-500/50 scale-125' : intensity > 0.8 ? 'bg-orange-600/30 animate-pulse' : 'bg-cyan-500/20'}`}></div>
+            <div className={`absolute -inset-10 md:-inset-20 rounded-full blur-[60px] md:blur-[100px] transition-all duration-1000 ${phase === 'REVEAL' ? 'bg-amber-500/50 scale-125' : intensity > 0.8 ? 'bg-orange-600/30 animate-pulse' : 'bg-cyan-500/20'}`}></div>
             
             {/* The Orb */}
             <div className={`
-                w-64 h-64 md:w-96 md:h-96 rounded-full border-[16px] relative flex items-center justify-center transition-all duration-1000 overflow-hidden
+                w-48 h-48 md:w-96 md:h-96 rounded-full border-[10px] md:border-[16px] relative flex items-center justify-center transition-all duration-1000 overflow-hidden
                 ${phase === 'REVEAL' 
-                    ? 'border-amber-400 bg-gradient-to-br from-slate-800 via-slate-900 to-black shadow-[0_0_100px_rgba(251,191,36,0.8)]' 
+                    ? 'border-amber-400 bg-gradient-to-br from-slate-800 via-slate-900 to-black shadow-[0_0_60px_rgba(251,191,36,0.6)] md:shadow-[0_0_100px_rgba(251,191,36,0.8)]' 
                     : intensity > 0.8 
-                    ? 'border-orange-500 bg-slate-900 shadow-[0_0_70px_rgba(249,115,22,0.5)]'
+                    ? 'border-orange-500 bg-slate-900 shadow-[0_0_50px_rgba(249,115,22,0.4)]'
                     : 'border-slate-700 bg-slate-900 shadow-[0_0_40px_rgba(6,182,212,0.2)]'}
             `}>
                 {/* Surface Reflections */}
@@ -192,7 +192,7 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
                 
                 {/* Rolling Number */}
                 <div className={`
-                    text-[9rem] md:text-[14rem] font-black font-mono tracking-tighter transition-all duration-300
+                    text-[6rem] md:text-[14rem] font-black font-mono tracking-tighter transition-all duration-300
                     ${phase === 'REVEAL' ? 'text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.8)]' : 'text-cyan-400/40'}
                 `}>
                     {displayNum}
@@ -205,36 +205,36 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
             {/* Orbiting Sparks */}
             {phase === 'REVEAL' && (
                 <>
-                    <div className="absolute -inset-12 border-2 border-white/20 rounded-full animate-ping"></div>
-                    <div className="absolute -inset-24 border border-amber-400/20 rounded-full animate-[ping_2s_linear_infinite]"></div>
+                    <div className="absolute -inset-6 md:-inset-12 border-2 border-white/20 rounded-full animate-ping"></div>
+                    <div className="absolute -inset-12 md:-inset-24 border border-amber-400/20 rounded-full animate-[ping_2s_linear_infinite]"></div>
                 </>
             )}
         </div>
 
         {/* Victory/Status Message with CONTINUE button */}
-        <div className="mt-16 h-48 flex flex-col items-center justify-center">
+        <div className="mt-12 md:mt-16 h-auto min-h-[12rem] flex flex-col items-center justify-center z-[1200]">
           {phase === 'REVEAL' ? (
             <div className="animate-reveal-slam-intense flex flex-col items-center">
-              <div className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-white to-amber-300 uppercase italic tracking-[0.2em] mb-8">
+              <div className="text-3xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-white to-amber-300 uppercase italic tracking-[0.2em] mb-6 md:mb-8 text-center">
                 JACKPOT REVEALED
               </div>
               <button 
                 onClick={onClose}
-                className="group relative px-20 py-5 rounded-full overflow-hidden transition-all transform hover:scale-110 active:scale-95 shadow-[0_0_50px_rgba(255,255,255,0.4)] bg-white border-4 border-amber-400"
+                className="group relative px-10 py-4 md:px-20 md:py-5 rounded-full overflow-hidden transition-all transform hover:scale-110 active:scale-95 shadow-[0_0_50px_rgba(255,255,255,0.4)] bg-white border-4 border-amber-400"
               >
-                <span className="relative z-10 text-slate-950 font-black text-2xl tracking-[0.2em]">CONTINUE</span>
+                <span className="relative z-10 text-slate-950 font-black text-lg md:text-2xl tracking-[0.2em]">CONTINUE</span>
                 <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500"></div>
               </button>
-              <p className="mt-6 text-slate-400 text-xs font-bold uppercase tracking-widest animate-pulse">Click to return to dashboard</p>
+              <p className="mt-6 text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-widest animate-pulse">Click to return to dashboard</p>
             </div>
           ) : (
             <div className="space-y-6">
                 <div className="flex gap-4 justify-center">
-                    <div className={`w-4 h-4 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500 shadow-[0_0_15px_#f97316]' : 'bg-cyan-500 shadow-[0_0_15px_#06b6d4]'}`} style={{animationDelay: '0s'}}></div>
-                    <div className={`w-4 h-4 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500 shadow-[0_0_15px_#f97316]' : 'bg-cyan-500 shadow-[0_0_15px_#06b6d4]'}`} style={{animationDelay: '0.2s'}}></div>
-                    <div className={`w-4 h-4 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500 shadow-[0_0_15px_#f97316]' : 'bg-cyan-500 shadow-[0_0_15px_#06b6d4]'}`} style={{animationDelay: '0.4s'}}></div>
+                    <div className={`w-3 h-3 md:w-4 md:h-4 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500 shadow-[0_0_15px_#f97316]' : 'bg-cyan-500 shadow-[0_0_15px_#06b6d4]'}`} style={{animationDelay: '0s'}}></div>
+                    <div className={`w-3 h-3 md:w-4 md:h-4 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500 shadow-[0_0_15px_#f97316]' : 'bg-cyan-500 shadow-[0_0_15px_#06b6d4]'}`} style={{animationDelay: '0.2s'}}></div>
+                    <div className={`w-3 h-3 md:w-4 md:h-4 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500 shadow-[0_0_15px_#f97316]' : 'bg-cyan-500 shadow-[0_0_15px_#06b6d4]'}`} style={{animationDelay: '0.4s'}}></div>
                 </div>
-                <div className="text-white/40 text-sm font-mono uppercase tracking-[0.5em]">
+                <div className="text-white/40 text-[10px] md:text-sm font-mono uppercase tracking-[0.5em]">
                     Synchronizing Satellite Data... {(intensity * 100).toFixed(1)}%
                 </div>
             </div>
@@ -242,11 +242,11 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
         </div>
       </div>
 
-      {/* Decorative Corner Borders */}
-      <div className={`absolute top-12 left-12 w-24 h-24 border-t-8 border-l-8 rounded-tl-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
-      <div className={`absolute top-12 right-12 w-24 h-24 border-t-8 border-r-8 rounded-tr-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
-      <div className={`absolute bottom-12 left-12 w-24 h-24 border-b-8 border-l-8 rounded-bl-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
-      <div className={`absolute bottom-12 right-12 w-24 h-24 border-b-8 border-r-8 rounded-br-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
+      {/* Decorative Corner Borders - Hidden on very small screens to save space */}
+      <div className={`hidden sm:block absolute top-12 left-12 w-24 h-24 border-t-8 border-l-8 rounded-tl-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
+      <div className={`hidden sm:block absolute top-12 right-12 w-24 h-24 border-t-8 border-r-8 rounded-tr-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
+      <div className={`hidden sm:block absolute bottom-12 left-12 w-24 h-24 border-b-8 border-l-8 rounded-bl-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
+      <div className={`hidden sm:block absolute bottom-12 right-12 w-24 h-24 border-b-8 border-r-8 rounded-br-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
     </div>
   );
 };
