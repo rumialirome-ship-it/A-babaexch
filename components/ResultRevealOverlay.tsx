@@ -61,7 +61,7 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
   const [elapsed, setElapsed] = useState(0);
   const [showFlash, setShowFlash] = useState(false);
 
-  const TOTAL_ROLL_TIME = 48500; // Original + 45s
+  const TOTAL_ROLL_TIME = 48500; // Original + 45s for maximum tension
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -211,20 +211,21 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
             )}
         </div>
 
-        {/* Victory/Status Message */}
-        <div className="mt-16 h-40 flex flex-col items-center justify-center">
+        {/* Victory/Status Message with CONTINUE button */}
+        <div className="mt-16 h-48 flex flex-col items-center justify-center">
           {phase === 'REVEAL' ? (
-            <div className="animate-reveal-slam-intense">
+            <div className="animate-reveal-slam-intense flex flex-col items-center">
               <div className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-white to-amber-300 uppercase italic tracking-[0.2em] mb-8">
                 JACKPOT REVEALED
               </div>
               <button 
                 onClick={onClose}
-                className="group relative px-20 py-5 rounded-full overflow-hidden transition-all transform hover:scale-110 active:scale-95 shadow-[0_0_50px_rgba(255,255,255,0.3)] bg-white"
+                className="group relative px-20 py-5 rounded-full overflow-hidden transition-all transform hover:scale-110 active:scale-95 shadow-[0_0_50px_rgba(255,255,255,0.4)] bg-white border-4 border-amber-400"
               >
                 <span className="relative z-10 text-slate-950 font-black text-2xl tracking-[0.2em]">CONTINUE</span>
                 <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500"></div>
               </button>
+              <p className="mt-6 text-slate-400 text-xs font-bold uppercase tracking-widest animate-pulse">Click to return to dashboard</p>
             </div>
           ) : (
             <div className="space-y-6">
