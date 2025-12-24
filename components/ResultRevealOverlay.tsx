@@ -8,29 +8,30 @@ interface ResultRevealOverlayProps {
 }
 
 const TENSION_PHRASES = [
-    "INITIALIZING DRAW...",
-    "ANALYZING TICKETS...",
-    "COSMIC LUCK ALIGNING...",
-    "CALCULATING JACKPOT...",
-    "STABILIZING QUANTUM ODDS...",
-    "FATE IS DECIDING...",
-    "ALMOST THERE...",
-    "PREPARING FINAL RESULT...",
-    "LOCKING IN WINNER..."
+    "INITIATING QUANTUM DRAW...",
+    "COLLECTING ALL ENTRIES...",
+    "HARNESSING COSMIC LUCK...",
+    "STABILIZING ODDS...",
+    "FINALIZING JACKPOT PATH...",
+    "THE ORACLE IS SPEAKING...",
+    "BRACING FOR IMPACT...",
+    "LOCKING IN THE WINNER..."
 ];
 
 const Confetti: React.FC = () => {
     const pieces = useMemo(() => {
-        return Array.from({ length: 60 }).map((_, i) => ({
+        return Array.from({ length: 80 }).map((_, i) => ({
             left: Math.random() * 100 + '%',
             delay: Math.random() * 3 + 's',
-            color: ['#fbbf24', '#fcd34d', '#f59e0b', '#ffffff', '#94a3b8'][Math.floor(Math.random() * 5)],
-            size: Math.random() * 10 + 5 + 'px'
+            duration: Math.random() * 2 + 2 + 's',
+            color: ['#fbbf24', '#fcd34d', '#ec4899', '#06b6d4', '#8b5cf6', '#ffffff'][Math.floor(Math.random() * 6)],
+            size: Math.random() * 12 + 6 + 'px',
+            rotation: Math.random() * 360 + 'deg'
         }));
     }, []);
 
     return (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-50">
             {pieces.map((p, i) => (
                 <div 
                     key={i} 
@@ -38,10 +39,13 @@ const Confetti: React.FC = () => {
                     style={{ 
                         left: p.left, 
                         animationDelay: p.delay, 
+                        animationDuration: p.duration,
                         backgroundColor: p.color,
                         width: p.size,
                         height: p.size,
-                        borderRadius: Math.random() > 0.5 ? '50%' : '2px'
+                        transform: `rotate(${p.rotation})`,
+                        borderRadius: Math.random() > 0.5 ? '50%' : '2px',
+                        boxShadow: `0 0 10px ${p.color}`
                     }} 
                 />
             ))}
@@ -55,9 +59,9 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
   const [isShaking, setIsShaking] = useState(false);
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [showFlash, setShowFlash] = useState(false);
 
-  // Total duration: 48.5 seconds (Original 3.5 + 45)
-  const TOTAL_ROLL_TIME = 48500;
+  const TOTAL_ROLL_TIME = 48500; // Original + 45s
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -65,29 +69,30 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
     let progressInterval: ReturnType<typeof setInterval>;
 
     if (phase === 'ROLLING') {
-      // Numbers roll speed (changes based on elapsed time for tension)
       interval = setInterval(() => {
         const randomNum = winningNumber.length === 1 
           ? Math.floor(Math.random() * 10).toString()
           : Math.floor(Math.random() * 100).toString().padStart(2, '0');
         setDisplayNum(randomNum);
-      }, 50);
+      }, 40);
 
-      // Cycle phrases every 5 seconds
       phraseInterval = setInterval(() => {
         setPhraseIndex(prev => (prev + 1) % TENSION_PHRASES.length);
-      }, 5000);
+      }, 6000);
 
-      // Track progress for visual effects
       progressInterval = setInterval(() => {
         setElapsed(prev => prev + 100);
       }, 100);
 
       const timer = setTimeout(() => {
-        setPhase('REVEAL');
-        setDisplayNum(winningNumber);
-        setIsShaking(true);
-        setTimeout(() => setIsShaking(false), 500);
+        setShowFlash(true);
+        setTimeout(() => {
+            setPhase('REVEAL');
+            setDisplayNum(winningNumber);
+            setIsShaking(true);
+            setShowFlash(false);
+            setTimeout(() => setIsShaking(false), 800);
+        }, 150);
       }, TOTAL_ROLL_TIME);
 
       return () => {
@@ -99,126 +104,148 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
     }
   }, [phase, winningNumber]);
 
-  const intensity = elapsed / TOTAL_ROLL_TIME; // 0 to 1
+  const intensity = elapsed / TOTAL_ROLL_TIME;
 
   return (
-    <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950 transition-all duration-700 ${isShaking ? 'animate-shake' : ''}`}>
+    <div className={`fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-slate-950 transition-all duration-1000 ${isShaking ? 'animate-shake scale-105' : ''}`}>
       
-      {/* Dynamic Background Effects */}
+      {/* Background Prismatic Effects */}
       <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
+        {/* Prismatic Rotating Beams */}
         <div 
-            className="w-[250vw] h-[250vw] opacity-30 animate-spotlight"
+            className="w-[300vw] h-[300vw] opacity-40 animate-spotlight"
             style={{ 
-                animationDuration: `${10 - (intensity * 8)}s`,
-                background: `conic-gradient(from 0deg, transparent 0deg, transparent 40deg, ${intensity > 0.8 ? 'rgba(251,191,36,0.5)' : 'rgba(6,182,212,0.4)'} 45deg, transparent 50deg, transparent 90deg, ${intensity > 0.8 ? 'rgba(251,191,36,0.5)' : 'rgba(6,182,212,0.4)'} 95deg, transparent 100deg)`
+                animationDuration: `${12 - (intensity * 10)}s`,
+                background: `conic-gradient(from 0deg, 
+                    transparent 0deg, 
+                    rgba(6,182,212,0.3) 20deg, 
+                    transparent 40deg, 
+                    rgba(236,72,153,0.3) 60deg, 
+                    transparent 80deg, 
+                    rgba(251,191,36,0.3) 100deg, 
+                    transparent 120deg)`
             }}
         ></div>
         
-        {/* Intense heat blur effect in final 10 seconds */}
-        {phase === 'ROLLING' && intensity > 0.8 && (
-            <div className="absolute inset-0 backdrop-blur-[2px] opacity-50 animate-pulse bg-red-500/5"></div>
-        )}
-
-        {phase === 'REVEAL' && (
-            <div className="absolute inset-0 bg-gradient-to-t from-amber-500/30 via-transparent to-transparent animate-pulse"></div>
-        )}
+        {/* Pulse Aura */}
+        <div className={`absolute inset-0 transition-colors duration-1000 ${intensity > 0.8 ? 'bg-orange-500/10' : 'bg-cyan-500/5'}`}></div>
+        
+        {/* Space Dust Particles */}
+        <div className="absolute inset-0">
+            {Array.from({ length: 30 }).map((_, i) => (
+                <div 
+                    key={i} 
+                    className="absolute bg-white rounded-full opacity-20 animate-pulse"
+                    style={{
+                        width: Math.random() * 4 + 'px',
+                        height: Math.random() * 4 + 'px',
+                        left: Math.random() * 100 + '%',
+                        top: Math.random() * 100 + '%',
+                        animationDuration: Math.random() * 3 + 1 + 's',
+                        animationDelay: Math.random() * 2 + 's'
+                    }}
+                ></div>
+            ))}
+        </div>
       </div>
+
+      {/* Impact Flash */}
+      {showFlash && <div className="absolute inset-0 bg-white z-[1100]"></div>}
 
       {phase === 'REVEAL' && <Confetti />}
 
-      <div className="relative z-10 text-center px-4">
-        {/* Header Section */}
-        <div className="mb-8">
-            <h2 className={`text-lg md:text-2xl font-bold tracking-[0.4em] uppercase transition-all duration-1000 ${phase === 'REVEAL' ? 'text-amber-400' : 'text-cyan-400/60'}`}>
-                {phase === 'REVEAL' ? '★ WINNING RESULT ★' : TENSION_PHRASES[phraseIndex]}
+      <div className="relative z-[1010] text-center px-4 w-full max-w-4xl">
+        {/* Animated Progress Header */}
+        <div className="mb-12">
+            <h2 className={`text-xl md:text-3xl font-black tracking-[0.5em] uppercase transition-all duration-1000 ${phase === 'REVEAL' ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]' : 'text-white/80'}`}>
+                {phase === 'REVEAL' ? '✨ DRAW FINALIZED ✨' : TENSION_PHRASES[phraseIndex]}
             </h2>
-            <div className={`h-1 w-48 mx-auto mt-2 transition-all duration-500 ${phase === 'REVEAL' ? 'bg-amber-500' : 'bg-slate-700'}`}>
+            <div className="h-1.5 w-64 md:w-96 mx-auto mt-4 bg-slate-800 rounded-full overflow-hidden border border-white/10">
                 <div 
-                    className="h-full bg-cyan-400 transition-all duration-100 ease-linear" 
+                    className={`h-full transition-all duration-100 ease-linear ${intensity > 0.8 ? 'bg-gradient-to-r from-orange-500 to-red-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`} 
                     style={{ width: phase === 'REVEAL' ? '100%' : `${intensity * 100}%` }}
                 ></div>
             </div>
         </div>
 
-        <h1 className={`text-5xl md:text-8xl font-black uppercase tracking-tighter mb-10 transition-all duration-1000 ${phase === 'REVEAL' ? 'text-white scale-110 drop-shadow-[0_0_20px_rgba(255,255,255,0.5)]' : 'text-slate-500'}`}>
+        <h1 className={`text-6xl md:text-9xl font-black uppercase tracking-tighter mb-12 transition-all duration-1000 ${phase === 'REVEAL' ? 'text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 scale-110' : 'text-slate-700'}`}>
           {gameName}
         </h1>
 
-        {/* The 3D Lottery Ball */}
+        {/* The 3D Liquid Metal Ball */}
         <div className="relative inline-block group">
-            {/* Inner Glow / Core */}
-            <div className={`absolute inset-0 rounded-full blur-3xl transition-all duration-1000 ${phase === 'REVEAL' || intensity > 0.8 ? 'bg-amber-500/40 scale-150' : 'bg-cyan-500/20'}`}></div>
+            {/* Massive Outer Glow */}
+            <div className={`absolute -inset-20 rounded-full blur-[100px] transition-all duration-1000 ${phase === 'REVEAL' ? 'bg-amber-500/50 scale-125' : intensity > 0.8 ? 'bg-orange-600/30 animate-pulse' : 'bg-cyan-500/20'}`}></div>
             
-            {/* The Main Ball Container */}
+            {/* The Orb */}
             <div className={`
-                w-56 h-56 md:w-80 md:h-80 rounded-full border-[12px] relative flex items-center justify-center transition-all duration-700
+                w-64 h-64 md:w-96 md:h-96 rounded-full border-[16px] relative flex items-center justify-center transition-all duration-1000 overflow-hidden
                 ${phase === 'REVEAL' 
-                    ? 'border-amber-400 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 shadow-[0_0_80px_rgba(251,191,36,0.6)]' 
+                    ? 'border-amber-400 bg-gradient-to-br from-slate-800 via-slate-900 to-black shadow-[0_0_100px_rgba(251,191,36,0.8)]' 
                     : intensity > 0.8 
-                    ? 'border-orange-500 bg-slate-900 shadow-[0_0_60px_rgba(249,115,22,0.4)] animate-pulse'
-                    : 'border-cyan-500 bg-slate-900 shadow-[0_0_40px_rgba(6,182,212,0.3)]'}
+                    ? 'border-orange-500 bg-slate-900 shadow-[0_0_70px_rgba(249,115,22,0.5)]'
+                    : 'border-slate-700 bg-slate-900 shadow-[0_0_40px_rgba(6,182,212,0.2)]'}
             `}>
-                {/* Gloss Effect */}
-                <div className="absolute top-[10%] left-[15%] w-[40%] h-[30%] bg-gradient-to-b from-white/20 to-transparent rounded-[50%] rotate-[-30deg]"></div>
+                {/* Surface Reflections */}
+                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.15)_0%,transparent_50%)]"></div>
+                <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(circle_at_70%_70%,rgba(0,0,0,0.4)_0%,transparent_50%)]"></div>
                 
+                {/* Rolling Number */}
                 <div className={`
-                    text-8xl md:text-[10rem] font-black font-mono tracking-tighter transition-all
-                    ${phase === 'REVEAL' ? 'text-white animate-reveal-slam-intense' : 'text-cyan-400/80'}
+                    text-[9rem] md:text-[14rem] font-black font-mono tracking-tighter transition-all duration-300
+                    ${phase === 'REVEAL' ? 'text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.8)]' : 'text-cyan-400/40'}
                 `}>
                     {displayNum}
                 </div>
                 
-                {/* Secondary ring for 3D depth */}
-                <div className="absolute inset-2 border-2 border-white/5 rounded-full"></div>
+                {/* Internal Energy Ring */}
+                <div className={`absolute inset-4 border-4 border-dashed rounded-full opacity-20 ${phase === 'REVEAL' ? 'animate-[spin_4s_linear_infinite] border-amber-400' : 'animate-[spin_10s_linear_infinite] border-cyan-400'}`}></div>
             </div>
 
-            {/* Eruption Sparks on Reveal */}
-            {(phase === 'REVEAL' || intensity > 0.9) && (
+            {/* Orbiting Sparks */}
+            {phase === 'REVEAL' && (
                 <>
-                    <div className="absolute -inset-10 border-4 border-amber-400/20 rounded-full animate-ping"></div>
-                    <div className="absolute -inset-20 border border-white/10 rounded-full animate-[ping_1.5s_linear_infinite]"></div>
+                    <div className="absolute -inset-12 border-2 border-white/20 rounded-full animate-ping"></div>
+                    <div className="absolute -inset-24 border border-amber-400/20 rounded-full animate-[ping_2s_linear_infinite]"></div>
                 </>
             )}
         </div>
 
-        {/* Action / Celebration Text */}
-        <div className="mt-12 h-32 flex flex-col items-center justify-center">
+        {/* Victory/Status Message */}
+        <div className="mt-16 h-40 flex flex-col items-center justify-center">
           {phase === 'REVEAL' ? (
-            <div className="animate-[bounce_2s_infinite]">
-              <div className="text-3xl md:text-5xl font-black text-amber-400 uppercase italic tracking-widest drop-shadow-lg mb-6">
-                JACKPOT!
+            <div className="animate-reveal-slam-intense">
+              <div className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-white to-amber-300 uppercase italic tracking-[0.2em] mb-8">
+                JACKPOT REVEALED
               </div>
               <button 
                 onClick={onClose}
-                className="group relative bg-white text-slate-900 font-black py-4 px-16 rounded-full overflow-hidden transition-all transform hover:scale-110 active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.4)]"
+                className="group relative px-20 py-5 rounded-full overflow-hidden transition-all transform hover:scale-110 active:scale-95 shadow-[0_0_50px_rgba(255,255,255,0.3)] bg-white"
               >
-                <span className="relative z-10 text-xl tracking-widest">COLLECT WINNINGS</span>
-                <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-300"></div>
+                <span className="relative z-10 text-slate-950 font-black text-2xl tracking-[0.2em]">CLAIM WINNINGS</span>
+                <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500"></div>
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-                <p className={`text-xl font-bold uppercase tracking-[0.8em] transition-colors duration-500 ${intensity > 0.8 ? 'text-orange-500 animate-pulse' : 'text-cyan-400'}`}>
-                    {intensity > 0.8 ? 'FINALIZING' : 'GENERATING'}
-                </p>
-                <div className="flex gap-2 justify-center">
-                    <div className={`w-2 h-2 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500' : 'bg-cyan-500'}`} style={{animationDelay: '0s'}}></div>
-                    <div className={`w-2 h-2 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500' : 'bg-cyan-500'}`} style={{animationDelay: '0.2s'}}></div>
-                    <div className={`w-2 h-2 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500' : 'bg-cyan-500'}`} style={{animationDelay: '0.4s'}}></div>
+            <div className="space-y-6">
+                <div className="flex gap-4 justify-center">
+                    <div className={`w-4 h-4 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500 shadow-[0_0_15px_#f97316]' : 'bg-cyan-500 shadow-[0_0_15px_#06b6d4]'}`} style={{animationDelay: '0s'}}></div>
+                    <div className={`w-4 h-4 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500 shadow-[0_0_15px_#f97316]' : 'bg-cyan-500 shadow-[0_0_15px_#06b6d4]'}`} style={{animationDelay: '0.2s'}}></div>
+                    <div className={`w-4 h-4 rounded-full animate-bounce ${intensity > 0.8 ? 'bg-orange-500 shadow-[0_0_15px_#f97316]' : 'bg-cyan-500 shadow-[0_0_15px_#06b6d4]'}`} style={{animationDelay: '0.4s'}}></div>
                 </div>
-                <div className="text-slate-500 text-xs font-mono uppercase tracking-widest opacity-50">
-                    Confidence Level: {(intensity * 100).toFixed(0)}%
+                <div className="text-white/40 text-sm font-mono uppercase tracking-[0.5em]">
+                    Synchronizing Satellite Data... {(intensity * 100).toFixed(1)}%
                 </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Futuristic Frame Corners */}
-      <div className={`absolute top-10 left-10 w-20 h-20 border-t-4 border-l-4 rounded-tl-3xl transition-colors duration-500 ${intensity > 0.8 ? 'border-orange-500/50' : 'border-cyan-500/30'}`}></div>
-      <div className={`absolute top-10 right-10 w-20 h-20 border-t-4 border-r-4 rounded-tr-3xl transition-colors duration-500 ${intensity > 0.8 ? 'border-orange-500/50' : 'border-cyan-500/30'}`}></div>
-      <div className={`absolute bottom-10 left-10 w-20 h-20 border-b-4 border-l-4 rounded-bl-3xl transition-colors duration-500 ${intensity > 0.8 ? 'border-orange-500/50' : 'border-cyan-500/30'}`}></div>
-      <div className={`absolute bottom-10 right-10 w-20 h-20 border-b-4 border-r-4 rounded-br-3xl transition-colors duration-500 ${intensity > 0.8 ? 'border-orange-500/50' : 'border-cyan-500/30'}`}></div>
+      {/* Decorative Corner Borders */}
+      <div className={`absolute top-12 left-12 w-24 h-24 border-t-8 border-l-8 rounded-tl-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
+      <div className={`absolute top-12 right-12 w-24 h-24 border-t-8 border-r-8 rounded-tr-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
+      <div className={`absolute bottom-12 left-12 w-24 h-24 border-b-8 border-l-8 rounded-bl-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
+      <div className={`absolute bottom-12 right-12 w-24 h-24 border-b-8 border-r-8 rounded-br-3xl transition-colors duration-1000 ${phase === 'REVEAL' ? 'border-amber-400' : 'border-white/10'}`}></div>
     </div>
   );
 };
