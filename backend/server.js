@@ -9,6 +9,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('./authMiddleware');
+// Standard @google/genai import
 const { GoogleGenAI } = require('@google/genai');
 const database = require('./database');
 const { v4: uuidv4 } = require('uuid');
@@ -78,6 +79,7 @@ let ai = null;
 if (!API_KEY) {
     console.warn("API_KEY for Google Gemini is not set. AI features will be disabled.");
 } else {
+    // Initializing Gemini client using named parameter apiKey as per guidelines
     ai = new GoogleGenAI({ apiKey: API_KEY });
 }
 
@@ -139,8 +141,9 @@ app.post('/api/ai/lucky-number', authMiddleware, async (req, res) => {
     try {
         const fullPrompt = `Game: ${gameName}\nNumber Type: ${numberType}\nUser's Request: "${userPrompt}"`;
         
+        // Use gemini-3-flash-preview for basic text tasks
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3-flash-preview",
             contents: fullPrompt,
             config: {
                 systemInstruction: systemInstruction,
@@ -148,6 +151,7 @@ app.post('/api/ai/lucky-number', authMiddleware, async (req, res) => {
             },
         });
 
+        // Use .text property to access content (property, not method)
         const text = response.text;
         const numberMatch = text.match(/\[(\d{1,2})\]/);
         

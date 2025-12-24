@@ -84,6 +84,42 @@ const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
     );
 };
 
+// Helper to calculate payout for a single bet
+const calculateBetPayout = (bet: Bet, game: Game | undefined, userPrizeRates: PrizeRates) => {
+    if (!game || !game.winningNumber || game.winningNumber.includes('_')) return 0;
+
+    const winningNumber = game.winningNumber;
+    let winningNumbersCount = 0;
+
+    bet.numbers.forEach(num => {
+        let isWin = false;
+        switch (bet.subGameType) {
+            case SubGameType.OneDigitOpen:
+                if (winningNumber.length === 2) { isWin = num === winningNumber[0]; }
+                break;
+            case SubGameType.OneDigitClose:
+                if (game.name === 'AKC') { isWin = num === winningNumber; } 
+                else if (winningNumber.length === 2) { isWin = num === winningNumber[1]; }
+                break;
+            default: // Covers TwoDigit, Bulk, Combo
+                isWin = num === winningNumber;
+                break;
+        }
+        if (isWin) winningNumbersCount++;
+    });
+
+    if (winningNumbersCount > 0) {
+        const getPrizeMultiplier = (rates: PrizeRates, subGameType: SubGameType) => {
+            switch (subGameType) {
+                case SubGameType.OneDigitOpen: return rates.oneDigitOpen;
+                case SubGameType.OneDigitClose: return rates.oneDigitClose;
+                default: return rates.twoDigit;
+            }
+        };
+        return winningNumbersCount * bet.amountPerNumber * getPrizeMultiplier(userPrizeRates, bet.subGameType);
+    }
+    return 0;
+};
 
 const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ bets, games, user }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
@@ -94,35 +130,8 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
         const game = games.find(g => g.id === bet.gameId);
         if (!game || !user || !game.winningNumber || game.winningNumber.includes('_')) return { status: 'Pending', payout: 0, color: 'text-amber-400' };
 
-        const winningNumber = game.winningNumber;
-        let winningNumbersCount = 0;
-
-        bet.numbers.forEach(num => {
-            let isWin = false;
-            switch (bet.subGameType) {
-                case SubGameType.OneDigitOpen:
-                    if (winningNumber.length === 2) { isWin = num === winningNumber[0]; }
-                    break;
-                case SubGameType.OneDigitClose:
-                    if (game.name === 'AKC') { isWin = num === winningNumber; } 
-                    else if (winningNumber.length === 2) { isWin = num === winningNumber[1]; }
-                    break;
-                default: // Covers TwoDigit, Bulk, Combo
-                    isWin = num === winningNumber;
-                    break;
-            }
-            if (isWin) winningNumbersCount++;
-        });
-
-        if (winningNumbersCount > 0) {
-            const getPrizeMultiplier = (rates: PrizeRates, subGameType: SubGameType) => {
-                switch (subGameType) {
-                    case SubGameType.OneDigitOpen: return rates.oneDigitOpen;
-                    case SubGameType.OneDigitClose: return rates.oneDigitClose;
-                    default: return rates.twoDigit;
-                }
-            };
-            const payout = winningNumbersCount * bet.amountPerNumber * getPrizeMultiplier(user.prizeRates, bet.subGameType);
+        const payout = calculateBetPayout(bet, game, user.prizeRates);
+        if (payout > 0) {
             return { status: 'Win', payout, color: 'text-green-400' };
         }
         return { status: 'Lost', payout: 0, color: 'text-red-400' };
@@ -130,37 +139,17 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
 
     const filteredBets = useMemo(() => {
         return bets.filter(bet => {
-            // Date range filter using YYYY-MM-DD strings to avoid timezone issues
             const betDateStr = bet.timestamp.toISOString().split('T')[0];
-            if (startDate && betDateStr < startDate) {
-                return false;
-            }
-            if (endDate && betDateStr > endDate) {
-                return false;
-            }
+            if (startDate && betDateStr < startDate) return false;
+            if (endDate && betDateStr > endDate) return false;
 
-            // Search term filter
             if (searchTerm.trim()) {
                 const game = games.find(g => g.id === bet.gameId);
                 const lowerSearchTerm = searchTerm.trim().toLowerCase();
-
                 const gameNameMatch = game?.name.toLowerCase().includes(lowerSearchTerm);
                 const subGameTypeMatch = bet.subGameType.toLowerCase().includes(lowerSearchTerm);
-
-                // Allow generic searches like "1 digit" to match "1 Digit Open" and "1 Digit Close"
-                let genericTypeMatch = false;
-                if (('1 digit'.includes(lowerSearchTerm) || '1-digit'.includes(lowerSearchTerm)) && bet.subGameType.includes('1 Digit')) {
-                    genericTypeMatch = true;
-                }
-                if (('2 digit'.includes(lowerSearchTerm) || '2-digit'.includes(lowerSearchTerm)) && (bet.subGameType.includes('2 Digit') || bet.subGameType.includes('Bulk') || bet.subGameType.includes('Combo'))) {
-                    genericTypeMatch = true;
-                }
-
-                if (!gameNameMatch && !subGameTypeMatch && !genericTypeMatch) {
-                    return false;
-                }
+                if (!gameNameMatch && !subGameTypeMatch) return false;
             }
-
             return true;
         });
     }, [bets, games, startDate, endDate, searchTerm]);
@@ -326,6 +315,9 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     const [comboDigitsInput, setComboDigitsInput] = useState('');
     const [generatedCombos, setGeneratedCombos] = useState<ComboLine[]>([]);
     const [comboGlobalStake, setComboGlobalStake] = useState('');
+
+    // --- Added Countdown for Modal ---
+    const { text: countdownText } = useCountdown(game?.drawTime || '00:00');
 
 
     const availableSubGameTabs = useMemo(() => {
@@ -675,14 +667,19 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
             <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col gap-1">
                         <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
-                        <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold text-amber-400 uppercase tracking-widest shadow-sm">
-                            <span className="w-2.5 h-2.5 text-amber-400">{Icons.clock}</span>
-                            DRAW @ {formatTime12h(game.drawTime)}
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-bold text-amber-400 uppercase tracking-widest shadow-sm">
+                                <span className="w-2.5 h-2.5 text-amber-400">{Icons.clock}</span>
+                                DRAW @ {formatTime12h(game.drawTime)}
+                            </div>
+                            <div className="flex items-center gap-1.5 bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.5 rounded text-[9px] font-bold text-cyan-400 uppercase tracking-widest shadow-sm animate-pulse">
+                                TIME LEFT: <span className="font-mono">{countdownText}</span>
+                            </div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white self-start mt-1">{Icons.close}</button>
                 </div>
                 <div className="p-6 overflow-y-auto">
                     <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-4 self-start flex-wrap border border-slate-700">
@@ -774,7 +771,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                             </div>
                             <div className="mb-4">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Amount per Number</label>
-                                <input type="number" value={manualAmountInput} onChange={e => setManualAmountInput(target.value)} placeholder="e.g. 10" className={inputClass} />
+                                <input type="number" value={manualAmountInput} onChange={e => setManualAmountInput(e.target.value)} placeholder="e.g. 10" className={inputClass} />
                             </div>
                             <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-3 gap-2 text-center border border-slate-700">
                                 <div><p className="text-slate-400 text-xs uppercase">Numbers</p><p className="font-bold text-white text-lg">{parsedManualBet.numberCount}</p></div>
@@ -998,6 +995,82 @@ const WalletSummaryView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) =>
     );
 };
 
+// --- NEW GAME BY GAME BREAKDOWN VIEW ---
+interface UserGameSummary {
+    gameName: string;
+    winningNumber: string;
+    totalStake: number;
+    totalPayout: number;
+    net: number;
+}
+
+const GameBreakdownView: React.FC<{ bets: Bet[], games: Game[], userPrizeRates: PrizeRates }> = ({ bets, games, userPrizeRates }) => {
+    const gameSummaries = useMemo(() => {
+        // Group bets by game
+        const betsByGame = new Map<string, Bet[]>();
+        bets.forEach(bet => {
+            const list = betsByGame.get(bet.gameId) || [];
+            list.push(bet);
+            betsByGame.set(bet.gameId, list);
+        });
+
+        const summaries: UserGameSummary[] = [];
+        betsByGame.forEach((gameBets, gameId) => {
+            const game = games.find(g => g.id === gameId);
+            if (!game) return;
+
+            const totalStake = gameBets.reduce((sum, b) => sum + b.totalAmount, 0);
+            const totalPayout = gameBets.reduce((sum, b) => sum + calculateBetPayout(b, game, userPrizeRates), 0);
+
+            summaries.push({
+                gameName: game.name,
+                winningNumber: game.winningNumber || '-',
+                totalStake,
+                totalPayout,
+                net: totalPayout - totalStake
+            });
+        });
+
+        return summaries.sort((a, b) => a.gameName.localeCompare(b.gameName));
+    }, [bets, games, userPrizeRates]);
+
+    if (gameSummaries.length === 0) return null;
+
+    return (
+        <div className="mt-12">
+            <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">My Game Breakdown</h3>
+            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="overflow-x-auto mobile-scroll-x">
+                    <table className="w-full text-left min-w-[600px]">
+                        <thead className="bg-slate-800/50">
+                            <tr>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Result</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Payout</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Profit / Loss</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800 font-mono">
+                            {gameSummaries.map(summary => (
+                                <tr key={summary.gameName} className="hover:bg-sky-500/10 transition-colors">
+                                    <td className="p-4 font-bold text-white font-sans">{summary.gameName}</td>
+                                    <td className="p-4 text-cyan-300 font-bold text-lg">{summary.winningNumber}</td>
+                                    <td className="p-4 text-right text-white">{summary.totalStake.toFixed(2)}</td>
+                                    <td className="p-4 text-right text-emerald-400">{summary.totalPayout > 0 ? summary.totalPayout.toFixed(2) : '-'}</td>
+                                    <td className={`p-4 text-right font-bold ${summary.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {summary.net > 0 ? '+' : ''}{summary.net.toFixed(2)}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 interface UserPanelProps {
   user: User;
@@ -1147,7 +1220,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
                 <img src={user.avatarUrl} alt={user.name} className="w-16 h-16 rounded-full mr-5 border-2 border-sky-400 object-cover"/>
             ) : (
                 <div className="w-16 h-16 rounded-full mr-5 border-2 border-sky-400 bg-slate-700 flex items-center justify-center">
-                    <span className="text-3xl font-bold">{user.name.charAt(0)}</span>
+                    <span className="font-bold text-3xl">{user.name.charAt(0)}</span>
                 </div>
             )}
             <div>
@@ -1177,6 +1250,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
       </div>
       
       <WalletSummaryView entries={user.ledger} />
+      <GameBreakdownView bets={userBets} games={games} userPrizeRates={user.prizeRates} />
       <BetHistoryView bets={userBets} games={games} user={user} />
       <LedgerView entries={user.ledger} />
       
