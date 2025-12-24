@@ -774,7 +774,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                             </div>
                             <div className="mb-4">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Amount per Number</label>
-                                <input type="number" value={manualAmountInput} onChange={e => setManualAmountInput(e.target.value)} placeholder="e.g. 10" className={inputClass} />
+                                <input type="number" value={manualAmountInput} onChange={e => setManualAmountInput(target.value)} placeholder="e.g. 10" className={inputClass} />
                             </div>
                             <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-3 gap-2 text-center border border-slate-700">
                                 <div><p className="text-slate-400 text-xs uppercase">Numbers</p><p className="font-bold text-white text-lg">{parsedManualBet.numberCount}</p></div>
@@ -830,7 +830,7 @@ interface BetConfirmationDetails {
 }
 
 
-const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; onConfirm: () => void; onClose: () => void; isLoading: boolean; }> = ({ details, onConfirm, onClose, isLoading }) => {
+const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; onConfirm: () => void; onClose: () => void; isLoading: boolean; error: string | null; }> = ({ details, onConfirm, onClose, isLoading, error }) => {
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
             <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-md border border-sky-500/30">
@@ -838,7 +838,7 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
                     <h3 className="text-2xl font-bold text-white mb-4 uppercase tracking-wider">Confirm Bet</h3>
                     <p className="text-slate-400 mb-6">Review details before confirming.</p>
 
-                    <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm max-h-64 overflow-y-auto">
+                    <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm max-h-64 overflow-y-auto font-sans">
                         {details.isMultiGame && details.multiGameSummary ? (
                             <>
                                 {details.multiGameSummary.map(game => (
@@ -872,6 +872,13 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
                             </>
                         )}
                     </div>
+
+                    {error && (
+                        <div className="bg-red-500/20 border-l-4 border-red-500 text-red-300 text-sm p-4 rounded-md mb-6 text-left animate-pulse">
+                            <p className="font-bold mb-1 uppercase tracking-wider">⚠️ LIMIT ERROR</p>
+                            {error}
+                        </div>
+                    )}
 
 
                     <div className="flex justify-end space-x-4 pt-2">
@@ -1122,12 +1129,13 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
         isSuccess = false;
     } finally {
         setIsLoading(false);
-        setBetToConfirm(null);
 
         if (isSuccess) {
             setBetConfirmation(betToConfirm);
+            setBetToConfirm(null); // Only close if successful
             setSelectedGame(null); 
         }
+        // If not successful, we keep betToConfirm active so the user can see the error in the modal
     }
   };
 
@@ -1173,7 +1181,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
       <LedgerView entries={user.ledger} />
       
       {selectedGame && <BettingModal game={selectedGame} games={games} user={user} onClose={() => { setSelectedGame(null); setBettingError(null); }} onPlaceBet={handleReviewBet} apiError={bettingError} clearApiError={() => setBettingError(null)} />}
-      {betToConfirm && <BetConfirmationPromptModal details={betToConfirm} onConfirm={handleConfirmBet} onClose={() => setBetToConfirm(null)} isLoading={isLoading} />}
+      {betToConfirm && <BetConfirmationPromptModal details={betToConfirm} onConfirm={handleConfirmBet} onClose={() => { setBetToConfirm(null); setBettingError(null); }} isLoading={isLoading} error={bettingError} />}
       {betConfirmation && <BetConfirmationModal details={betConfirmation} onClose={() => setBetConfirmation(null)} />}
     </div>
   );
