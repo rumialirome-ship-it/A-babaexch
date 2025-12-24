@@ -600,12 +600,23 @@ const updateUser = (userData, userId, dealerId) => {
 };
 
 const toggleAccountRestrictionByAdmin = (accountId, accountType) => {
-    const table = accountType.toLowerCase() + 's';
-    const account = db.prepare(`SELECT isRestricted FROM ${table} WHERE id = ?`).get(accountId);
-    if (!account) throw { status: 404, message: 'Account not found.' };
-    
-    db.prepare(`UPDATE ${table} SET isRestricted = ? WHERE id = ?`).run(account.isRestricted ? 0 : 1, accountId);
-    return findAccountById(accountId, table);
+    let result;
+    runInTransaction(() => {
+        const table = accountType.toLowerCase() + 's';
+        const account = db.prepare(`SELECT isRestricted FROM ${table} WHERE id = ?`).get(accountId);
+        if (!account) throw { status: 404, message: 'Account not found.' };
+        
+        const newStatus = account.isRestricted ? 0 : 1;
+        db.prepare(`UPDATE ${table} SET isRestricted = ? WHERE id = ?`).run(newStatus, accountId);
+        
+        // CASCADING LOGIC: If a dealer is restricted/unrestricted, do the same for all users under them.
+        if (accountType.toLowerCase() === 'dealer') {
+            db.prepare(`UPDATE users SET isRestricted = ? WHERE dealerId = ?`).run(newStatus, accountId);
+        }
+        
+        result = findAccountById(accountId, table);
+    });
+    return result;
 };
 
 const toggleUserRestrictionByDealer = (userId, dealerId) => {
