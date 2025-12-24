@@ -15,9 +15,10 @@ const formatTime12h = (time24: string) => {
 
 const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, onClick }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
-    const hasWinner = !!game.winningNumber;
+    // Important: Ignore partial AK results ending in "_" for display
+    const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
     const isMarketClosedForDisplay = !game.isMarketOpen;
-    const themeColor = hasWinner && isMarketClosedForDisplay ? 'emerald' : 'cyan';
+    const themeColor = hasFinalWinner ? 'emerald' : 'cyan';
     const logo = GAME_LOGOS[game.name] || '';
 
     return (
@@ -37,12 +38,11 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
                     <h3 className="text-2xl text-white mb-1 uppercase tracking-wider">{game.name}</h3>
                     <p className="text-slate-400 text-sm">Draw @ {formatTime12h(game.drawTime)}</p>
                 </div>
-                <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor}-400/20`}>
-                    {hasWinner && isMarketClosedForDisplay ? (
+                <div className={`text-center w-full p-2 mt-4 bg-black/30 border-t border-${themeColor}-400/20 min-h-[80px] flex flex-col justify-center`}>
+                    {hasFinalWinner ? (
                         <>
-                            <div className="text-xs uppercase tracking-widest text-slate-400">PREVIOUS WINNER</div>
-                            <div className="text-4xl font-mono font-bold text-emerald-300 flex items-center justify-center gap-2">
-                                {React.cloneElement(Icons.star, { className: 'h-6 w-6 text-amber-300' })}
+                            <div className="text-[10px] uppercase tracking-[0.3em] text-emerald-400 font-black mb-1">DRAW RESULT</div>
+                            <div className="text-5xl font-mono font-bold text-white drop-shadow-[0_0_10px_rgba(52,211,153,0.5)] flex items-center justify-center gap-2">
                                 <span>{game.winningNumber}</span>
                             </div>
                         </>

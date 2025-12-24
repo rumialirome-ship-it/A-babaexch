@@ -240,11 +240,12 @@ const formatTime12h = (time24: string) => {
 
 const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }> = ({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
+    const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
     const isPlayable = !!game.isMarketOpen && !isRestricted && status === 'OPEN';
     const isMarketClosedForDisplay = !game.isMarketOpen;
 
     return (
-        <div className={`bg-slate-800/50 rounded-lg shadow-lg p-4 flex flex-col justify-between transition-all duration-300 border border-slate-700 ${!isPlayable ? 'opacity-60' : 'hover:shadow-cyan-500/20 hover:-translate-y-1 hover:border-cyan-500/50'}`}>
+        <div className={`bg-slate-800/50 rounded-lg shadow-lg p-4 flex flex-col justify-between transition-all duration-300 border border-slate-700 ${!isPlayable ? 'opacity-80' : 'hover:shadow-cyan-500/20 hover:-translate-y-1 hover:border-cyan-500/50'}`}>
             <div>
                 <div className="flex items-center mb-3">
                     <img src={game.logo} alt={game.name} className="w-12 h-12 rounded-full mr-4 border-2 border-slate-600" />
@@ -253,8 +254,13 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
                         <p className="text-sm text-slate-400">Draw at {formatTime12h(game.drawTime)}</p>
                     </div>
                 </div>
-                <div className={`text-center my-4 p-2 rounded-lg bg-slate-900/50 border-t border-slate-700`}>
-                    {isMarketClosedForDisplay ? (
+                <div className={`text-center my-4 p-2 rounded-lg bg-slate-900/50 border-t border-slate-700 min-h-[70px] flex flex-col justify-center`}>
+                    {hasFinalWinner ? (
+                        <>
+                            <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold">DRAW RESULT</div>
+                            <div className="text-3xl font-mono font-black text-white">{game.winningNumber}</div>
+                        </>
+                    ) : isMarketClosedForDisplay ? (
                         <>
                             <div className="text-xs uppercase tracking-wider text-slate-400">STATUS</div>
                             <div className="text-2xl font-mono font-bold text-red-400">MARKET CLOSED</div>
@@ -272,7 +278,6 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
                     )}
                 </div>
             </div>
-             {game.winningNumber && isMarketClosedForDisplay && <div className="text-center font-bold text-lg text-emerald-400 mt-2">Previous Winner: {game.winningNumber}</div>}
             <button onClick={() => onPlay(game)} disabled={!isPlayable} className="w-full mt-2 bg-sky-600 text-white font-bold py-2.5 px-4 rounded-md transition-all duration-300 enabled:hover:bg-sky-500 enabled:hover:shadow-lg enabled:hover:shadow-sky-500/30 disabled:bg-slate-700 disabled:cursor-not-allowed">
                 PLAY NOW
             </button>
