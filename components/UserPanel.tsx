@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
@@ -676,7 +675,13 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
             <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
-                    <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
+                        <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded text-[10px] font-bold text-amber-400 uppercase tracking-widest shadow-sm">
+                            <span className="w-2.5 h-2.5 text-amber-400">{Icons.clock}</span>
+                            DRAW @ {formatTime12h(game.drawTime)}
+                        </div>
+                    </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
                 </div>
                 <div className="p-6 overflow-y-auto">
