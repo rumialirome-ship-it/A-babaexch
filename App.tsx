@@ -72,8 +72,17 @@ const AppContent: React.FC = () => {
     };
 
     const fetchData = useCallback(async () => {
-        if (!role || !account) return;
         try {
+            // 1. Basic Public Data Polling (Games) - needed for reveal overlay for everyone
+            const gamesResponse = await fetch('/api/games');
+            if (gamesResponse.ok) {
+                const gamesData = await gamesResponse.json();
+                setGames(gamesData);
+            }
+
+            // 2. Private Role-based Data Polling
+            if (!role || !account) return;
+
             let data;
             if (role === Role.Admin) {
                 const response = await fetchWithAuth('/api/admin/data');
@@ -82,7 +91,6 @@ const AppContent: React.FC = () => {
                 const parsedData = parseAllDates(data);
                 setUsers(parsedData.users);
                 setDealers(parsedData.dealers);
-                setGames(parsedData.games);
                 setBets(parsedData.bets);
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
@@ -91,15 +99,11 @@ const AppContent: React.FC = () => {
                 const parsedData = parseAllDates(data);
                 setUsers(parsedData.users);
                 setBets(parsedData.bets);
-                const gamesResponse = await fetchWithAuth('/api/games');
-                const gamesData = await gamesResponse.json();
-                setGames(gamesData);
             } else if (role === Role.User) {
                 const response = await fetchWithAuth('/api/user/data');
                 if (!response.ok) throw new Error('Failed to fetch user data');
                 data = await response.json();
                 const parsedData = parseAllDates(data);
-                setGames(parsedData.games);
                 setBets(parsedData.bets);
             }
         } catch (error) {
@@ -107,7 +111,7 @@ const AppContent: React.FC = () => {
         }
     }, [role, account, fetchWithAuth]);
 
-    // Detect new winners for the reveal animation
+    // Detect new winners for the reveal animation (Runs for everyone)
     useEffect(() => {
         if (games.length > 0 && lastGamesRef.current.length > 0) {
             // Check for new winners in the incoming data
@@ -127,28 +131,12 @@ const AppContent: React.FC = () => {
     }, [games]);
 
     useEffect(() => {
-        let intervalId: ReturnType<typeof setInterval> | undefined;
+        // ALWAYS fetch data (at least games) every second
+        fetchData();
+        const intervalId = setInterval(fetchData, 1000);
     
-        if (account) {
-            fetchData(); // Initial fetch on login/account change
-    
-            if (role === Role.User || role === Role.Dealer || role === Role.Admin) {
-                intervalId = setInterval(fetchData, 1000); // Poll every second
-            }
-        } else {
-            // Clear data on logout
-            setUsers([]);
-            setDealers([]);
-            setGames([]);
-            setBets([]);
-        }
-    
-        return () => {
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
-        };
-    }, [account, role, fetchData]);
+        return () => clearInterval(intervalId);
+    }, [fetchData]);
 
     const placeBet = useCallback(async (details: {
         userId: string;
@@ -328,20 +316,22 @@ const AppContent: React.FC = () => {
        return <div className="min-h-screen flex items-center justify-center text-cyan-400 text-xl">Loading Session...</div>;
     }
 
-    if (!role || !account) {
-        return <LandingPage />;
-    }
-
     return (
         <div className="min-h-screen flex flex-col">
-            <Header />
-            <main className="flex-grow">
-                {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
-                {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} />}
-                {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} onPlaceAdminBets={onPlaceAdminBets} updateGameDrawTime={updateGameDrawTime} onRefreshData={fetchData} />}
-            </main>
+            {!role || !account ? (
+                <LandingPage games={games} />
+            ) : (
+                <>
+                    <Header />
+                    <main className="flex-grow">
+                        {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
+                        {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} />}
+                        {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} onPlaceAdminBets={onPlaceAdminBets} updateGameDrawTime={updateGameDrawTime} onRefreshData={fetchData} />}
+                    </main>
+                </>
+            )}
 
-            {/* Global Result Reveal Animation */}
+            {/* Global Result Reveal Animation - Rendered outside logic branches for full visibility */}
             {activeReveal && (
               <ResultRevealOverlay 
                 gameName={activeReveal.name} 

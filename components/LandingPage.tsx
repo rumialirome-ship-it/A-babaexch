@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { Game } from '../types';
 import { useCountdown } from '../hooks/useCountdown';
 import { Icons, GAME_LOGOS } from '../constants';
@@ -175,7 +176,6 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
                 </div>
                 <div className="p-8">
                     <form onSubmit={handleLoginSubmit} className="space-y-6">
-                        {/* Form fields identical to LoginPanel, just re-styled for the modal */}
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1 uppercase tracking-wider">Admin ID</label>
                             <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className={`w-full bg-slate-800/50 p-3 rounded-md border border-slate-600 focus:ring-2 ${theme.ring} focus:outline-none text-white`} />
@@ -245,7 +245,6 @@ const ResetPasswordModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
                     ) : (
                         <form onSubmit={handleResetSubmit} className="space-y-4">
                             <p className="text-sm text-slate-400 mb-2">Enter your Account ID and registered Contact to proceed.</p>
-                            {/* Form fields styled similarly to other forms */}
                              <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1">Account ID</label>
                                 <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 text-white" />
@@ -306,25 +305,11 @@ const AdminResetInfoModal: React.FC<{ isOpen: boolean; onClose: () => void; }> =
 };
 
 
-const LandingPage: React.FC = () => {
-    const [games, setGames] = useState<Game[]>([]);
+const LandingPage: React.FC<{ games: Game[] }> = ({ games }) => {
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
     
-    useEffect(() => {
-        const fetchGames = async () => {
-            try {
-                const response = await fetch('/api/games');
-                const data = await response.json();
-                setGames(data);
-            } catch (error) {
-                console.error("Failed to fetch games:", error);
-            }
-        };
-        fetchGames();
-    }, []);
-
     const handleGameClick = () => {
         document.getElementById('login')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
