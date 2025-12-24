@@ -222,7 +222,7 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
                 onClick={onClose}
                 className="group relative px-20 py-5 rounded-full overflow-hidden transition-all transform hover:scale-110 active:scale-95 shadow-[0_0_50px_rgba(255,255,255,0.3)] bg-white"
               >
-                <span className="relative z-10 text-slate-950 font-black text-2xl tracking-[0.2em]">CLAIM WINNINGS</span>
+                <span className="relative z-10 text-slate-950 font-black text-2xl tracking-[0.2em]">CONTINUE</span>
                 <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500"></div>
               </button>
             </div>

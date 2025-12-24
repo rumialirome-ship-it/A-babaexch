@@ -376,10 +376,12 @@ const updateGameDrawTime = (id, time) => {
 
 function resetAllGames() {
     runInTransaction(() => {
+        // Reset all results for the next market day
         db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0').run();
-        db.prepare('DELETE FROM bets').run(); // Clearing bets for new session
+        // Clear all current bets to restart market stakes at 4:00 PM
+        db.prepare('DELETE FROM bets').run(); 
     });
-    console.error('--- [DATABASE] 4:00 PM Reset Executed. Market Restarted. ---');
+    console.error('--- [DATABASE] 4:00 PM PKT Boundary Reached. Market Restarted. ---');
 }
 
 module.exports = {
