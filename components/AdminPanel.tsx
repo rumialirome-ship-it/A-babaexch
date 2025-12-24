@@ -4,7 +4,7 @@ import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameT
 import { Icons } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 
-// --- TYPE DEFINITIONS FOR NEW DASHBOARD ---
+// --- TYPE DEFINITIONS ---
 interface GameSummary {
   gameName: string;
   winningNumber: string;
@@ -52,7 +52,6 @@ const SortableHeader: React.FC<{
     );
 };
 
-// --- INTERNAL COMPONENTS (UNCHANGED) ---
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'cyan' }) => {
     if (!isOpen) return null;
     const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
@@ -105,13 +104,171 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     </div>
 );
 
+// --- NEW WINNERS VIEW COMPONENT ---
+interface WinnerRecord {
+    betId: string;
+    timestamp: Date;
+    userName: string;
+    dealerName: string;
+    gameName: string;
+    winningNumber: string;
+    subGameType: string;
+    selectedNumbers: string[];
+    winningNumbersInBet: string[];
+    stake: number;
+    payout: number;
+    payoutApproved: boolean;
+}
+
+const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers: Dealer[] }> = ({ bets, games, users, dealers }) => {
+    const [startDate, setStartDate] = useState(getTodayDateString());
+    const [endDate, setEndDate] = useState(getTodayDateString());
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const winnerData = useMemo(() => {
+        const records: WinnerRecord[] = [];
+
+        // Only look at games that have a winner declared
+        const finalizedGames = games.filter(g => g.winningNumber && !g.winningNumber.includes('_'));
+
+        finalizedGames.forEach(game => {
+            const gameBets = bets.filter(b => b.gameId === game.id);
+            const winningNumber = game.winningNumber!;
+
+            gameBets.forEach(bet => {
+                const user = users.find(u => u.id === bet.userId);
+                const dealer = dealers.find(d => d.id === bet.dealerId);
+                if (!user) return;
+
+                const winningNumbersInBet = bet.numbers.filter(num => {
+                    switch (bet.subGameType) {
+                        case SubGameType.OneDigitOpen:
+                            return winningNumber.length === 2 && num === winningNumber[0];
+                        case SubGameType.OneDigitClose:
+                            if (game.name === 'AKC') return num === winningNumber;
+                            return winningNumber.length === 2 && num === winningNumber[1];
+                        default: // 2 Digit, Bulk, Combo
+                            return num === winningNumber;
+                    }
+                });
+
+                if (winningNumbersInBet.length > 0) {
+                    const getPrizeMultiplier = (rates: PrizeRates, type: SubGameType) => {
+                        if (type === SubGameType.OneDigitOpen) return rates.oneDigitOpen;
+                        if (type === SubGameType.OneDigitClose) return rates.oneDigitClose;
+                        return rates.twoDigit;
+                    };
+
+                    const multiplier = getPrizeMultiplier(user.prizeRates, bet.subGameType);
+                    const payout = winningNumbersInBet.length * bet.amountPerNumber * multiplier;
+
+                    records.push({
+                        betId: bet.id,
+                        timestamp: bet.timestamp,
+                        userName: user.name,
+                        dealerName: dealer?.name || 'Unknown',
+                        gameName: game.name,
+                        winningNumber: winningNumber,
+                        subGameType: bet.subGameType,
+                        selectedNumbers: bet.numbers,
+                        winningNumbersInBet,
+                        stake: bet.totalAmount,
+                        payout,
+                        payoutApproved: !!game.payoutsApproved
+                    });
+                }
+            });
+        });
+
+        return records.filter(r => {
+            const dateStr = r.timestamp.toISOString().split('T')[0];
+            const matchesDate = (!startDate || dateStr >= startDate) && (!endDate || dateStr <= endDate);
+            const matchesSearch = !searchTerm.trim() || 
+                r.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                r.gameName.toLowerCase().includes(searchTerm.toLowerCase());
+            return matchesDate && matchesSearch;
+        }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    }, [bets, games, users, dealers, startDate, endDate, searchTerm]);
+
+    const inputClass = "bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white w-full";
+
+    return (
+        <div>
+            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h3 className="text-xl font-semibold text-white">Winner Detail Sheet</h3>
+                <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded text-xs text-emerald-400 font-bold uppercase tracking-widest">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Real-time Winner Tracking
+                </div>
+            </div>
+
+            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">From Date</label>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">To Date</label>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Search User/Game</label>
+                    <input type="text" placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={inputClass} />
+                </div>
+                <button onClick={() => { setStartDate(getTodayDateString()); setEndDate(getTodayDateString()); setSearchTerm(''); }} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-md transition-colors">Clear</button>
+            </div>
+
+            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="overflow-x-auto mobile-scroll-x">
+                    <table className="w-full text-left min-w-[1000px]">
+                        <thead className="bg-slate-800/50">
+                            <tr>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Time</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Result</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Winner Pick</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Prize</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {winnerData.length === 0 ? (
+                                <tr><td colSpan={9} className="p-10 text-center text-slate-500">No winners found for this selection.</td></tr>
+                            ) : winnerData.map((record, i) => (
+                                <tr key={i} className="hover:bg-emerald-500/5 transition-colors">
+                                    <td className="p-4 text-xs text-slate-400 whitespace-nowrap">{record.timestamp.toLocaleString()}</td>
+                                    <td className="p-4 font-bold text-white">{record.userName}</td>
+                                    <td className="p-4 text-slate-400">{record.dealerName}</td>
+                                    <td className="p-4 text-cyan-400 font-semibold">{record.gameName}</td>
+                                    <td className="p-4 font-mono text-emerald-400 text-lg">{record.winningNumber}</td>
+                                    <td className="p-4">
+                                        <div className="text-xs text-slate-500">{record.subGameType}</div>
+                                        <div className="text-white font-mono">{record.winningNumbersInBet.join(', ')}</div>
+                                    </td>
+                                    <td className="p-4 text-right font-mono text-slate-300">{record.stake.toFixed(0)}</td>
+                                    <td className="p-4 text-right font-mono text-emerald-400 font-bold">{record.payout.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                    <td className="p-4 text-center">
+                                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${record.payoutApproved ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                            {record.payoutApproved ? 'Paid' : 'Pending'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => Promise<void>; onCancel: () => void; adminPrizeRates: PrizeRates }> = ({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
-    // For new dealers, password is part of formData. For edits, it's handled separately.
     const [formData, setFormData] = useState(() => {
         const defaults = { id: '', name: '', password: '', area: '', contact: '', commissionRate: 0, prizeRates: { ...adminPrizeRates }, avatarUrl: '', wallet: '' };
         if (dealer) {
-            // Ensure formData has a consistent shape by always including a password property.
             return { ...dealer, password: '' };
         }
         return defaults;
@@ -283,7 +440,6 @@ const DealerTransactionForm: React.FC<{
     );
 };
 
-// --- NEW DASHBOARD COMPONENT ---
 const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }> = ({ summary, admin }) => {
     if (!summary) {
         return <div className="text-center p-8 text-slate-400">Loading financial summary...</div>;
@@ -501,7 +657,7 @@ const NumberLimitsView: React.FC = () => {
     );
 };
 
-// --- LIVE BOOKING VIEW ---
+// --- IMPROVED LIVE BOOKING VIEW ---
 interface BookingData {
     totalBets: number;
     totalStake: number;
@@ -510,81 +666,57 @@ interface BookingData {
     userData: { name: string; amount: number }[];
 }
 
-const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[] }> = ({ games, users, dealers }) => {
+const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[], bets: Bet[] }> = ({ games, users, dealers, bets }) => {
     const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
-    const [bookingData, setBookingData] = useState<BookingData | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const { fetchWithAuth } = useAuth();
     
     const ongoingGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
 
-    useEffect(() => {
-        let intervalId: ReturnType<typeof setInterval>;
-        
-        const fetchDataForGame = async (gameId: string) => {
-            setIsLoading(true);
-            try {
-                const response = await fetchWithAuth(`/api/admin/live-booking/${gameId}`);
-                if (!response.ok) throw new Error('Failed to fetch data');
-                const liveBets: Bet[] = await response.json();
+    const bookingData = useMemo(() => {
+        if (!selectedGameId) return null;
 
-                const dealerMap = new Map<string, number>();
-                const typeMap = new Map<SubGameType, number>();
-                const userMap = new Map<string, number>();
+        const liveBets = bets.filter(b => b.gameId === selectedGameId);
+        if (liveBets.length === 0) return null;
 
-                liveBets.forEach(bet => {
-                    const currentDealerStake = dealerMap.get(bet.dealerId) || 0;
-                    dealerMap.set(bet.dealerId, currentDealerStake + bet.totalAmount);
+        const dealerMap = new Map<string, number>();
+        const typeMap = new Map<SubGameType, number>();
+        const userMap = new Map<string, number>();
 
-                    const currentTypeStake = typeMap.get(bet.subGameType) || 0;
-                    typeMap.set(bet.subGameType, currentTypeStake + bet.totalAmount);
+        liveBets.forEach(bet => {
+            const currentDealerStake = dealerMap.get(bet.dealerId) || 0;
+            dealerMap.set(bet.dealerId, currentDealerStake + bet.totalAmount);
 
-                    const currentUserStake = userMap.get(bet.userId) || 0;
-                    userMap.set(bet.userId, currentUserStake + bet.totalAmount);
-                });
+            const currentTypeStake = typeMap.get(bet.subGameType) || 0;
+            typeMap.set(bet.subGameType, currentTypeStake + bet.totalAmount);
 
-                const totalStake = liveBets.reduce((sum, b) => sum + b.totalAmount, 0);
+            const currentUserStake = userMap.get(bet.userId) || 0;
+            userMap.set(bet.userId, currentUserStake + bet.totalAmount);
+        });
 
-                const dealerData = Array.from(dealerMap.entries()).map(([dealerId, amount]) => ({
-                    name: dealers.find(d => d.id === dealerId)?.name || 'Unknown Dealer',
-                    amount,
-                })).sort((a, b) => b.amount - a.amount);
+        const totalStake = liveBets.reduce((sum, b) => sum + b.totalAmount, 0);
 
-                const typeData = Array.from(typeMap.entries()).map(([type, amount]) => ({
-                    type,
-                    amount,
-                })).sort((a, b) => b.amount - a.amount);
+        const dealerData = Array.from(dealerMap.entries()).map(([dealerId, amount]) => ({
+            name: dealers.find(d => d.id === dealerId)?.name || 'Unknown Dealer',
+            amount,
+        })).sort((a, b) => b.amount - a.amount);
 
-                const userData = Array.from(userMap.entries()).map(([userId, amount]) => ({
-                    name: users.find(u => u.id === userId)?.name || 'Unknown User',
-                    amount,
-                })).sort((a, b) => b.amount - a.amount).slice(0, 10); // Top 10 users
+        const typeData = Array.from(typeMap.entries()).map(([type, amount]) => ({
+            type: type as SubGameType,
+            amount,
+        })).sort((a, b) => b.amount - a.amount);
 
-                setBookingData({
-                    totalBets: liveBets.length,
-                    totalStake,
-                    dealerData,
-                    typeData,
-                    userData
-                });
+        const userData = Array.from(userMap.entries()).map(([userId, amount]) => ({
+            name: users.find(u => u.id === userId)?.name || 'Unknown User',
+            amount,
+        })).sort((a, b) => b.amount - a.amount).slice(0, 10);
 
-            } catch (error) {
-                console.error("Error fetching live booking data:", error);
-                setBookingData(null);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        if (selectedGameId) {
-            fetchDataForGame(selectedGameId); // Initial fetch
-            intervalId = setInterval(() => fetchDataForGame(selectedGameId), 5000); // Poll every 5 seconds
-        }
-
-        return () => {
-            if (intervalId) clearInterval(intervalId);
-        };
-    }, [selectedGameId, fetchWithAuth, users, dealers]);
+        return {
+            totalBets: liveBets.length,
+            totalStake,
+            dealerData,
+            typeData,
+            userData
+        } as BookingData;
+    }, [selectedGameId, bets, users, dealers]);
     
     const BreakdownCard: React.FC<{ title: string; data: { name: string; amount: number }[] | { type: string; amount: number }[]; total: number; children?: React.ReactNode }> = ({ title, data, total }) => (
         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 h-full flex flex-col">
@@ -612,7 +744,13 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
 
     return (
         <div>
-            <h3 className="text-xl font-semibold text-white mb-4">Live Game Booking Breakdown</h3>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-white">Live Game Booking Breakdown</h3>
+                <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded text-[10px] text-emerald-400 font-bold uppercase tracking-widest animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    Live Updates Active
+                </div>
+            </div>
             <div className="bg-slate-800/50 p-3 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
                 {ongoingGames.length > 0 ? ongoingGames.map(game => (
                     <button key={game.id} onClick={() => setSelectedGameId(game.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${selectedGameId === game.id ? 'bg-slate-700 text-cyan-400 shadow-lg' : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'}`}>
@@ -626,8 +764,6 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
                 <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700">
                     <p className="text-slate-400">Please select an ongoing game to view its live booking status.</p>
                 </div>
-            ) : isLoading && !bookingData ? (
-                <div className="text-center p-8"><p className="text-slate-400">Loading live data...</p></div>
             ) : bookingData ? (
                 <div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -647,7 +783,7 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
                     </div>
                 </div>
             ) : (
-                 <div className="text-center p-8"><p className="text-slate-500">No betting data available for this game yet.</p></div>
+                 <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 text-slate-500">No betting data available for this game yet.</div>
             )}
         </div>
     );
@@ -743,15 +879,6 @@ const NumberSummaryView: React.FC<{
     const [isLoading, setIsLoading] = useState(false);
     const { fetchWithAuth } = useAuth();
     
-    const [betState, setBetState] = useState({
-        userId: '',
-        gameId: '',
-        stake: '',
-        isLoading: false,
-        error: null as string | null,
-        success: null as string | null,
-    });
-
     const fetchSummary = async () => {
         if (!filters.date) {
             setSummary(null);
@@ -972,7 +1099,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                       alert('This Dealer Login ID is already taken. Please choose another one.');
                       return;
                   }
-                  // Cascade ID change to users
                   setUsers(prev => prev.map(u => u.dealerId === originalId ? { ...u, dealerId: dealerData.id } : u));
               }
           }
@@ -983,7 +1109,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
           setSelectedDealer(undefined);
       } catch (error) {
           console.error("Failed to save dealer:", error);
-          // Error alert is handled by the parent component, so the modal remains open for correction.
       }
   };
 
@@ -1025,7 +1150,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       }
   };
 
-  // --- Dealers Filtering & Sorting ---
   const handleDealerSort = (key: SortKey) => {
         if (dealerSortKey === key) {
             setDealerSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -1053,7 +1177,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
         });
     }, [dealers, searchQuery, dealerSortKey, dealerSortDirection]);
 
-    // --- Users Filtering & Sorting ---
     const handleUserSort = (key: SortKey) => {
         if (userSortKey === key) {
             setUserSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -1102,6 +1225,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
     { id: 'users', label: 'Users', icon: Icons.clipboardList },
     { id: 'games', label: 'Games', icon: Icons.gamepad },
+    { id: 'winners', label: 'Winners', icon: Icons.star },
     { id: 'liveBooking', label: 'Live Booking', icon: Icons.sparkles },
     { id: 'numberSummary', label: 'Number Summary', icon: Icons.chartBar },
     { id: 'limits', label: 'Limits', icon: Icons.clipboardList }, 
@@ -1121,7 +1245,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       </div>
       
       {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
-      {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} />}
+      {activeTab === 'winners' && <WinnersView bets={bets} games={games} users={users} dealers={dealers} />}
+      {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} bets={bets} />}
       {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
       {activeTab === 'limits' && <NumberLimitsView />}
 
