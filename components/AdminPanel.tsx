@@ -796,13 +796,10 @@ const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: nu
     const handleCopy = () => {
         if (data.length === 0 || copyStatus !== 'Copy') return;
 
-        // Clean, structured format for clipboard
-        const header = `* ${title.toUpperCase()} *\n`;
-        const list = data
-            .map(item => `${item.number} : PKR ${item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}`)
+        // Clean format: "Number, rs Amount" per line as requested
+        const copyText = data
+            .map(item => `${item.number}, rs ${item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}`)
             .join('\n');
-            
-        const copyText = header + list;
             
         navigator.clipboard.writeText(copyText).then(() => {
             setCopyStatus('Copied!');
@@ -1633,3 +1630,4 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 };
 
 export default AdminPanel;
+
