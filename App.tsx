@@ -1,11 +1,12 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates } from './types';
 import { Icons, GAME_LOGOS } from './constants';
 import LandingPage from './components/LandingPage';
 import AdminPanel from './components/AdminPanel';
 import DealerPanel from './components/DealerPanel';
 import UserPanel from './components/UserPanel';
+import ResultRevealOverlay from './components/ResultRevealOverlay';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 
 const Header: React.FC = () => {
@@ -57,6 +58,10 @@ const AppContent: React.FC = () => {
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
+    
+    // Reveal State
+    const [activeReveal, setActiveReveal] = useState<{ name: string; number: string } | null>(null);
+    const lastGamesRef = useRef<Game[]>([]);
 
     const parseAllDates = (data: any) => {
         const parseLedger = (ledger: LedgerEntry[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
@@ -102,13 +107,31 @@ const AppContent: React.FC = () => {
         }
     }, [role, account, fetchWithAuth]);
 
+    // Detect new winners for the reveal animation
+    useEffect(() => {
+        if (games.length > 0 && lastGamesRef.current.length > 0) {
+            // Check for new winners in the incoming data
+            games.forEach(newGame => {
+                const oldGame = lastGamesRef.current.find(g => g.id === newGame.id);
+                // Trigger reveal if winningNumber appeared and wasn't there before
+                // Also ignore partial AK winners (ending with _)
+                if (newGame.winningNumber && 
+                    !newGame.winningNumber.endsWith('_') && 
+                    (!oldGame || !oldGame.winningNumber || oldGame.winningNumber.endsWith('_'))
+                ) {
+                    setActiveReveal({ name: newGame.name, number: newGame.winningNumber });
+                }
+            });
+        }
+        lastGamesRef.current = games;
+    }, [games]);
+
     useEffect(() => {
         let intervalId: ReturnType<typeof setInterval> | undefined;
     
         if (account) {
             fetchData(); // Initial fetch on login/account change
     
-            // Admin now polls for data just like User and Dealer
             if (role === Role.User || role === Role.Dealer || role === Role.Admin) {
                 intervalId = setInterval(fetchData, 1000); // Poll every second
             }
@@ -120,7 +143,6 @@ const AppContent: React.FC = () => {
             setBets([]);
         }
     
-        // Cleanup interval on component unmount or when dependencies change
         return () => {
             if (intervalId) {
                 clearInterval(intervalId);
@@ -318,6 +340,15 @@ const AppContent: React.FC = () => {
                 {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} />}
                 {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} onPlaceAdminBets={onPlaceAdminBets} updateGameDrawTime={updateGameDrawTime} onRefreshData={fetchData} />}
             </main>
+
+            {/* Global Result Reveal Animation */}
+            {activeReveal && (
+              <ResultRevealOverlay 
+                gameName={activeReveal.name} 
+                winningNumber={activeReveal.number} 
+                onClose={() => setActiveReveal(null)} 
+              />
+            )}
         </div>
     );
 };
