@@ -93,7 +93,7 @@ const connect = () => {
 /**
  * Verifies that the database schema seems to exist.
  */
-verifySchema = () => {
+const verifySchema = () => {
     try {
         const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'");
         const table = stmt.get();
@@ -694,7 +694,7 @@ const getCurrentStakeForNumber = (gameType, numberValue) => {
 };
 
 const getNumberStakeSummary = ({ gameId, dealerId, date }) => {
-    let query = 'SELECT subGameType, numbers, amountPerNumber FROM bets';
+    let query = 'SELECT gameId, subGameType, numbers, amountPerNumber, totalAmount FROM bets';
     const params = [];
     const conditions = [];
 
@@ -722,9 +722,14 @@ const getNumberStakeSummary = ({ gameId, dealerId, date }) => {
         '2-digit': new Map(),
         '1-open': new Map(),
         '1-close': new Map(),
+        'game-breakdown': new Map(),
     };
 
     bets.forEach(bet => {
+        // Aggregate per-game stake
+        const gameId = bet.gameId;
+        summary['game-breakdown'].set(gameId, (summary['game-breakdown'].get(gameId) || 0) + bet.totalAmount);
+
         try {
             const numbers = JSON.parse(bet.numbers);
             const amount = bet.amountPerNumber;
@@ -760,10 +765,15 @@ const getNumberStakeSummary = ({ gameId, dealerId, date }) => {
             .sort((a, b) => b.stake - a.stake);
     };
 
+    const formatGameBreakdown = (map) => {
+        return Array.from(map.entries()).map(([gameId, stake]) => ({ gameId, stake }));
+    };
+
     return {
         twoDigit: formatAndSort(summary['2-digit']),
         oneDigitOpen: formatAndSort(summary['1-open']),
         oneDigitClose: formatAndSort(summary['1-close']),
+        gameBreakdown: formatGameBreakdown(summary['game-breakdown']),
     };
 };
 

@@ -876,7 +876,7 @@ const NumberSummaryView: React.FC<{
 }> = ({ games, dealers, users, onPlaceAdminBets }) => {
     const [filters, setFilters] = useState({ gameId: '', dealerId: '', date: getTodayDateString() });
     const [numberFilter, setNumberFilter] = useState('');
-    const [summary, setSummary] = useState<{ twoDigit: any[], oneDigitOpen: any[], oneDigitClose: any[] } | null>(null);
+    const [summary, setSummary] = useState<{ twoDigit: any[], oneDigitOpen: any[], oneDigitClose: any[], gameBreakdown?: { gameId: string, stake: number }[] } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const { fetchWithAuth } = useAuth();
     
@@ -934,6 +934,7 @@ const NumberSummaryView: React.FC<{
         };
         
         return {
+            ...summary,
             twoDigit: summary.twoDigit.filter(item => filterLogic(item.number)),
             oneDigitOpen: summary.oneDigitOpen.filter(item => filterLogic(item.number)),
             oneDigitClose: summary.oneDigitClose.filter(item => filterLogic(item.number)),
@@ -942,6 +943,14 @@ const NumberSummaryView: React.FC<{
 
     const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
     const finalSummary = filteredSummary || summary;
+
+    const gameBreakdownData = useMemo(() => {
+        if (!finalSummary?.gameBreakdown) return [];
+        return finalSummary.gameBreakdown.map(item => ({
+            name: games.find(g => g.id === item.gameId)?.name || 'Unknown',
+            stake: item.stake
+        })).sort((a, b) => b.stake - a.stake);
+    }, [finalSummary, games]);
 
     return (
         <div>
@@ -973,6 +982,21 @@ const NumberSummaryView: React.FC<{
                     <button onClick={clearFilters} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Clear Filters</button>
                 </div>
             </div>
+
+            {gameBreakdownData.length > 0 && (
+                <div className="mb-8">
+                    <h4 className="text-lg font-semibold text-cyan-400 mb-4 uppercase tracking-wider">Game Stake Breakdown</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-4">
+                        {gameBreakdownData.map((item, idx) => (
+                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg border border-slate-700 text-center flex flex-col justify-center">
+                                <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-1 truncate">{item.name}</p>
+                                <p className="text-lg font-bold font-mono text-white">Rs {item.stake.toLocaleString()}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {isLoading && !summary ? (
                 <div className="text-center p-8 text-slate-400">Loading summary...</div>
             ) : !finalSummary ? (
@@ -1630,4 +1654,3 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 };
 
 export default AdminPanel;
-
