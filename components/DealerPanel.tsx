@@ -200,7 +200,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
                 <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="User/Game Search..." className="bg-slate-900 text-white p-2 rounded" />
                 <button onClick={() => {setStartDate(''); setEndDate(''); setSearchTerm('');}} className="bg-slate-700 text-white p-2 rounded">Clear</button>
             </div>
-            <div className="bg-slate-800 rounded-lg overflow-x-auto"><table className="w-full text-left min-w-[700px]"><thead className="bg-slate-700/50"><tr><th className="p-4">Time</th><th className="p-4">User</th><th className="p-4">Game</th><th className="p-4">Details</th><th className="p-4 text-right">Stake</th></tr></thead><tbody className="divide-y divide-slate-700">
+            <div className="bg-slate-800 rounded-lg overflow-x-auto"><table className="w-full text-left min-w-[700px]"><thead className="bg-slate-700/50"><tr><th className="p-4">Time</th><th className="p-4">User</th><th className="p-4">Game</th><th className="p-4">Details</th><th className="p-4 text-right">Stake</th></tr></thead><tbody className="divide-y divide-slate-800">
                 {filteredBets.map(bet => (
                     <tr key={bet.id}><td className="p-4 text-sm text-slate-400">{new Date(bet.timestamp).toLocaleString()}</td><td className="p-4">{users.find(u => u.id === bet.userId)?.name || 'User'}</td><td className="p-4">{games.find(g => g.id === bet.gameId)?.name || 'Game'}</td><td className="p-4"><div className="font-bold">{bet.subGameType}</div><div className="text-xs">{bet.numbers.join(',')}</div></td><td className="p-4 text-right font-mono">{bet.totalAmount.toFixed(2)}</td></tr>
                 ))}
@@ -316,7 +316,7 @@ interface DealerPanelProps {
   isLoaded?: boolean;
 }
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer, isLoaded = true }) => {
+const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer, isLoaded = false }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);

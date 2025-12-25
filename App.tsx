@@ -63,7 +63,6 @@ const AppContent: React.FC = () => {
     // Reveal State
     const [activeReveal, setActiveReveal] = useState<{ name: string; number: string } | null>(null);
     const lastGamesRef = useRef<Game[]>([]);
-    const isFetchingRef = useRef(false);
 
     const parseAllDates = (data: any) => {
         if (!data) return data;
@@ -74,24 +73,22 @@ const AppContent: React.FC = () => {
         return data;
     };
 
-    const fetchData = useCallback(async () => {
-        if (isFetchingRef.current) return;
-        isFetchingRef.current = true;
-
+    const fetchPublicData = useCallback(async () => {
         try {
-            // Games are public and can be fetched regardless of auth
             const gamesResponse = await fetch('/api/games');
             if (gamesResponse.ok) {
                 const gamesData = await gamesResponse.json();
                 setGames(Array.isArray(gamesData) ? gamesData : []);
             }
+        } catch (e) {
+            console.error("Public fetch failed", e);
+        }
+    }, []);
 
-            // Only proceed if auth is settled
-            if (!role) {
-                isFetchingRef.current = false;
-                return;
-            }
+    const fetchPrivateData = useCallback(async () => {
+        if (!role) return;
 
+        try {
             if (role === Role.Admin) {
                 const response = await fetchWithAuth('/api/admin/data');
                 if (response.ok) {
@@ -106,7 +103,6 @@ const AppContent: React.FC = () => {
                 if (response.ok) {
                     const data = await response.json();
                     const parsedData = parseAllDates(data);
-                    // Crucial: Update users and bets for the dealer
                     setUsers(parsedData.users || []);
                     setBets(parsedData.bets || []);
                 }
@@ -120,12 +116,11 @@ const AppContent: React.FC = () => {
             }
             setHasInitialFetched(true);
         } catch (error) {
-            console.error("Failed to fetch data:", error);
-        } finally {
-            isFetchingRef.current = false;
+            console.error("Private fetch failed:", error);
         }
-    }, [role, fetchWithAuth]); // Removed 'account' from dependencies to stop re-triggering on every wallet poll
+    }, [role, fetchWithAuth]);
 
+    // Track winning number reveals
     useEffect(() => {
         if (games.length > 0 && lastGamesRef.current.length > 0) {
             games.forEach(newGame => {
@@ -141,12 +136,26 @@ const AppContent: React.FC = () => {
         lastGamesRef.current = games;
     }, [games]);
 
+    // Public Polling (Games)
     useEffect(() => {
-        // Trigger initial fetch when role changes
-        fetchData();
-        const intervalId = setInterval(fetchData, 3000); 
-        return () => clearInterval(intervalId);
-    }, [fetchData]);
+        fetchPublicData();
+        const interval = setInterval(fetchPublicData, 5000);
+        return () => clearInterval(interval);
+    }, [fetchPublicData]);
+
+    // Private Polling (Users/Bets) - only active if role exists
+    useEffect(() => {
+        if (role) {
+            fetchPrivateData();
+            const interval = setInterval(fetchPrivateData, 3000);
+            return () => clearInterval(interval);
+        } else {
+            setHasInitialFetched(false);
+            setUsers([]);
+            setBets([]);
+            setDealers([]);
+        }
+    }, [role, fetchPrivateData]);
 
     const placeBet = useCallback(async (details: {
         userId: string;
@@ -164,8 +173,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
     const placeBetAsDealer = useCallback(async (details: {
         userId: string;
@@ -180,8 +189,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
     const onPlaceAdminBets = useCallback(async (details: {
         userId: string;
@@ -196,8 +205,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message || 'Failed to place bets.');
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
     const onSaveUser = useCallback(async (userData: User, originalId: string | undefined, initialDeposit?: number) => {
         let response;
@@ -210,8 +219,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
     const onSaveDealer = useCallback(async (dealerData: Dealer, originalId?: string) => {
         let response;
@@ -224,8 +233,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
     const topUpUserWallet = useCallback(async (userId: string, amount: number) => {
         const response = await fetchWithAuth('/api/dealer/topup/user', { method: 'POST', body: JSON.stringify({ userId, amount }) });
@@ -233,8 +242,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
     
     const withdrawFromUserWallet = useCallback(async (userId: string, amount: number) => {
         const response = await fetchWithAuth('/api/dealer/withdraw/user', { method: 'POST', body: JSON.stringify({ userId, amount }) });
@@ -242,8 +251,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
 
     const declareWinner = useCallback(async (gameId: string, winningNumber: string) => {
@@ -252,8 +261,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
     const updateWinner = useCallback(async (gameId: string, newWinningNumber: string) => {
         const response = await fetchWithAuth(`/api/admin/games/${gameId}/update-winner`, { method: 'PUT', body: JSON.stringify({ newWinningNumber }) });
@@ -261,8 +270,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
 
     const approvePayouts = useCallback(async (gameId: string) => {
@@ -271,8 +280,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
     const topUpDealerWallet = useCallback(async (dealerId: string, amount: number) => {
         const response = await fetchWithAuth('/api/admin/topup/dealer', { method: 'POST', body: JSON.stringify({ dealerId, amount }) });
@@ -280,8 +289,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
     const withdrawFromDealerWallet = useCallback(async (dealerId: string, amount: number) => {
         const response = await fetchWithAuth('/api/admin/withdraw/dealer', { method: 'POST', body: JSON.stringify({ dealerId, amount }) });
@@ -289,8 +298,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
 
     const toggleAccountRestriction = useCallback(async (accountId: string, accountType: 'user' | 'dealer') => {
@@ -307,8 +316,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData, role]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData, role]);
     
     const updateGameDrawTime = useCallback(async (gameId: string, newDrawTime: string) => {
         const response = await fetchWithAuth(`/api/admin/games/${gameId}/draw-time`, {
@@ -319,8 +328,8 @@ const AppContent: React.FC = () => {
             const err = await response.json();
             throw new Error(err.message);
         }
-        await fetchData();
-    }, [fetchWithAuth, fetchData]);
+        await fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
 
     if (loading) {
        return <div className="min-h-screen flex items-center justify-center text-cyan-400 text-xl">Loading Session...</div>;
@@ -366,7 +375,7 @@ const AppContent: React.FC = () => {
                                 toggleAccountRestriction={toggleAccountRestriction} 
                                 onPlaceAdminBets={onPlaceAdminBets} 
                                 updateGameDrawTime={updateGameDrawTime} 
-                                onRefreshData={fetchData} 
+                                onRefreshData={fetchPrivateData} 
                             />
                         )}
                     </main>
