@@ -136,9 +136,7 @@ app.put('/api/dealer/users/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     const userId = req.params.id;
     const dealerId = req.user.id;
-    
     if (!userId) return res.status(400).json({ message: "User ID is required" });
-    
     try { 
         const updatedUser = database.updateUser(req.body, userId, dealerId);
         res.json(updatedUser); 
@@ -146,6 +144,15 @@ app.put('/api/dealer/users/:id', authMiddleware, (req, res) => {
     catch (e) { 
         res.status(e.status || 500).json({ message: e.message }); 
     }
+});
+
+app.put('/api/admin/users/:id', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { 
+        const updatedUser = database.updateUserByAdmin(req.body, req.params.id);
+        res.json(updatedUser); 
+    }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
 app.delete('/api/dealer/users/:id', authMiddleware, (req, res) => {

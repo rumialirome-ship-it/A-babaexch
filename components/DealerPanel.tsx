@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType } from '../types';
 import { Icons } from '../constants';
@@ -72,7 +73,7 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     </div>
 );
 
-const UserForm: React.FC<{ 
+export const UserForm: React.FC<{ 
     user?: User; 
     users: User[]; 
     onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>; 
@@ -160,7 +161,7 @@ const UserForm: React.FC<{
         } catch (err: any) {
             showToast(`⚠️ ${err.message || 'Error processing user'}`, 'error');
         } finally {
-            setIsLoading(true); // Keep spinner until modal closes via parent
+            setIsLoading(false); 
         }
     };
 
@@ -207,15 +208,19 @@ const UserForm: React.FC<{
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-lg bg-slate-800/30 border border-slate-700/50">
-                <div className="sm:col-span-2 text-xs font-black text-emerald-500 uppercase tracking-tighter mb-1">Prize Settings</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-lg bg-slate-800/30 border border-slate-700/50">
+                <div className="sm:col-span-3 text-xs font-black text-emerald-500 uppercase tracking-tighter mb-1">Prize Settings</div>
                 <div>
-                    <label className={labelClass}>Prize Rate (2D)</label>
+                    <label className={labelClass}>Rate (2 Digit)</label>
                     <input type="number" step="0.01" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} />
                 </div>
                 <div>
-                    <label className={labelClass}>Prize Rate (1D)</label>
+                    <label className={labelClass}>Rate (Open)</label>
                     <input type="number" step="0.01" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} />
+                </div>
+                <div>
+                    <label className={labelClass}>Rate (Close)</label>
+                    <input type="number" step="0.01" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} />
                 </div>
             </div>
 

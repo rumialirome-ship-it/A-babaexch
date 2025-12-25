@@ -274,16 +274,10 @@ const findBetsByDealerId = (id) => db.prepare('SELECT * FROM bets WHERE LOWER(de
 const findBetsByUserId = (id) => db.prepare('SELECT * FROM bets WHERE LOWER(userId) = LOWER(?) ORDER BY timestamp DESC').all(id).map(b => ({ ...b, numbers: JSON.parse(b.numbers) }));
 const findBetsByGameId = (id) => db.prepare('SELECT * FROM bets WHERE gameId = ?').all(id).map(b => ({ ...b, numbers: JSON.parse(b.numbers) }));
 
-/**
- * Robust User Lookup for Dealers.
- * Ensures the user belongs to the requested dealer, regardless of ID casing.
- */
 const findUserByDealer = (uId, dId) => { 
     const stmt = db.prepare('SELECT * FROM users WHERE LOWER(id) = LOWER(?) AND LOWER(dealerId) = LOWER(?)');
     const userRow = stmt.get(uId, dId);
     if (!userRow) return null;
-    
-    // Return a full parsed account object
     return findAccountById(userRow.id, 'users'); 
 };
 
@@ -298,10 +292,7 @@ const createUser = (u, dId, dep = 0) => {
 
 const updateUser = (u, uId, dId) => {
     const existing = findUserByDealer(uId, dId);
-    if (!existing) {
-        console.error(`Update User Failed: User ${uId} not found under Dealer ${dId}`);
-        throw { status: 404, message: "Not found." };
-    }
+    if (!existing) throw { status: 404, message: "Not found." };
     
     runInTransaction(() => {
         db.prepare('UPDATE users SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimits = ?, avatarUrl = ? WHERE LOWER(id) = LOWER(?)').run(u.id, u.name, u.password || existing.password, u.area, u.contact, u.commissionRate, JSON.stringify(u.prizeRates), JSON.stringify(u.betLimits), u.avatarUrl, uId);
@@ -313,6 +304,20 @@ const updateUser = (u, uId, dId) => {
     });
     
     return findAccountById(u.id, 'users');
+};
+
+/**
+ * Allows Admin to update any user without dealerId context.
+ */
+const updateUserByAdmin = (u, uId) => {
+    const existing = db.prepare('SELECT * FROM users WHERE LOWER(id) = LOWER(?)').get(uId);
+    if (!existing) throw { status: 404, message: "User not found." };
+    
+    runInTransaction(() => {
+        db.prepare('UPDATE users SET name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimits = ?, avatarUrl = ? WHERE LOWER(id) = LOWER(?)').run(u.name, u.password || existing.password, u.area, u.contact, u.commissionRate, JSON.stringify(u.prizeRates), JSON.stringify(u.betLimits), u.avatarUrl, uId);
+    });
+    
+    return findAccountById(uId, 'users');
 };
 
 const deleteUserByDealer = (uId, dId) => {
@@ -483,5 +488,5 @@ function resetAllGames() {
 }
 
 module.exports = {
-    connect, verifySchema, findAccountById, findAccountForLogin, updatePassword, getAllFromTable, runInTransaction, addLedgerEntry, createDealer, updateDealer, findUsersByDealerId, findUserByDealer, findBetsByUserId, createUser, updateUser, deleteUserByDealer, toggleAccountRestrictionByAdmin, toggleUserRestrictionByDealer, declareWinnerForGame, updateWinningNumber, approvePayoutsForGame, getFinancialSummary, getNumberStakeSummary, placeBulkBets, updateGameDrawTime, resetAllGames, getAllNumberLimits, saveNumberLimit, deleteNumberLimit, findBetsByDealerId, findBetsByGameId
+    connect, verifySchema, findAccountById, findAccountForLogin, updatePassword, getAllFromTable, runInTransaction, addLedgerEntry, createDealer, updateDealer, findUsersByDealerId, findUserByDealer, findBetsByUserId, createUser, updateUser, updateUserByAdmin, deleteUserByDealer, toggleAccountRestrictionByAdmin, toggleUserRestrictionByDealer, declareWinnerForGame, updateWinningNumber, approvePayoutsForGame, getFinancialSummary, getNumberStakeSummary, placeBulkBets, updateGameDrawTime, resetAllGames, getAllNumberLimits, saveNumberLimit, deleteNumberLimit, findBetsByDealerId, findBetsByGameId
 };

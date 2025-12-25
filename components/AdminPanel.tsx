@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
 import { Icons } from '../constants';
 import { useAuth } from '../hooks/useAuth';
+import { UserForm } from './DealerPanel'; // Import UserForm to reuse it
 
 // --- TYPE DEFINITIONS ---
 interface GameSummary {
@@ -118,7 +119,7 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                    {[...entries].reverse().map(entry => (
+                    {Array.isArray(entries) && [...entries].reverse().map(entry => (
                         <tr key={entry.id} className="hover:bg-cyan-500/10 text-sm transition-colors">
                             <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
                             <td className="p-3 text-white">{entry.description}</td>
@@ -127,10 +128,10 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
                             <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
                         </tr>
                     ))}
-                     {entries.length === 0 && (
+                     {(!Array.isArray(entries) || entries.length === 0) && (
                         <tr>
                             <td colSpan={5} className="p-8 text-center text-slate-500">
-                                No ledger entries found for the selected date range.
+                                No ledger entries found.
                             </td>
                         </tr>
                     )}
@@ -413,10 +414,10 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
             
             <fieldset className="border border-slate-600 p-4 rounded-md">
                 <legend className="px-2 text-sm font-medium text-slate-400">Prize Rates</legend>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div><label className="text-sm">1 Digit Open</label><input type="number" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
-                    <div><label className="text-sm">1 Digit Close</label><input type="number" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
-                    <div className="col-span-1 sm:col-span-2"><label className="text-sm">2 Digit</label><input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div><label className="text-xs">2 Digit</label><input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
+                    <div><label className="text-xs">1D Open</label><input type="number" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
+                    <div><label className="text-xs">1D Close</label><input type="number" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
                 </div>
             </fieldset>
 
@@ -1091,6 +1092,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
   const { fetchWithAuth } = useAuth();
   const [isRefreshingManual, setIsRefreshingManual] = useState(false);
 
+  // User management modal state
+  const [isUserEditModalOpen, setIsUserEditModalOpen] = useState(false);
+  const [selectedUserToEdit, setSelectedUserToEdit] = useState<User | undefined>(undefined);
+
   // State for Dealers tab
   const [dealerSortKey, setDealerSortKey] = useState<SortKey>('name');
   const [dealerSortDirection, setDealerSortDirection] = useState<SortDirection>('asc');
@@ -1257,6 +1262,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 
   const filteredBets = useMemo(() => !betSearchQuery.trim() ? [] : flatBets.filter(bet => bet.number === betSearchQuery.trim()), [flatBets, betSearchQuery]);
   const searchSummary = useMemo(() => !betSearchQuery.trim() || filteredBets.length === 0 ? null : { number: betSearchQuery.trim(), count: filteredBets.length, totalStake: filteredBets.reduce((s, b) => s + b.amount, 0) }, [filteredBets, betSearchQuery]);
+
+  const handleAdminUserUpdate = async (userData: User) => {
+        try {
+            const response = await fetchWithAuth(`/api/admin/users/${userData.id}`, {
+                method: 'PUT',
+                body: JSON.stringify(userData)
+            });
+            if (response.ok) {
+                alert('User updated successfully.');
+                setIsUserEditModalOpen(false);
+                if (onRefreshData) await onRefreshData();
+            }
+        } catch (error) {
+            console.error('Error updating user as admin:', error);
+            alert('Failed to update user.');
+        }
+  };
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
@@ -1577,7 +1599,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                    <td className="p-4 text-center">
                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
-                                            <button onClick={() => { setViewingLedgerId(user.id); setViewingLedgerType('user'); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">View Ledger</button>
+                                            <button onClick={() => { setSelectedUserToEdit(user); setIsUserEditModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-sky-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">Edit</button>
+                                            <button onClick={() => { setViewingLedgerId(user.id); setViewingLedgerType('user'); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">Ledger</button>
                                             <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
                                                 {user.isRestricted ? 'Unrestrict' : 'Restrict'}
                                             </button>
@@ -1640,6 +1663,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedDealer ? "Edit Dealer" : "Create Dealer"}>
           <DealerForm dealer={selectedDealer} dealers={dealers} onSave={handleSaveDealer} onCancel={() => setIsModalOpen(false)} adminPrizeRates={admin.prizeRates} />
+      </Modal>
+
+      {/* Admin User Edit Modal */}
+      <Modal isOpen={isUserEditModalOpen} onClose={() => setIsUserEditModalOpen(false)} title="Edit User Account" themeColor="sky">
+          {selectedUserToEdit && (
+              <UserForm 
+                  user={selectedUserToEdit} 
+                  users={users} 
+                  onSave={handleAdminUserUpdate} 
+                  onCancel={() => setIsUserEditModalOpen(false)} 
+                  dealerPrizeRates={dealers.find(d => d.id === selectedUserToEdit.dealerId)?.prizeRates || admin.prizeRates} 
+                  dealerId={selectedUserToEdit.dealerId} 
+                  showToast={(m) => alert(m)} 
+              />
+          )}
       </Modal>
 
       <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up Dealer Wallet" themeColor="emerald">
