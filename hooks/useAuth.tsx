@@ -10,6 +10,7 @@ interface AuthContextType {
     verifyData: any;
     login: (id: string, pass: string) => Promise<void>;
     logout: () => void;
+    setAccount: React.Dispatch<React.SetStateAction<User | Dealer | Admin | null>>;
     resetPassword: (id: string, contact: string, newPass: string) => Promise<string>;
     fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
 }
@@ -43,6 +44,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         const response = await fetch(url, { ...options, headers });
         if (response.status === 401 || response.status === 403) { logout(); throw new Error('Session expired'); }
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `Request failed with status ${response.status}`);
+        }
+        
         return response;
     }, [token, logout]);
     
@@ -87,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     
     return (
-        <AuthContext.Provider value={{ role, account, token, loading, verifyData, login, logout, resetPassword: async (id, c, p) => "Reset logic stub", fetchWithAuth }}>
+        <AuthContext.Provider value={{ role, account, token, loading, verifyData, login, logout, setAccount, resetPassword: async (id, c, p) => "Reset logic stub", fetchWithAuth }}>
             {children}
         </AuthContext.Provider>
     );

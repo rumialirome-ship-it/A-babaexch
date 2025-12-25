@@ -53,7 +53,7 @@ const Header: React.FC = () => {
 };
 
 const AppContent: React.FC = () => {
-    const { role, account, loading, fetchWithAuth, verifyData } = useAuth();
+    const { role, account, loading, fetchWithAuth, verifyData, setAccount } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
@@ -69,6 +69,7 @@ const AppContent: React.FC = () => {
         if (data.users && Array.isArray(data.users)) data.users = data.users.map((u: User) => u ? ({...u, ledger: parseLedger(u.ledger)}) : null).filter(Boolean);
         if (data.dealers && Array.isArray(data.dealers)) data.dealers = data.dealers.map((d: Dealer) => d ? ({...d, ledger: parseLedger(d.ledger)}) : null).filter(Boolean);
         if (data.bets && Array.isArray(data.bets)) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
+        if (data.account && data.account.ledger) data.account.ledger = parseLedger(data.account.ledger);
         return data;
     };
 
@@ -86,6 +87,7 @@ const AppContent: React.FC = () => {
             const response = await fetchWithAuth(endpoint);
             if (response.ok) {
                 const parsedData = parseAllDates(await response.json());
+                if (parsedData.account) setAccount(parsedData.account);
                 if (role === Role.Admin) { setUsers(parsedData.users); setDealers(parsedData.dealers); setBets(parsedData.bets); }
                 else if (role === Role.Dealer) { setUsers(parsedData.users); setBets(parsedData.bets); }
                 else { setBets(parsedData.bets); }
@@ -94,7 +96,7 @@ const AppContent: React.FC = () => {
         } catch (error) {
             console.error("Private fetch error", error);
         }
-    }, [role, fetchWithAuth]);
+    }, [role, fetchWithAuth, setAccount]);
 
     // Handle immediate data from verify response (critical for refreshes)
     useEffect(() => {

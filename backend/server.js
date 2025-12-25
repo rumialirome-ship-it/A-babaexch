@@ -77,22 +77,34 @@ app.post('/api/auth/reset-password', (req, res) => {
     else res.status(404).json({ message: 'Invalid credentials' });
 });
 
-// --- DATA ROUTES ---
-app.get('/api/games', (req, res) => res.json(database.getAllFromTable('games')));
+// --- PUBLIC DATA ---
+app.get('/api/games', (req, res) => {
+    res.json(database.getAllFromTable('games'));
+});
 
+// --- DATA ROUTES ---
 app.get('/api/user/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
-    res.json({ games: database.getAllFromTable('games'), bets: database.findBetsByUserId(req.user.id) });
+    res.json({ 
+        account: database.findAccountById(req.user.id, 'users'),
+        games: database.getAllFromTable('games'), 
+        bets: database.findBetsByUserId(req.user.id) 
+    });
 });
 
 app.get('/api/dealer/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    res.json({ users: database.findUsersByDealerId(req.user.id), bets: database.findBetsByDealerId(req.user.id) });
+    res.json({ 
+        account: database.findAccountById(req.user.id, 'dealers'),
+        users: database.findUsersByDealerId(req.user.id), 
+        bets: database.findBetsByDealerId(req.user.id) 
+    });
 });
 
 app.get('/api/admin/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     res.json({
+        account: database.findAccountById(req.user.id, 'admins'),
         dealers: database.getAllFromTable('dealers', true),
         users: database.getAllFromTable('users', true),
         games: database.getAllFromTable('games'),
@@ -104,14 +116,14 @@ app.get('/api/admin/data', authMiddleware, (req, res) => {
 app.post('/api/user/bets', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
     try { res.status(201).json(database.placeBulkBets(req.user.id, req.body.gameId, req.body.betGroups, 'USER')); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 400).json({ message: e.message }); }
 });
 
 app.post('/api/dealer/bets/bulk', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     if (!database.findUserByDealer(req.body.userId, req.user.id)) return res.status(403).json({ message: "Invalid user" });
     try { res.status(201).json(database.placeBulkBets(req.body.userId, req.body.gameId, req.body.betGroups, 'DEALER')); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 400).json({ message: e.message }); }
 });
 
 app.post('/api/dealer/users', authMiddleware, (req, res) => {
@@ -122,8 +134,18 @@ app.post('/api/dealer/users', authMiddleware, (req, res) => {
 
 app.put('/api/dealer/users/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    try { res.json(database.updateUser(req.body, req.params.id, req.user.id)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    const userId = req.params.id;
+    const dealerId = req.user.id;
+    
+    if (!userId) return res.status(400).json({ message: "User ID is required" });
+    
+    try { 
+        const updatedUser = database.updateUser(req.body, userId, dealerId);
+        res.json(updatedUser); 
+    }
+    catch (e) { 
+        res.status(e.status || 500).json({ message: e.message }); 
+    }
 });
 
 app.delete('/api/dealer/users/:id', authMiddleware, (req, res) => {
@@ -230,6 +252,16 @@ app.put('/api/admin/games/:id/update-winner', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.updateWinningNumber(req.params.id, req.body.newWinningNumber)); }
     catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+});
+
+app.put('/api/admin/games/:id/draw-time', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try {
+        const updatedGame = database.updateGameDrawTime(req.params.id, req.body.newDrawTime);
+        res.json(updatedGame);
+    } catch (e) {
+        res.status(e.status || 500).json({ message: e.message });
+    }
 });
 
 app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
