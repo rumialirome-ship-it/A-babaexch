@@ -887,7 +887,7 @@ const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; on
 
 
                     <div className="flex justify-end space-x-4 pt-2">
-                        <button onClick={onClose} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 px-6 rounded-md transition-colors">Cancel</button>
+                        <button onClick={onClose} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-md transition-colors">Cancel</button>
                         <button onClick={onConfirm} disabled={isLoading} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-wait">
                             {isLoading ? 'Processing...' : 'Confirm'}
                         </button>

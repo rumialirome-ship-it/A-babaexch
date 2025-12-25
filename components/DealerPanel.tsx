@@ -233,6 +233,49 @@ const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDe
     const [selectedUserId, setSelectedUserId] = useState('');
     const [selectedGameId, setSelectedGameId] = useState('');
     const [bulkInput, setBulkInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleProcessBets = async () => {
+        if (!selectedUserId || !selectedGameId || !bulkInput) return;
+        setIsLoading(true);
+        try {
+            // Very basic parser for the terminal - more complex logic is in the User Betting Modal
+            // This expects lines like "14, 25 rs100"
+            const lines = bulkInput.split('\n').filter(l => l.trim());
+            const betGroups: any[] = [];
+            
+            lines.forEach(line => {
+                const stakeMatch = line.match(/(?:rs|r)\s*(\d+\.?\d*)/i);
+                const stake = stakeMatch ? parseFloat(stakeMatch[1]) : 0;
+                if (stake <= 0) return;
+
+                const numbersPart = line.substring(0, stakeMatch!.index).trim();
+                const numbers = numbersPart.split(/[-.,\s]+/).filter(n => n.length > 0);
+                
+                if (numbers.length > 0) {
+                    betGroups.push({
+                        subGameType: SubGameType.TwoDigit, // Defaulting to 2-digit for quick entry
+                        numbers,
+                        amountPerNumber: stake
+                    });
+                }
+            });
+
+            if (betGroups.length === 0) {
+                alert("No valid bets found. Please use format: '14, 25 rs100'");
+                return;
+            }
+
+            await placeBetAsDealer({ userId: selectedUserId, gameId: selectedGameId, betGroups });
+            setBulkInput('');
+            alert("Bets placed successfully!");
+        } catch (error: any) {
+            alert(error.message || "Failed to place bets.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 mt-8">
             <h3 className="text-xl font-semibold text-white mb-4">Direct Betting Terminal</h3>
@@ -247,7 +290,15 @@ const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDe
                 </select>
             </div>
             <textarea rows={6} value={bulkInput} onChange={e => setBulkInput(e.target.value)} placeholder="Enter bets (e.g. 14, 25 rs100)" className="w-full bg-slate-900 text-white p-4 rounded border border-slate-700 font-mono" />
-            <div className="flex justify-end mt-4"><button disabled={!selectedUserId || !selectedGameId || !bulkInput} className="bg-emerald-600 text-white font-bold py-3 px-8 rounded disabled:opacity-50">PROCESS BULK BET</button></div>
+            <div className="flex justify-end mt-4">
+                <button 
+                    onClick={handleProcessBets}
+                    disabled={!selectedUserId || !selectedGameId || !bulkInput || isLoading} 
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-8 rounded disabled:opacity-50 transition-colors"
+                >
+                    {isLoading ? 'PROCESSING...' : 'PROCESS BULK BET'}
+                </button>
+            </div>
         </div>
     );
 };
@@ -277,13 +328,15 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
   const safeDealer = dealer || { id: '', name: '', prizeRates: {}, ledger: [] };
 
   const dealerUsers = useMemo(() => {
+        // Backend /api/dealer/data already filters by dealerId, 
+        // so we just handle search filtering here to be more robust.
         return safeUsers
-            .filter(user => user && user.dealerId === safeDealer.id)
             .filter(user => {
+                if (!user) return false;
                 const query = searchQuery.toLowerCase();
                 return (user.name || '').toLowerCase().includes(query) || (user.id || '').toLowerCase().includes(query);
             });
-  }, [safeUsers, safeDealer.id, searchQuery]);
+  }, [safeUsers, searchQuery]);
 
   const tabs = [
     { id: 'users', label: 'My Users', icon: Icons.userGroup },
@@ -299,7 +352,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
       <h2 className="text-3xl font-bold text-emerald-400 mb-6 uppercase tracking-widest">Dealer Panel</h2>
        <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-8 self-start flex-wrap border border-slate-700">
           {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
                 {tab.icon} <span className="hidden sm:inline">{tab.label}</span>
             </button>
         ))}
@@ -316,7 +369,9 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
           </div>
           <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
             <div className="overflow-x-auto"><table className="w-full text-left min-w-[700px]"><thead className="bg-slate-800/80"><tr><th className="p-4">User</th><th className="p-4 text-right">Wallet</th><th className="p-4">Status</th><th className="p-4 text-center">Actions</th></tr></thead><tbody className="divide-y divide-slate-800">
-                {dealerUsers.map(user => (
+                {dealerUsers.length === 0 ? (
+                    <tr><td colSpan={4} className="p-12 text-center text-slate-500 font-medium">No users found under your dealer account.</td></tr>
+                ) : dealerUsers.map(user => (
                     <tr key={user.id} className="hover:bg-slate-700/30"><td className="p-4 font-bold">{user.name} <div className="text-xs text-slate-500">{user.id}</div></td><td className="p-4 text-right font-mono">{user.wallet.toFixed(2)}</td><td className="p-4">{user.isRestricted ? <span className="text-red-400">Restricted</span> : <span className="text-green-400">Active</span>}</td><td className="p-4 text-center space-x-2">
                         <button onClick={() => {setSelectedUser(user); setIsUserModalOpen(true);}} className="text-cyan-400 text-sm font-bold">Edit</button>
                         <button onClick={() => setViewingUserLedgerFor(user)} className="text-emerald-400 text-sm font-bold">Ledger</button>
