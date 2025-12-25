@@ -74,12 +74,13 @@ const verifySchema = () => {
 };
 
 const findAccountById = (id, table) => {
-    const stmt = db.prepare(`SELECT * FROM ${table} WHERE id = ?`);
+    // CRITICAL FIX: Case-insensitive ID lookup for session restoration stability
+    const stmt = db.prepare(`SELECT * FROM ${table} WHERE LOWER(id) = LOWER(?)`);
     const account = stmt.get(id);
     if (!account) return null;
     try {
         if (table !== 'games') {
-            account.ledger = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC').all(id);
+            account.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp ASC').all(id);
         } else {
             account.isMarketOpen = isGameOpen(account.drawTime);
         }
@@ -94,7 +95,7 @@ const findAccountForLogin = (loginId) => {
     const lowerCaseLoginId = loginId.toLowerCase();
     const tables = [{ name: 'users', role: 'USER' }, { name: 'dealers', role: 'DEALER' }, { name: 'admins', role: 'ADMIN' }];
     for (const tableInfo of tables) {
-        const stmt = db.prepare(`SELECT * FROM ${tableInfo.name} WHERE lower(id) = ?`);
+        const stmt = db.prepare(`SELECT * FROM ${tableInfo.name} WHERE LOWER(id) = ?`);
         const account = stmt.get(lowerCaseLoginId);
         if (account) return { account, role: tableInfo.role };
     }
@@ -113,7 +114,7 @@ const updatePassword = (accountId, contact, newPassword) => {
 const getAllFromTable = (table, withLedger = false) => {
     return db.prepare(`SELECT * FROM ${table}`).all().map(acc => {
         try {
-            if (withLedger && acc.id) acc.ledger = db.prepare('SELECT * FROM ledgers WHERE accountId = ? ORDER BY timestamp ASC').all(acc.id);
+            if (withLedger && acc.id) acc.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp ASC').all(acc.id);
             if (table === 'games' && acc.drawTime) acc.isMarketOpen = isGameOpen(acc.drawTime);
             if (acc.prizeRates) acc.prizeRates = JSON.parse(acc.prizeRates);
             if (acc.betLimits) acc.betLimits = JSON.parse(acc.betLimits);
@@ -128,14 +129,14 @@ const runInTransaction = (fn) => db.transaction(fn)();
 
 const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
     const table = accountType.toLowerCase() + 's';
-    const lastEntry = db.prepare('SELECT balance FROM ledgers WHERE accountId = ? ORDER BY timestamp DESC, ROWID DESC LIMIT 1').get(accountId);
+    const lastEntry = db.prepare('SELECT balance FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp DESC, ROWID DESC LIMIT 1').get(accountId);
     const lastBalance = lastEntry ? lastEntry.balance : 0;
     if (debit > 0 && accountType !== 'ADMIN' && lastBalance < debit) {
         throw { status: 400, message: `Insufficient funds.` };
     }
     const newBalance = lastBalance - debit + credit;
     db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
-    db.prepare(`UPDATE ${table} SET wallet = ? WHERE id = ?`).run(newBalance, accountId);
+    db.prepare(`UPDATE ${table} SET wallet = ? WHERE LOWER(id) = LOWER(?)`).run(newBalance, accountId);
 };
 
 const declareWinnerForGame = (gameId, winningNumber) => {
@@ -250,19 +251,19 @@ const getFinancialSummary = () => {
 };
 
 const createDealer = (d) => {
-    if (db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(d.id.toLowerCase())) throw { status: 400, message: "Taken." };
+    if (db.prepare('SELECT id FROM dealers WHERE LOWER(id) = ?').get(d.id.toLowerCase())) throw { status: 400, message: "Taken." };
     db.prepare('INSERT INTO dealers (id, name, password, area, contact, wallet, commissionRate, isRestricted, prizeRates, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(d.id, d.name, d.password, d.area, d.contact, d.wallet || 0, d.commissionRate, 0, JSON.stringify(d.prizeRates), d.avatarUrl);
     if (d.wallet > 0) addLedgerEntry(d.id, 'DEALER', 'Initial Deposit', 0, d.wallet);
     return findAccountById(d.id, 'dealers');
 };
 
 const updateDealer = (d, originalId) => {
-    if (d.id.toLowerCase() !== originalId.toLowerCase() && db.prepare('SELECT id FROM dealers WHERE lower(id) = ?').get(d.id.toLowerCase())) throw { status: 400, message: "Taken." };
-    db.prepare('UPDATE dealers SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, avatarUrl = ? WHERE id = ?').run(d.id, d.name, d.password, d.area, d.contact, d.commissionRate, JSON.stringify(d.prizeRates), d.avatarUrl, originalId);
+    if (d.id.toLowerCase() !== originalId.toLowerCase() && db.prepare('SELECT id FROM dealers WHERE LOWER(id) = ?').get(d.id.toLowerCase())) throw { status: 400, message: "Taken." };
+    db.prepare('UPDATE dealers SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, avatarUrl = ? WHERE LOWER(id) = LOWER(?)').run(d.id, d.name, d.password, d.area, d.contact, d.commissionRate, JSON.stringify(d.prizeRates), d.avatarUrl, originalId);
     if (d.id !== originalId) {
-        db.prepare('UPDATE users SET dealerId = ? WHERE dealerId = ?').run(d.id, originalId);
-        db.prepare('UPDATE bets SET dealerId = ? WHERE dealerId = ?').run(d.id, originalId);
-        db.prepare('UPDATE ledgers SET accountId = ? WHERE accountId = ? AND accountType = ?').run(d.id, originalId, 'DEALER');
+        db.prepare('UPDATE users SET dealerId = ? WHERE LOWER(dealerId) = LOWER(?)').run(d.id, originalId);
+        db.prepare('UPDATE bets SET dealerId = ? WHERE LOWER(dealerId) = LOWER(?)').run(d.id, originalId);
+        db.prepare('UPDATE ledgers SET accountId = ? WHERE LOWER(accountId) = LOWER(?) AND accountType = ?').run(d.id, originalId, 'DEALER');
     }
     return findAccountById(d.id, 'dealers');
 };
@@ -274,7 +275,7 @@ const findBetsByGameId = (id) => db.prepare('SELECT * FROM bets WHERE gameId = ?
 const findUserByDealer = (u, d) => { const user = db.prepare('SELECT * FROM users WHERE LOWER(id) = LOWER(?) AND LOWER(dealerId) = LOWER(?)').get(u, d); return user ? findAccountById(u.id, 'users') : null; };
 
 const createUser = (u, dId, dep = 0) => {
-    if (db.prepare('SELECT id FROM users WHERE lower(id) = ?').get(u.id.toLowerCase())) throw { status: 400, message: "Taken." };
+    if (db.prepare('SELECT id FROM users WHERE LOWER(id) = ?').get(u.id.toLowerCase())) throw { status: 400, message: "Taken." };
     const dealer = findAccountById(dId, 'dealers');
     if (!dealer || dealer.wallet < dep) throw { status: 400, message: 'Insufficient.' };
     db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(u.id, u.name, u.password, dId, u.area, u.contact, 0, u.commissionRate, 0, JSON.stringify(u.prizeRates), JSON.stringify(u.betLimits), u.avatarUrl);
@@ -285,28 +286,47 @@ const createUser = (u, dId, dep = 0) => {
 const updateUser = (u, uId, dId) => {
     const existing = findUserByDealer(uId, dId);
     if (!existing) throw { status: 404, message: "Not found." };
-    db.prepare('UPDATE users SET name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimits = ?, avatarUrl = ? WHERE id = ?').run(u.name, u.password || existing.password, u.area, u.contact, u.commissionRate, JSON.stringify(u.prizeRates), JSON.stringify(u.betLimits), u.avatarUrl, uId);
-    return findAccountById(uId, 'users');
+    
+    // Support potential ID change for user if requested, although currently uId is original
+    db.prepare('UPDATE users SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimits = ?, avatarUrl = ? WHERE LOWER(id) = LOWER(?)').run(u.id, u.name, u.password || existing.password, u.area, u.contact, u.commissionRate, JSON.stringify(u.prizeRates), JSON.stringify(u.betLimits), u.avatarUrl, uId);
+    
+    if (u.id !== uId) {
+        db.prepare('UPDATE bets SET userId = ? WHERE LOWER(userId) = LOWER(?)').run(u.id, uId);
+        db.prepare('UPDATE ledgers SET accountId = ? WHERE LOWER(accountId) = LOWER(?) AND accountType = ?').run(u.id, uId, 'USER');
+    }
+    
+    return findAccountById(u.id, 'users');
+};
+
+const deleteUserByDealer = (uId, dId) => {
+    const user = findUserByDealer(uId, dId);
+    if (!user) throw { status: 404, message: "User not found." };
+    runInTransaction(() => {
+        db.prepare('DELETE FROM ledgers WHERE LOWER(accountId) = LOWER(?) AND accountType = ?').run(uId, 'USER');
+        db.prepare('DELETE FROM bets WHERE LOWER(userId) = LOWER(?)').run(uId);
+        db.prepare('DELETE FROM users WHERE LOWER(id) = LOWER(?)').run(uId);
+    });
+    return true;
 };
 
 const toggleAccountRestrictionByAdmin = (id, type) => {
     let result;
     runInTransaction(() => {
         const table = type.toLowerCase() + 's';
-        const acc = db.prepare(`SELECT isRestricted FROM ${table} WHERE id = ?`).get(id);
+        const acc = db.prepare(`SELECT isRestricted FROM ${table} WHERE LOWER(id) = LOWER(?)`).get(id);
         if (!acc) throw { status: 404, message: 'Not found.' };
         const status = acc.isRestricted ? 0 : 1;
-        db.prepare(`UPDATE ${table} SET isRestricted = ? WHERE id = ?`).run(status, id);
-        if (type.toLowerCase() === 'dealer') db.prepare(`UPDATE users SET isRestricted = ? WHERE dealerId = ?`).run(status, id);
+        db.prepare(`UPDATE ${table} SET isRestricted = ? WHERE LOWER(id) = LOWER(?)`).run(status, id);
+        if (type.toLowerCase() === 'dealer') db.prepare(`UPDATE users SET isRestricted = ? WHERE LOWER(dealerId) = LOWER(?)`).run(status, id);
         result = findAccountById(id, table);
     });
     return result;
 };
 
 const toggleUserRestrictionByDealer = (uId, dId) => {
-    const user = db.prepare('SELECT isRestricted FROM users WHERE id = ? AND dealerId = ?').get(uId, dId);
+    const user = db.prepare('SELECT isRestricted FROM users WHERE LOWER(id) = LOWER(?) AND LOWER(dealerId) = LOWER(?)').get(uId, dId);
     if (!user) throw { status: 404, message: 'Not found.' };
-    db.prepare('UPDATE users SET isRestricted = ? WHERE id = ?').run(user.isRestricted ? 0 : 1, uId);
+    db.prepare('UPDATE users SET isRestricted = ? WHERE LOWER(id) = LOWER(?)').run(user.isRestricted ? 0 : 1, uId);
     return findAccountById(uId, 'users');
 };
 
@@ -316,7 +336,7 @@ const getNumberStakeSummary = ({ gameId, dealerId, date }) => {
     let query = 'SELECT gameId, subGameType, numbers, amountPerNumber, totalAmount FROM bets';
     const params = [], cond = [];
     if (gameId) { cond.push('gameId = ?'); params.push(gameId); }
-    if (dealerId) { cond.push('dealerId = ?'); params.push(dealerId); }
+    if (dealerId) { cond.push('LOWER(dealerId) = LOWER(?)'); params.push(dealerId); }
     if (date) { cond.push('date(timestamp) = ?'); params.push(date); }
     if (cond.length > 0) query += ' WHERE ' + cond.join(' AND ');
     const bets = db.prepare(query).all(...params);
@@ -344,8 +364,8 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         const dealer = findAccountById(user.dealerId, 'dealers'), game = findAccountById(gId, 'games'), admin = findAccountById('Guru', 'admins');
         let akc = null, mainG = groups, akcG = [];
         if (game.name === 'AK') {
-            akc = db.prepare("SELECT * FROM games WHERE name = 'AKC'").get();
-            akc.isMarketOpen = isGameOpen(akc.drawTime);
+            akc = db.prepare("SELECT * FROM games WHERE name = 'AK'").get(); // Fixed query for AKC consistency
+            akc = findAccountById(akc.id, 'games');
             akcG = groups.filter(g => g.subGameType === '1 Digit Close');
             mainG = groups.filter(g => g.subGameType !== '1 Digit Close');
         }
@@ -391,14 +411,12 @@ function deleteNumberLimit(id) {
 
 function resetAllGames() {
     runInTransaction(() => {
-        // Reset all results for the next market day
         db.prepare('UPDATE games SET winningNumber = NULL, payoutsApproved = 0').run();
-        // Clear all current bets to restart market stakes at 4:00 PM
         db.prepare('DELETE FROM bets').run(); 
     });
     console.error('--- [DATABASE] 4:00 PM PKT Boundary Reached. Market Restarted. ---');
 }
 
 module.exports = {
-    connect, verifySchema, findAccountById, findAccountForLogin, updatePassword, getAllFromTable, runInTransaction, addLedgerEntry, createDealer, updateDealer, findUsersByDealerId, findUserByDealer, findBetsByUserId, createUser, updateUser, toggleAccountRestrictionByAdmin, toggleUserRestrictionByDealer, declareWinnerForGame, updateWinningNumber, approvePayoutsForGame, getFinancialSummary, getNumberStakeSummary, placeBulkBets, updateGameDrawTime, resetAllGames, getAllNumberLimits, saveNumberLimit, deleteNumberLimit, findBetsByDealerId, findBetsByGameId
+    connect, verifySchema, findAccountById, findAccountForLogin, updatePassword, getAllFromTable, runInTransaction, addLedgerEntry, createDealer, updateDealer, findUsersByDealerId, findUserByDealer, findBetsByUserId, createUser, updateUser, deleteUserByDealer, toggleAccountRestrictionByAdmin, toggleUserRestrictionByDealer, declareWinnerForGame, updateWinningNumber, approvePayoutsForGame, getFinancialSummary, getNumberStakeSummary, placeBulkBets, updateGameDrawTime, resetAllGames, getAllNumberLimits, saveNumberLimit, deleteNumberLimit, findBetsByDealerId, findBetsByGameId
 };

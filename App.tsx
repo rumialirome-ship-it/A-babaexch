@@ -90,8 +90,6 @@ const AppContent: React.FC = () => {
                 else if (role === Role.Dealer) { setUsers(parsedData.users); setBets(parsedData.bets); }
                 else { setBets(parsedData.bets); }
                 setHasInitialFetched(true);
-            } else {
-                throw new Error("Failed fetch");
             }
         } catch (error) {
             console.error("Private fetch error", error);
@@ -140,10 +138,21 @@ const AppContent: React.FC = () => {
 
     const placeBet = async (d: any) => { await fetchWithAuth('/api/user/bets', { method: 'POST', body: JSON.stringify(d) }); fetchPrivateData(); };
     const placeBetAsDealer = async (d: any) => { await fetchWithAuth('/api/dealer/bets/bulk', { method: 'POST', body: JSON.stringify(d) }); fetchPrivateData(); };
+    
     const onSaveUser = async (u: any, o: any, i: any) => {
         const method = o ? 'PUT' : 'POST';
         const url = o ? `/api/dealer/users/${o}` : '/api/dealer/users';
-        await fetchWithAuth(url, { method, body: JSON.stringify(o ? u : { userData: u, initialDeposit: i }) });
+        const response = await fetchWithAuth(url, { method, body: JSON.stringify(o ? u : { userData: u, initialDeposit: i }) });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || 'Operation failed');
+        }
+        fetchPrivateData();
+    };
+
+    const onDeleteUser = async (uId: string) => {
+        const response = await fetchWithAuth(`/api/dealer/users/${uId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error("Failed to delete user");
         fetchPrivateData();
     };
 
@@ -162,6 +171,7 @@ const AppContent: React.FC = () => {
                             <DealerPanel 
                                 dealer={account as Dealer} users={users} 
                                 onSaveUser={onSaveUser} 
+                                onDeleteUser={onDeleteUser}
                                 topUpUserWallet={async (id, amt) => { await fetchWithAuth('/api/dealer/topup/user', { method: 'POST', body: JSON.stringify({ userId: id, amount: amt }) }); fetchPrivateData(); }} 
                                 withdrawFromUserWallet={async (id, amt) => { await fetchWithAuth('/api/dealer/withdraw/user', { method: 'POST', body: JSON.stringify({ userId: id, amount: amt }) }); fetchPrivateData(); }} 
                                 toggleAccountRestriction={async (id) => { await fetchWithAuth(`/api/dealer/users/${id}/toggle-restriction`, { method: 'PUT' }); fetchPrivateData(); }} 
@@ -192,5 +202,5 @@ const AppContent: React.FC = () => {
     );
 };
 
-function App() { return (<div className="App bg-transparent text-slate-200 h-full"><AppContent /></div>); }
+function App() { return (<div className="App bg-transparent text-slate-200 h-full"><AuthProvider><AppContent /></AuthProvider></div>); }
 export default App;

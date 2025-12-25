@@ -126,6 +126,12 @@ app.put('/api/dealer/users/:id', authMiddleware, (req, res) => {
     catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
+app.delete('/api/dealer/users/:id', authMiddleware, (req, res) => {
+    if (req.user.role !== 'DEALER') return res.sendStatus(403);
+    try { database.deleteUserByDealer(req.params.id, req.user.id); res.sendStatus(204); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+});
+
 app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try {

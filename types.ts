@@ -2,6 +2,8 @@
 
 
 
+
+
 export enum Role {
   Admin = 'ADMIN',
   Dealer = 'DEALER',
@@ -36,9 +38,11 @@ export interface BaseAccount {
   avatarUrl?: string;
 }
 
+// Added perDraw property to BetLimits interface to resolve type conflict with UI state
 export interface BetLimits {
   oneDigit: number;
   twoDigit: number;
+  perDraw?: number;
 }
 
 export interface User extends BaseAccount {
