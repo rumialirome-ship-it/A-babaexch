@@ -4,10 +4,10 @@
     "id": "Guru",
     "name": "Guru",
     "password": "Pak@4646",
-    "wallet": 90001000000,
+    "wallet": 180001000000,
     "prizeRates": { "oneDigitOpen": 90, "oneDigitClose": 90, "twoDigit": 900 },
     "avatarUrl": "https://i.pravatar.cc/150?u=Guru",
-    "ledger": [{ "id": "l1-admin", "timestamp": "2024-01-01T12:00:00.000Z", "description": "Initial System Funds", "debit": 0, "credit": 90001000000, "balance": 90001000000 }]
+    "ledger": [{ "id": "l1-admin", "timestamp": "2024-01-01T12:00:00.000Z", "description": "System Funds Update", "debit": 0, "credit": 180001000000, "balance": 180001000000 }]
   },
   "dealers": [
     {
