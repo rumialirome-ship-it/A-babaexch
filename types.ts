@@ -1,9 +1,3 @@
-
-
-
-
-
-
 export enum Role {
   Admin = 'ADMIN',
   Dealer = 'DEALER',
@@ -38,17 +32,16 @@ export interface BaseAccount {
   avatarUrl?: string;
 }
 
-// Added perDraw property to BetLimits interface to resolve type conflict with UI state
 export interface BetLimits {
   oneDigit: number;
   twoDigit: number;
-  perDraw?: number;
+  perDraw: number;
 }
 
 export interface User extends BaseAccount {
   dealerId: string;
   prizeRates: PrizeRates;
-  betLimits?: BetLimits;
+  betLimits: BetLimits;
 }
 
 export interface Dealer extends BaseAccount {
@@ -59,8 +52,8 @@ export interface Admin {
   id: string;
   name: string;
   password: string;
-  wallet: number; // Represents system earnings
-  prizeRates: PrizeRates; // System-wide base rates
+  wallet: number;
+  prizeRates: PrizeRates;
   avatarUrl?: string;
   ledger: LedgerEntry[];
 }
@@ -69,8 +62,8 @@ export interface Game {
   id: string;
   name:string;
   logo: string;
-  drawTime: string; // HH:MM
-  winningNumber?: string; // two-digit string e.g., "42"
+  drawTime: string;
+  winningNumber?: string;
   payoutsApproved?: boolean;
   isMarketOpen?: boolean;
 }
@@ -89,7 +82,7 @@ export interface Bet {
   dealerId: string;
   gameId: string;
   subGameType: SubGameType;
-  numbers: string[]; // e.g., ["14", "25"]
+  numbers: string[];
   amountPerNumber: number;
   totalAmount: number;
   timestamp: Date;
