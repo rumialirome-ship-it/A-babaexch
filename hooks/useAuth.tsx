@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { Role, User, Dealer, Admin } from '../types';
 
@@ -75,8 +76,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (!response.ok) throw new Error('Token verification failed');
                 
                 const data = await response.json();
-                setAccount(parseAccountDates(data.account));
+                
+                // Atomically set account and role before dropping loading flag
+                const parsedAcc = parseAccountDates(data.account);
+                setAccount(parsedAcc);
                 setRole(data.role);
+                setLoading(false);
 
                 // If the logged-in user is a USER or DEALER, start polling for updates.
                 if (data.role === Role.User || data.role === Role.Dealer) {
@@ -87,26 +92,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                                 const pollData = await pollResponse.json();
                                 setAccount(parseAccountDates(pollData.account));
                             } else {
-                                // Token likely expired, log out
                                 logout();
                             }
                         } catch (error) {
                             console.error("Polling for account update failed:", error);
-                            logout(); // Stop polling on error
+                            logout(); 
                         }
-                    }, 1000); // Poll every second
+                    }, 1000); 
                 }
             } catch (error) {
                 console.error("Session verification failed:", error);
                 logout();
-            } finally {
                 setLoading(false);
             }
         };
 
         verifyTokenAndPoll();
         
-        // Cleanup function to clear interval when component unmounts or token changes
         return () => {
             if (pollInterval) {
                 clearInterval(pollInterval);

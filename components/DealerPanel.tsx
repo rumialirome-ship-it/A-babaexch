@@ -313,9 +313,10 @@ interface DealerPanelProps {
   bets: Bet[];
   games: Game[];
   placeBetAsDealer: (details: { userId: string; gameId: string; betGroups: any[] }) => Promise<void>;
+  isLoaded?: boolean;
 }
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer }) => {
+const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer, isLoaded = true }) => {
   const [activeTab, setActiveTab] = useState('users');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
@@ -328,8 +329,6 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
   const safeDealer = dealer || { id: '', name: '', prizeRates: {}, ledger: [] };
 
   const dealerUsers = useMemo(() => {
-        // Backend /api/dealer/data already filters by dealerId, 
-        // so we just handle search filtering here to be more robust.
         return safeUsers
             .filter(user => {
                 if (!user) return false;
@@ -369,7 +368,9 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, to
           </div>
           <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
             <div className="overflow-x-auto"><table className="w-full text-left min-w-[700px]"><thead className="bg-slate-800/80"><tr><th className="p-4">User</th><th className="p-4 text-right">Wallet</th><th className="p-4">Status</th><th className="p-4 text-center">Actions</th></tr></thead><tbody className="divide-y divide-slate-800">
-                {dealerUsers.length === 0 ? (
+                {!isLoaded ? (
+                    <tr><td colSpan={4} className="p-12 text-center text-slate-500 font-medium">Synchronizing user data...</td></tr>
+                ) : dealerUsers.length === 0 ? (
                     <tr><td colSpan={4} className="p-12 text-center text-slate-500 font-medium">No users found under your dealer account.</td></tr>
                 ) : dealerUsers.map(user => (
                     <tr key={user.id} className="hover:bg-slate-700/30"><td className="p-4 font-bold">{user.name} <div className="text-xs text-slate-500">{user.id}</div></td><td className="p-4 text-right font-mono">{user.wallet.toFixed(2)}</td><td className="p-4">{user.isRestricted ? <span className="text-red-400">Restricted</span> : <span className="text-green-400">Active</span>}</td><td className="p-4 text-center space-x-2">

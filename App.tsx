@@ -58,10 +58,12 @@ const AppContent: React.FC = () => {
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
+    const [hasInitialFetched, setHasInitialFetched] = useState(false);
     
     // Reveal State
     const [activeReveal, setActiveReveal] = useState<{ name: string; number: string } | null>(null);
     const lastGamesRef = useRef<Game[]>([]);
+    const isFetchingRef = useRef(false);
 
     const parseAllDates = (data: any) => {
         if (!data) return data;
@@ -73,14 +75,22 @@ const AppContent: React.FC = () => {
     };
 
     const fetchData = useCallback(async () => {
+        if (isFetchingRef.current) return;
+        isFetchingRef.current = true;
+
         try {
+            // Games are public and can be fetched regardless of auth
             const gamesResponse = await fetch('/api/games');
             if (gamesResponse.ok) {
                 const gamesData = await gamesResponse.json();
                 setGames(Array.isArray(gamesData) ? gamesData : []);
             }
 
-            if (!role || !account) return;
+            // Only proceed if auth is settled
+            if (!role) {
+                isFetchingRef.current = false;
+                return;
+            }
 
             if (role === Role.Admin) {
                 const response = await fetchWithAuth('/api/admin/data');
@@ -96,6 +106,7 @@ const AppContent: React.FC = () => {
                 if (response.ok) {
                     const data = await response.json();
                     const parsedData = parseAllDates(data);
+                    // Crucial: Update users and bets for the dealer
                     setUsers(parsedData.users || []);
                     setBets(parsedData.bets || []);
                 }
@@ -107,10 +118,13 @@ const AppContent: React.FC = () => {
                     setBets(parsedData.bets || []);
                 }
             }
+            setHasInitialFetched(true);
         } catch (error) {
             console.error("Failed to fetch data:", error);
+        } finally {
+            isFetchingRef.current = false;
         }
-    }, [role, account, fetchWithAuth]);
+    }, [role, fetchWithAuth]); // Removed 'account' from dependencies to stop re-triggering on every wallet poll
 
     useEffect(() => {
         if (games.length > 0 && lastGamesRef.current.length > 0) {
@@ -128,8 +142,9 @@ const AppContent: React.FC = () => {
     }, [games]);
 
     useEffect(() => {
+        // Trigger initial fetch when role changes
         fetchData();
-        const intervalId = setInterval(fetchData, 2000); // Polling every 2 seconds for performance
+        const intervalId = setInterval(fetchData, 3000); 
         return () => clearInterval(intervalId);
     }, [fetchData]);
 
@@ -331,6 +346,7 @@ const AppContent: React.FC = () => {
                                 bets={bets} 
                                 games={games} 
                                 placeBetAsDealer={placeBetAsDealer} 
+                                isLoaded={hasInitialFetched}
                             />
                         )}
                         {role === Role.Admin && account && (
