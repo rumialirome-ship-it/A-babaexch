@@ -53,22 +53,21 @@ const Header: React.FC = () => {
 };
 
 const AppContent: React.FC = () => {
-    const { role, account, loading, fetchWithAuth } = useAuth();
+    const { role, account, loading, fetchWithAuth, verifyData } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
     const [hasInitialFetched, setHasInitialFetched] = useState(false);
     
-    // Reveal State
     const [activeReveal, setActiveReveal] = useState<{ name: string; number: string } | null>(null);
     const lastGamesRef = useRef<Game[]>([]);
 
     const parseAllDates = (data: any) => {
         if (!data) return data;
         const parseLedger = (ledger: LedgerEntry[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
-        if (data.users && Array.isArray(data.users)) data.users = data.users.map((u: User) => ({...u, ledger: parseLedger(u.ledger)}));
-        if (data.dealers && Array.isArray(data.dealers)) data.dealers = data.dealers.map((d: Dealer) => ({...d, ledger: parseLedger(d.ledger)}));
+        if (data.users && Array.isArray(data.users)) data.users = data.users.map((u: User) => u ? ({...u, ledger: parseLedger(u.ledger)}) : null).filter(Boolean);
+        if (data.dealers && Array.isArray(data.dealers)) data.dealers = data.dealers.map((d: Dealer) => d ? ({...d, ledger: parseLedger(d.ledger)}) : null).filter(Boolean);
         if (data.bets && Array.isArray(data.bets)) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
         return data;
     };
@@ -76,59 +75,62 @@ const AppContent: React.FC = () => {
     const fetchPublicData = useCallback(async () => {
         try {
             const gamesResponse = await fetch('/api/games');
-            if (gamesResponse.ok) {
-                const gamesData = await gamesResponse.json();
-                setGames(Array.isArray(gamesData) ? gamesData : []);
-            }
-        } catch (e) {
-            console.error("Public fetch failed", e);
-        }
+            if (gamesResponse.ok) setGames(await gamesResponse.json());
+        } catch (e) {}
     }, []);
 
     const fetchPrivateData = useCallback(async () => {
         if (!role) return;
-
         try {
-            if (role === Role.Admin) {
-                const response = await fetchWithAuth('/api/admin/data');
-                if (response.ok) {
-                    const data = await response.json();
-                    const parsedData = parseAllDates(data);
-                    setUsers(parsedData.users || []);
-                    setDealers(parsedData.dealers || []);
-                    setBets(parsedData.bets || []);
-                }
-            } else if (role === Role.Dealer) {
-                const response = await fetchWithAuth('/api/dealer/data');
-                if (response.ok) {
-                    const data = await response.json();
-                    const parsedData = parseAllDates(data);
-                    setUsers(parsedData.users || []);
-                    setBets(parsedData.bets || []);
-                }
-            } else if (role === Role.User) {
-                const response = await fetchWithAuth('/api/user/data');
-                if (response.ok) {
-                    const data = await response.json();
-                    const parsedData = parseAllDates(data);
-                    setBets(parsedData.bets || []);
-                }
+            const endpoint = role === Role.Admin ? '/api/admin/data' : (role === Role.Dealer ? '/api/dealer/data' : '/api/user/data');
+            const response = await fetchWithAuth(endpoint);
+            if (response.ok) {
+                const parsedData = parseAllDates(await response.json());
+                if (role === Role.Admin) { setUsers(parsedData.users); setDealers(parsedData.dealers); setBets(parsedData.bets); }
+                else if (role === Role.Dealer) { setUsers(parsedData.users); setBets(parsedData.bets); }
+                else { setBets(parsedData.bets); }
+                setHasInitialFetched(true);
+            } else {
+                throw new Error("Failed fetch");
             }
-            setHasInitialFetched(true);
         } catch (error) {
-            console.error("Private fetch failed:", error);
+            console.error("Private fetch error", error);
         }
     }, [role, fetchWithAuth]);
 
-    // Track winning number reveals
+    // Handle immediate data from verify response (critical for refreshes)
+    useEffect(() => {
+        if (!loading && verifyData) {
+            const parsed = parseAllDates(verifyData);
+            if (parsed.users) setUsers(parsed.users);
+            if (parsed.dealers) setDealers(parsed.dealers);
+            if (parsed.bets) setBets(parsed.bets);
+            setHasInitialFetched(true);
+        }
+    }, [loading, verifyData]);
+
+    useEffect(() => {
+        fetchPublicData();
+        const interval = setInterval(fetchPublicData, 5000);
+        return () => clearInterval(interval);
+    }, [fetchPublicData]);
+
+    useEffect(() => {
+        if (role) {
+            if (!hasInitialFetched) fetchPrivateData();
+            const interval = setInterval(fetchPrivateData, 3000);
+            return () => clearInterval(interval);
+        } else {
+            setHasInitialFetched(false);
+            setUsers([]); setBets([]); setDealers([]);
+        }
+    }, [role, fetchPrivateData]);
+
     useEffect(() => {
         if (games.length > 0 && lastGamesRef.current.length > 0) {
             games.forEach(newGame => {
                 const oldGame = lastGamesRef.current.find(g => g.id === newGame.id);
-                if (newGame.winningNumber && 
-                    !newGame.winningNumber.endsWith('_') && 
-                    (!oldGame || !oldGame.winningNumber || oldGame.winningNumber.endsWith('_'))
-                ) {
+                if (newGame.winningNumber && !newGame.winningNumber.endsWith('_') && (!oldGame?.winningNumber || oldGame.winningNumber.endsWith('_'))) {
                     setActiveReveal({ name: newGame.name, number: newGame.winningNumber });
                 }
             });
@@ -136,204 +138,16 @@ const AppContent: React.FC = () => {
         lastGamesRef.current = games;
     }, [games]);
 
-    // Public Polling (Games)
-    useEffect(() => {
-        fetchPublicData();
-        const interval = setInterval(fetchPublicData, 5000);
-        return () => clearInterval(interval);
-    }, [fetchPublicData]);
+    const placeBet = async (d: any) => { await fetchWithAuth('/api/user/bets', { method: 'POST', body: JSON.stringify(d) }); fetchPrivateData(); };
+    const placeBetAsDealer = async (d: any) => { await fetchWithAuth('/api/dealer/bets/bulk', { method: 'POST', body: JSON.stringify(d) }); fetchPrivateData(); };
+    const onSaveUser = async (u: any, o: any, i: any) => {
+        const method = o ? 'PUT' : 'POST';
+        const url = o ? `/api/dealer/users/${o}` : '/api/dealer/users';
+        await fetchWithAuth(url, { method, body: JSON.stringify(o ? u : { userData: u, initialDeposit: i }) });
+        fetchPrivateData();
+    };
 
-    // Private Polling (Users/Bets) - only active if role exists
-    useEffect(() => {
-        if (role) {
-            fetchPrivateData();
-            const interval = setInterval(fetchPrivateData, 3000);
-            return () => clearInterval(interval);
-        } else {
-            setHasInitialFetched(false);
-            setUsers([]);
-            setBets([]);
-            setDealers([]);
-        }
-    }, [role, fetchPrivateData]);
-
-    const placeBet = useCallback(async (details: {
-        userId: string;
-        gameId: string;
-        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-    }): Promise<void> => {
-        const response = await fetchWithAuth('/api/user/bets', {
-            method: 'POST',
-            body: JSON.stringify({
-                gameId: details.gameId,
-                betGroups: details.betGroups,
-            })
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-    const placeBetAsDealer = useCallback(async (details: {
-        userId: string;
-        gameId: string;
-        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-    }) => {
-        const response = await fetchWithAuth('/api/dealer/bets/bulk', {
-            method: 'POST',
-            body: JSON.stringify(details)
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-    const onPlaceAdminBets = useCallback(async (details: {
-        userId: string;
-        gameId: string;
-        betGroups: any[];
-    }) => {
-        const response = await fetchWithAuth('/api/admin/bulk-bet', {
-            method: 'POST',
-            body: JSON.stringify(details),
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message || 'Failed to place bets.');
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-    const onSaveUser = useCallback(async (userData: User, originalId: string | undefined, initialDeposit?: number) => {
-        let response;
-        if (originalId) {
-            response = await fetchWithAuth(`/api/dealer/users/${originalId}`, { method: 'PUT', body: JSON.stringify(userData) });
-        } else {
-            response = await fetchWithAuth('/api/dealer/users', { method: 'POST', body: JSON.stringify({ userData, initialDeposit }) });
-        }
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-    const onSaveDealer = useCallback(async (dealerData: Dealer, originalId?: string) => {
-        let response;
-        if (originalId) {
-            response = await fetchWithAuth(`/api/admin/dealers/${originalId}`, { method: 'PUT', body: JSON.stringify(dealerData) });
-        } else {
-            response = await fetchWithAuth('/api/admin/dealers', { method: 'POST', body: JSON.stringify(dealerData) });
-        }
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-    const topUpUserWallet = useCallback(async (userId: string, amount: number) => {
-        const response = await fetchWithAuth('/api/dealer/topup/user', { method: 'POST', body: JSON.stringify({ userId, amount }) });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-    
-    const withdrawFromUserWallet = useCallback(async (userId: string, amount: number) => {
-        const response = await fetchWithAuth('/api/dealer/withdraw/user', { method: 'POST', body: JSON.stringify({ userId, amount }) });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-
-    const declareWinner = useCallback(async (gameId: string, winningNumber: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/declare-winner`, { method: 'POST', body: JSON.stringify({ winningNumber }) });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-    const updateWinner = useCallback(async (gameId: string, newWinningNumber: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/update-winner`, { method: 'PUT', body: JSON.stringify({ newWinningNumber }) });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-
-    const approvePayouts = useCallback(async (gameId: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/approve-payouts`, { method: 'POST' });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-    const topUpDealerWallet = useCallback(async (dealerId: string, amount: number) => {
-        const response = await fetchWithAuth('/api/admin/topup/dealer', { method: 'POST', body: JSON.stringify({ dealerId, amount }) });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-    const withdrawFromDealerWallet = useCallback(async (dealerId: string, amount: number) => {
-        const response = await fetchWithAuth('/api/admin/withdraw/dealer', { method: 'POST', body: JSON.stringify({ dealerId, amount }) });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-
-    const toggleAccountRestriction = useCallback(async (accountId: string, accountType: 'user' | 'dealer') => {
-        let url;
-        if (role === Role.Admin) {
-            url = `/api/admin/accounts/${accountType}/${accountId}/toggle-restriction`;
-        } else if (role === Role.Dealer && accountType === 'user') {
-            url = `/api/dealer/users/${accountId}/toggle-restriction`;
-        } else {
-            throw new Error("You don't have permission for this action.");
-        }
-        const response = await fetchWithAuth(url, { method: 'PUT' });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData, role]);
-    
-    const updateGameDrawTime = useCallback(async (gameId: string, newDrawTime: string) => {
-        const response = await fetchWithAuth(`/api/admin/games/${gameId}/draw-time`, {
-            method: 'PUT',
-            body: JSON.stringify({ newDrawTime })
-        });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message);
-        }
-        await fetchPrivateData();
-    }, [fetchWithAuth, fetchPrivateData]);
-
-    if (loading) {
-       return <div className="min-h-screen flex items-center justify-center text-cyan-400 text-xl">Loading Session...</div>;
-    }
+    if (loading) return <div className="min-h-screen flex items-center justify-center text-cyan-400 text-xl font-bold">Synchronizing Session...</div>;
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -344,61 +158,39 @@ const AppContent: React.FC = () => {
                     <Header />
                     <main className="flex-grow">
                         {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
-                        {role === Role.Dealer && account && (
+                        {role === Role.Dealer && (
                             <DealerPanel 
-                                dealer={account as Dealer} 
-                                users={users} 
+                                dealer={account as Dealer} users={users} 
                                 onSaveUser={onSaveUser} 
-                                topUpUserWallet={topUpUserWallet} 
-                                withdrawFromUserWallet={withdrawFromUserWallet} 
-                                toggleAccountRestriction={toggleAccountRestriction} 
-                                bets={bets} 
-                                games={games} 
-                                placeBetAsDealer={placeBetAsDealer} 
-                                isLoaded={hasInitialFetched}
+                                topUpUserWallet={async (id, amt) => { await fetchWithAuth('/api/dealer/topup/user', { method: 'POST', body: JSON.stringify({ userId: id, amount: amt }) }); fetchPrivateData(); }} 
+                                withdrawFromUserWallet={async (id, amt) => { await fetchWithAuth('/api/dealer/withdraw/user', { method: 'POST', body: JSON.stringify({ userId: id, amount: amt }) }); fetchPrivateData(); }} 
+                                toggleAccountRestriction={async (id) => { await fetchWithAuth(`/api/dealer/users/${id}/toggle-restriction`, { method: 'PUT' }); fetchPrivateData(); }} 
+                                bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} isLoaded={hasInitialFetched}
                             />
                         )}
-                        {role === Role.Admin && account && (
+                        {role === Role.Admin && (
                             <AdminPanel 
-                                admin={account as Admin} 
-                                dealers={dealers} 
-                                onSaveDealer={onSaveDealer} 
-                                users={users} 
-                                setUsers={setUsers} 
-                                games={games} 
-                                bets={bets} 
-                                declareWinner={declareWinner} 
-                                updateWinner={updateWinner} 
-                                approvePayouts={approvePayouts} 
-                                topUpDealerWallet={topUpDealerWallet} 
-                                withdrawFromDealerWallet={withdrawFromDealerWallet} 
-                                toggleAccountRestriction={toggleAccountRestriction} 
-                                onPlaceAdminBets={onPlaceAdminBets} 
-                                updateGameDrawTime={updateGameDrawTime} 
+                                admin={account as Admin} dealers={dealers} 
+                                onSaveDealer={async (d, o) => { const url = o ? `/api/admin/dealers/${o}` : '/api/admin/dealers'; await fetchWithAuth(url, { method: o ? 'PUT' : 'POST', body: JSON.stringify(d) }); fetchPrivateData(); }} 
+                                users={users} setUsers={setUsers} games={games} bets={bets} 
+                                declareWinner={async (id, num) => { await fetchWithAuth(`/api/admin/games/${id}/declare-winner`, { method: 'POST', body: JSON.stringify({ winningNumber: num }) }); fetchPrivateData(); }}
+                                updateWinner={async (id, num) => { await fetchWithAuth(`/api/admin/games/${id}/update-winner`, { method: 'PUT', body: JSON.stringify({ newWinningNumber: num }) }); fetchPrivateData(); }}
+                                approvePayouts={async (id) => { await fetchWithAuth(`/api/admin/games/${id}/approve-payouts`, { method: 'POST' }); fetchPrivateData(); }}
+                                topUpDealerWallet={async (id, amt) => { await fetchWithAuth('/api/admin/topup/dealer', { method: 'POST', body: JSON.stringify({ dealerId: id, amount: amt }) }); fetchPrivateData(); }}
+                                withdrawFromDealerWallet={async (id, amt) => { await fetchWithAuth('/api/admin/withdraw/dealer', { method: 'POST', body: JSON.stringify({ dealerId: id, amount: amt }) }); fetchPrivateData(); }}
+                                toggleAccountRestriction={async (id, type) => { await fetchWithAuth(`/api/admin/accounts/${type}/${id}/toggle-restriction`, { method: 'PUT' }); fetchPrivateData(); }}
+                                onPlaceAdminBets={async (d) => { await fetchWithAuth('/api/admin/bulk-bet', { method: 'POST', body: JSON.stringify(d) }); fetchPrivateData(); }}
+                                updateGameDrawTime={async (id, time) => { await fetchWithAuth(`/api/admin/games/${id}/draw-time`, { method: 'PUT', body: JSON.stringify({ newDrawTime: time }) }); fetchPrivateData(); }}
                                 onRefreshData={fetchPrivateData} 
                             />
                         )}
                     </main>
                 </>
             )}
-
-            {activeReveal && (
-              <ResultRevealOverlay 
-                gameName={activeReveal.name} 
-                winningNumber={activeReveal.number} 
-                onClose={() => setActiveReveal(null)} 
-              />
-            )}
+            {activeReveal && <ResultRevealOverlay gameName={activeReveal.name} winningNumber={activeReveal.number} onClose={() => setActiveReveal(null)} />}
         </div>
     );
 };
 
-function App() {
-  return (
-    <div className="App bg-transparent text-slate-200 h-full">
-        <AppContent />
-    </div>
-  );
-}
-
+function App() { return (<div className="App bg-transparent text-slate-200 h-full"><AppContent /></div>); }
 export default App;

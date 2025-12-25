@@ -267,10 +267,11 @@ const updateDealer = (d, originalId) => {
     return findAccountById(d.id, 'dealers');
 };
 
-const findUsersByDealerId = (id) => db.prepare('SELECT * FROM users WHERE dealerId = ?').all(id).map(u => findAccountById(u.id, 'users'));
-const findBetsByDealerId = (id) => db.prepare('SELECT * FROM bets WHERE dealerId = ? ORDER BY timestamp DESC').all(id).map(b => ({ ...b, numbers: JSON.parse(b.numbers) }));
+const findUsersByDealerId = (id) => db.prepare('SELECT id FROM users WHERE LOWER(dealerId) = LOWER(?)').all(id).map(u => findAccountById(u.id, 'users'));
+const findBetsByDealerId = (id) => db.prepare('SELECT * FROM bets WHERE LOWER(dealerId) = LOWER(?) ORDER BY timestamp DESC').all(id).map(b => ({ ...b, numbers: JSON.parse(b.numbers) }));
+const findBetsByUserId = (id) => db.prepare('SELECT * FROM bets WHERE LOWER(userId) = LOWER(?) ORDER BY timestamp DESC').all(id).map(b => ({ ...b, numbers: JSON.parse(b.numbers) }));
 const findBetsByGameId = (id) => db.prepare('SELECT * FROM bets WHERE gameId = ?').all(id).map(b => ({ ...b, numbers: JSON.parse(b.numbers) }));
-const findUserByDealer = (u, d) => { const user = db.prepare('SELECT * FROM users WHERE id = ? AND dealerId = ?').get(u, d); return user ? findAccountById(u, 'users') : null; };
+const findUserByDealer = (u, d) => { const user = db.prepare('SELECT * FROM users WHERE LOWER(id) = LOWER(?) AND LOWER(dealerId) = LOWER(?)').get(u, d); return user ? findAccountById(u.id, 'users') : null; };
 
 const createUser = (u, dId, dep = 0) => {
     if (db.prepare('SELECT id FROM users WHERE lower(id) = ?').get(u.id.toLowerCase())) throw { status: 400, message: "Taken." };
@@ -374,6 +375,20 @@ const updateGameDrawTime = (id, time) => {
     return findAccountById(id, 'games');
 };
 
+function getAllNumberLimits() {
+    return db.prepare('SELECT * FROM number_limits').all();
+}
+
+function saveNumberLimit(limit) {
+    const stmt = db.prepare('INSERT OR REPLACE INTO number_limits (gameType, numberValue, limitAmount) VALUES (?, ?, ?)');
+    stmt.run(limit.gameType, limit.numberValue, limit.limitAmount);
+    return db.prepare('SELECT * FROM number_limits WHERE gameType = ? AND numberValue = ?').get(limit.gameType, limit.numberValue);
+}
+
+function deleteNumberLimit(id) {
+    db.prepare('DELETE FROM number_limits WHERE id = ?').run(id);
+}
+
 function resetAllGames() {
     runInTransaction(() => {
         // Reset all results for the next market day
@@ -385,5 +400,5 @@ function resetAllGames() {
 }
 
 module.exports = {
-    connect, verifySchema, findAccountById, findAccountForLogin, updatePassword, getAllFromTable, runInTransaction, addLedgerEntry, createDealer, updateDealer, findUsersByDealerId, findUserByDealer, createUser, updateUser, toggleAccountRestrictionByAdmin, toggleUserRestrictionByDealer, declareWinnerForGame, updateWinningNumber, approvePayoutsForGame, getFinancialSummary, getNumberStakeSummary, placeBulkBets, updateGameDrawTime, resetAllGames,
+    connect, verifySchema, findAccountById, findAccountForLogin, updatePassword, getAllFromTable, runInTransaction, addLedgerEntry, createDealer, updateDealer, findUsersByDealerId, findUserByDealer, findBetsByUserId, createUser, updateUser, toggleAccountRestrictionByAdmin, toggleUserRestrictionByDealer, declareWinnerForGame, updateWinningNumber, approvePayoutsForGame, getFinancialSummary, getNumberStakeSummary, placeBulkBets, updateGameDrawTime, resetAllGames, getAllNumberLimits, saveNumberLimit, deleteNumberLimit, findBetsByDealerId, findBetsByGameId
 };
