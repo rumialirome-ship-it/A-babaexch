@@ -571,7 +571,10 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
 
     const allCombosSelected = useMemo(() => {
         if (generatedCombos.length === 0) return false;
-        return generatedCombos.every(c => c.selected);
+        return generatedCombos.every(c => {
+             const stakeValue = parseFloat(c.stake);
+             return c.selected && !isNaN(stakeValue) && stakeValue > 0;
+        });
     }, [generatedCombos]);
 
     // --- End New Combo Game Logic ---
@@ -971,7 +974,7 @@ const WalletSummaryView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) =>
                     dailySummary.deposit += entry.credit;
                 } else if (description.includes('prize')) {
                     dailySummary.prize += entry.credit;
-                } else if (description.includes('commission')) {
+                } else if (description.includes('commission') || description.includes('comm earned')) {
                     dailySummary.commission += entry.credit;
                 }
             } else if (entry.debit > 0) {
@@ -1006,10 +1009,11 @@ interface UserGameSummary {
     winningNumber: string;
     totalStake: number;
     totalPayout: number;
+    totalCommission: number;
     net: number;
 }
 
-const GameBreakdownView: React.FC<{ bets: Bet[], games: Game[], userPrizeRates: PrizeRates }> = ({ bets, games, userPrizeRates }) => {
+const GameBreakdownView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ bets, games, user }) => {
     const gameSummaries = useMemo(() => {
         // Group bets by game
         const betsByGame = new Map<string, Bet[]>();
@@ -1025,19 +1029,30 @@ const GameBreakdownView: React.FC<{ bets: Bet[], games: Game[], userPrizeRates: 
             if (!game) return;
 
             const totalStake = gameBets.reduce((sum, b) => sum + b.totalAmount, 0);
-            const totalPayout = gameBets.reduce((sum, b) => sum + calculateBetPayout(b, game, userPrizeRates), 0);
+            const totalPayout = gameBets.reduce((sum, b) => sum + calculateBetPayout(b, game, user.prizeRates), 0);
+            const totalCommission = totalStake * (user.commissionRate / 100);
 
             summaries.push({
                 gameName: game.name,
                 winningNumber: game.winningNumber || '-',
                 totalStake,
                 totalPayout,
-                net: totalPayout - totalStake
+                totalCommission,
+                net: totalPayout + totalCommission - totalStake
             });
         });
 
         return summaries.sort((a, b) => a.gameName.localeCompare(b.gameName));
-    }, [bets, games, userPrizeRates]);
+    }, [bets, games, user]);
+
+    const grandTotals = useMemo(() => {
+        return gameSummaries.reduce((acc, curr) => ({
+            totalStake: acc.totalStake + curr.totalStake,
+            totalPayout: acc.totalPayout + curr.totalPayout,
+            totalCommission: acc.totalCommission + curr.totalCommission,
+            net: acc.net + curr.net
+        }), { totalStake: 0, totalPayout: 0, totalCommission: 0, net: 0 });
+    }, [gameSummaries]);
 
     if (gameSummaries.length === 0) return null;
 
@@ -1046,13 +1061,14 @@ const GameBreakdownView: React.FC<{ bets: Bet[], games: Game[], userPrizeRates: 
             <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">My Game Breakdown</h3>
             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
                 <div className="overflow-x-auto mobile-scroll-x">
-                    <table className="w-full text-left min-w-[600px]">
+                    <table className="w-full text-left min-w-[700px]">
                         <thead className="bg-slate-800/50">
                             <tr>
                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Result</th>
                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake</th>
                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Payout</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Commission</th>
                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Profit / Loss</th>
                             </tr>
                         </thead>
@@ -1063,12 +1079,24 @@ const GameBreakdownView: React.FC<{ bets: Bet[], games: Game[], userPrizeRates: 
                                     <td className="p-4 text-cyan-300 font-bold text-lg">{summary.winningNumber}</td>
                                     <td className="p-4 text-right text-white">{summary.totalStake.toFixed(2)}</td>
                                     <td className="p-4 text-right text-emerald-400">{summary.totalPayout > 0 ? summary.totalPayout.toFixed(2) : '-'}</td>
+                                    <td className="p-4 text-right text-sky-300">{summary.totalCommission.toFixed(2)}</td>
                                     <td className={`p-4 text-right font-bold ${summary.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                         {summary.net > 0 ? '+' : ''}{summary.net.toFixed(2)}
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
+                        <tfoot className="bg-slate-800/80 border-t-2 border-slate-700">
+                            <tr className="font-bold text-white uppercase text-xs">
+                                <td colSpan={2} className="p-4 text-sky-400">Total Performance</td>
+                                <td className="p-4 text-right font-mono">{grandTotals.totalStake.toFixed(2)}</td>
+                                <td className="p-4 text-right font-mono text-emerald-400">{grandTotals.totalPayout.toFixed(2)}</td>
+                                <td className="p-4 text-right font-mono text-sky-300">{grandTotals.totalCommission.toFixed(2)}</td>
+                                <td className={`p-4 text-right font-mono text-lg ${grandTotals.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {grandTotals.net > 0 ? '+' : ''}{grandTotals.net.toFixed(2)}
+                                </td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -1255,7 +1283,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
       </div>
       
       <WalletSummaryView entries={user.ledger} />
-      <GameBreakdownView bets={userBets} games={games} userPrizeRates={user.prizeRates} />
+      <GameBreakdownView bets={userBets} games={games} user={user} />
       <BetHistoryView bets={userBets} games={games} user={user} />
       <LedgerView entries={user.ledger} />
       

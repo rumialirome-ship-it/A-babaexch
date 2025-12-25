@@ -27,19 +27,19 @@ const Header: React.FC = () => {
                         <img src={account.avatarUrl} alt={account.name} className="w-12 h-12 rounded-full object-cover border-2 border-cyan-400/50" />
                     ) : (
                         <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-cyan-400/50 flex items-center justify-center">
-                            <span className="font-bold text-xl text-cyan-300">{account.name.charAt(0)}</span>
+                            <span className="font-bold text-xl text-cyan-300">{account.name ? account.name.charAt(0) : '?'}</span>
                         </div>
                     )}
                     <div>
                         <h1 className="text-xl font-bold glitch-text hidden md:block" data-text="A-BABA EXCHANGE">A-BABA EXCHANGE</h1>
                          <div className="flex items-center text-sm">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold mr-2 ${roleColors[role]}`}>{role}</span>
-                            <span className="text-slate-300 font-semibold tracking-wider">{account.name}</span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold mr-2 ${roleColors[role] || 'bg-slate-700'}`}>{role}</span>
+                            <span className="text-slate-300 font-semibold tracking-wider">{account.name || 'Account'}</span>
                         </div>
                     </div>
                 </div>
                 <div className="flex items-center space-x-4">
-                     { 'wallet' in account && (
+                     { typeof account.wallet === 'number' && (
                         <div className="hidden md:flex items-center bg-slate-800/50 px-4 py-2 rounded-md border border-slate-700 shadow-inner">
                             {React.cloneElement(Icons.wallet, { className: "h-6 w-6 mr-3 text-cyan-400" })}
                             <span className="font-semibold text-white text-lg tracking-wider">PKR {account.wallet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -64,61 +64,58 @@ const AppContent: React.FC = () => {
     const lastGamesRef = useRef<Game[]>([]);
 
     const parseAllDates = (data: any) => {
+        if (!data) return data;
         const parseLedger = (ledger: LedgerEntry[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
-        if (data.users) data.users = data.users.map((u: User) => ({...u, ledger: parseLedger(u.ledger)}));
-        if (data.dealers) data.dealers = data.dealers.map((d: Dealer) => ({...d, ledger: parseLedger(d.ledger)}));
-        if (data.bets) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
+        if (data.users && Array.isArray(data.users)) data.users = data.users.map((u: User) => ({...u, ledger: parseLedger(u.ledger)}));
+        if (data.dealers && Array.isArray(data.dealers)) data.dealers = data.dealers.map((d: Dealer) => ({...d, ledger: parseLedger(d.ledger)}));
+        if (data.bets && Array.isArray(data.bets)) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
         return data;
     };
 
     const fetchData = useCallback(async () => {
         try {
-            // 1. Basic Public Data Polling (Games) - needed for reveal overlay for everyone
             const gamesResponse = await fetch('/api/games');
             if (gamesResponse.ok) {
                 const gamesData = await gamesResponse.json();
-                setGames(gamesData);
+                setGames(Array.isArray(gamesData) ? gamesData : []);
             }
 
-            // 2. Private Role-based Data Polling
             if (!role || !account) return;
 
-            let data;
             if (role === Role.Admin) {
                 const response = await fetchWithAuth('/api/admin/data');
-                if (!response.ok) throw new Error('Failed to fetch admin data');
-                data = await response.json();
-                const parsedData = parseAllDates(data);
-                setUsers(parsedData.users);
-                setDealers(parsedData.dealers);
-                setBets(parsedData.bets);
+                if (response.ok) {
+                    const data = await response.json();
+                    const parsedData = parseAllDates(data);
+                    setUsers(parsedData.users || []);
+                    setDealers(parsedData.dealers || []);
+                    setBets(parsedData.bets || []);
+                }
             } else if (role === Role.Dealer) {
                 const response = await fetchWithAuth('/api/dealer/data');
-                if (!response.ok) throw new Error('Failed to fetch dealer data');
-                data = await response.json();
-                const parsedData = parseAllDates(data);
-                setUsers(parsedData.users);
-                setBets(parsedData.bets);
+                if (response.ok) {
+                    const data = await response.json();
+                    const parsedData = parseAllDates(data);
+                    setUsers(parsedData.users || []);
+                    setBets(parsedData.bets || []);
+                }
             } else if (role === Role.User) {
                 const response = await fetchWithAuth('/api/user/data');
-                if (!response.ok) throw new Error('Failed to fetch user data');
-                data = await response.json();
-                const parsedData = parseAllDates(data);
-                setBets(parsedData.bets);
+                if (response.ok) {
+                    const data = await response.json();
+                    const parsedData = parseAllDates(data);
+                    setBets(parsedData.bets || []);
+                }
             }
         } catch (error) {
             console.error("Failed to fetch data:", error);
         }
     }, [role, account, fetchWithAuth]);
 
-    // Detect new winners for the reveal animation (Runs for everyone)
     useEffect(() => {
         if (games.length > 0 && lastGamesRef.current.length > 0) {
-            // Check for new winners in the incoming data
             games.forEach(newGame => {
                 const oldGame = lastGamesRef.current.find(g => g.id === newGame.id);
-                // Trigger reveal if winningNumber appeared and wasn't there before
-                // Also ignore partial AK winners (ending with _)
                 if (newGame.winningNumber && 
                     !newGame.winningNumber.endsWith('_') && 
                     (!oldGame || !oldGame.winningNumber || oldGame.winningNumber.endsWith('_'))
@@ -131,10 +128,8 @@ const AppContent: React.FC = () => {
     }, [games]);
 
     useEffect(() => {
-        // ALWAYS fetch data (at least games) every second
         fetchData();
-        const intervalId = setInterval(fetchData, 1000);
-    
+        const intervalId = setInterval(fetchData, 2000); // Polling every 2 seconds for performance
         return () => clearInterval(intervalId);
     }, [fetchData]);
 
@@ -325,13 +320,43 @@ const AppContent: React.FC = () => {
                     <Header />
                     <main className="flex-grow">
                         {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
-                        {role === Role.Dealer && <DealerPanel dealer={account as Dealer} users={users} onSaveUser={onSaveUser} topUpUserWallet={topUpUserWallet} withdrawFromUserWallet={withdrawFromUserWallet} toggleAccountRestriction={toggleAccountRestriction} bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} />}
-                        {role === Role.Admin && <AdminPanel admin={account as Admin} dealers={dealers} onSaveDealer={onSaveDealer} users={users} setUsers={setUsers} games={games} bets={bets} declareWinner={declareWinner} updateWinner={updateWinner} approvePayouts={approvePayouts} topUpDealerWallet={topUpDealerWallet} withdrawFromDealerWallet={withdrawFromDealerWallet} toggleAccountRestriction={toggleAccountRestriction} onPlaceAdminBets={onPlaceAdminBets} updateGameDrawTime={updateGameDrawTime} onRefreshData={fetchData} />}
+                        {role === Role.Dealer && account && (
+                            <DealerPanel 
+                                dealer={account as Dealer} 
+                                users={users} 
+                                onSaveUser={onSaveUser} 
+                                topUpUserWallet={topUpUserWallet} 
+                                withdrawFromUserWallet={withdrawFromUserWallet} 
+                                toggleAccountRestriction={toggleAccountRestriction} 
+                                bets={bets} 
+                                games={games} 
+                                placeBetAsDealer={placeBetAsDealer} 
+                            />
+                        )}
+                        {role === Role.Admin && account && (
+                            <AdminPanel 
+                                admin={account as Admin} 
+                                dealers={dealers} 
+                                onSaveDealer={onSaveDealer} 
+                                users={users} 
+                                setUsers={setUsers} 
+                                games={games} 
+                                bets={bets} 
+                                declareWinner={declareWinner} 
+                                updateWinner={updateWinner} 
+                                approvePayouts={approvePayouts} 
+                                topUpDealerWallet={topUpDealerWallet} 
+                                withdrawFromDealerWallet={withdrawFromDealerWallet} 
+                                toggleAccountRestriction={toggleAccountRestriction} 
+                                onPlaceAdminBets={onPlaceAdminBets} 
+                                updateGameDrawTime={updateGameDrawTime} 
+                                onRefreshData={fetchData} 
+                            />
+                        )}
                     </main>
                 </>
             )}
 
-            {/* Global Result Reveal Animation - Rendered outside logic branches for full visibility */}
             {activeReveal && (
               <ResultRevealOverlay 
                 gameName={activeReveal.name} 
