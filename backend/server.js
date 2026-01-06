@@ -27,15 +27,19 @@ function scheduleNextGameReset() {
     }
 
     const delay = resetTime.getTime() - now.getTime();
+    console.error(`--- Scheduling next game reset for ${resetTime.toUTCString()} (in approx ${Math.round(delay / 60000)} minutes) ---`);
+    
     setTimeout(() => {
-        try { database.resetAllGames(); } catch (e) { console.error('Reset error:', e); }
+        try { 
+            database.resetAllGames(); 
+        } catch (e) { 
+            console.error('Reset error:', e); 
+        }
         scheduleNextGameReset();
     }, delay);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const API_KEY = process.env.API_KEY;
-let ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
 
 // --- AUTHENTICATION ROUTES ---
 app.post('/api/auth/login', (req, res) => {
@@ -80,6 +84,41 @@ app.post('/api/auth/reset-password', (req, res) => {
 // --- PUBLIC DATA ---
 app.get('/api/games', (req, res) => {
     res.json(database.getAllFromTable('games'));
+});
+
+// --- AI LUCKY PICK ---
+app.post('/api/user/ai-lucky-pick', authMiddleware, async (req, res) => {
+    const { gameType, count = 5 } = req.body;
+    const API_KEY = process.env.API_KEY;
+
+    if (!API_KEY) {
+        return res.status(503).json({ message: "AI services are currently unavailable." });
+    }
+
+    try {
+        const ai = new GoogleGenAI({ apiKey: API_KEY });
+        const prompt = `You are a lucky number oracle for the A-Baba Exchange lottery platform. 
+        Generate ${count} unique lucky numbers for a "${gameType}" game.
+        - For "2 Digit" games, provide numbers between 00 and 99.
+        - For "1 Digit" games, provide numbers between 0 and 9.
+        Return ONLY the numbers separated by commas, no other text.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                systemInstruction: "You are a professional lottery analyst and lucky number generator.",
+                temperature: 0.9,
+                topP: 0.95,
+            }
+        });
+
+        const luckyNumbers = response.text.replace(/\s+/g, '');
+        res.json({ luckyNumbers });
+    } catch (error) {
+        console.error("Gemini AI Error:", error);
+        res.status(500).json({ message: "The oracle is silent today. Try again later." });
+    }
 });
 
 // --- DATA ROUTES ---
@@ -284,7 +323,8 @@ app.delete('/api/admin/number-limits/:id', authMiddleware, (req, res) => { datab
 const startServer = () => {
   database.connect();
   database.verifySchema();
-  try { database.resetAllGames(); } catch (e) {}
+  // CRITICAL FIX: Removed automatic resetAllGames() from startup.
+  // Data will only clear at the scheduled 4:00 PM PKT time.
   scheduleNextGameReset();
   app.listen(3001, () => console.error('>>> A-BABA BACKEND IS LIVE ON PORT 3001 <<<'));
 };

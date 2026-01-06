@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
 import { Icons } from '../constants';
 import { useCountdown } from '../hooks/useCountdown';
+import { useAuth } from '../hooks/useAuth';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
@@ -310,11 +311,13 @@ interface ComboLine {
 }
 
 const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose, onPlaceBet, apiError, clearApiError }) => {
+    const { fetchWithAuth } = useAuth();
     const [subGameType, setSubGameType] = useState<SubGameType>(SubGameType.TwoDigit);
     const [manualNumbersInput, setManualNumbersInput] = useState('');
     const [manualAmountInput, setManualAmountInput] = useState('');
     const [bulkInput, setBulkInput] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [isAiLoading, setIsAiLoading] = useState(false);
 
     // --- New State for Combo Game ---
     const [comboDigitsInput, setComboDigitsInput] = useState('');
@@ -390,6 +393,32 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         }
     }, [manualNumbersInput, manualAmountInput, bulkInput, comboDigitsInput, comboGlobalStake, subGameType, clearApiError]);
 
+    const handleAiLuckyPick = async () => {
+        if (isAiLoading) return;
+        setIsAiLoading(true);
+        setError(null);
+        try {
+            const response = await fetchWithAuth('/api/user/ai-lucky-pick', {
+                method: 'POST',
+                body: JSON.stringify({ gameType: subGameType, count: 5 })
+            });
+            const data = await response.json();
+            const numbers = data.luckyNumbers.replace(/,/g, '');
+            
+            // Format for the input
+            let formatted = '';
+            if (subGameType === SubGameType.TwoDigit) {
+                formatted = (numbers.match(/.{1,2}/g) || []).join(', ');
+            } else {
+                formatted = numbers.split('').join(', ');
+            }
+            setManualNumbersInput(formatted);
+        } catch (err: any) {
+            setError(err.message || "Failed to get AI lucky numbers.");
+        } finally {
+            setIsAiLoading(false);
+        }
+    };
 
     if (!game) return null;
 
@@ -774,7 +803,19 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                     ) : (
                         <>
                             <div className="mb-4">
-                                <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Number(s) (comma-separated)</label>
+                                <div className="flex justify-between items-end mb-1">
+                                    <label className="block text-slate-400 text-sm font-medium">Enter Number(s) (comma-separated)</label>
+                                    <button 
+                                        onClick={handleAiLuckyPick} 
+                                        disabled={isAiLoading}
+                                        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-sky-500 hover:from-cyan-300 hover:to-sky-400 disabled:opacity-50 transition-all mb-1"
+                                    >
+                                        {isAiLoading ? (
+                                            <div className="w-3 h-3 border-2 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin"></div>
+                                        ) : Icons.sparkles}
+                                        {isAiLoading ? 'Oracles Thinking...' : 'AI Lucky Pick'}
+                                    </button>
+                                </div>
                                 <textarea value={manualNumbersInput} onChange={handleManualNumberChange} rows={3} placeholder={getPlaceholder()} className={inputClass} />
                             </div>
                             <div className="mb-4">
@@ -809,489 +850,67 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     );
 };
 
-interface BetConfirmationDetails {
-    isMultiGame: boolean;
-    grandTotalAmount: number;
-    grandTotalNumbers: number;
-
-    multiGameSummary?: { 
-        gameId: string;
-        gameName: string; 
-        totalAmount: number;
-        totalNumbers: number;
-        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-    }[];
-    
-    gameId?: string;
-    gameName?: string;
-    subGameType?: SubGameType;
-    totalAmount?: number;
-    totalNumbers?: number;
-    numbers?: string[];
-    amountPerNumber?: number;
-    potentialWinnings?: number;
-    betGroups?: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-    totalPotentialWinnings?: number;
-}
-
-
-const BetConfirmationPromptModal: React.FC<{ details: BetConfirmationDetails; onConfirm: () => void; onClose: () => void; isLoading: boolean; error: string | null; }> = ({ details, onConfirm, onClose, isLoading, error }) => {
-    return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-md border border-sky-500/30">
-                <div className="p-6 text-center">
-                    <h3 className="text-2xl font-bold text-white mb-4 uppercase tracking-wider">Confirm Bet</h3>
-                    <p className="text-slate-400 mb-6">Review details before confirming.</p>
-
-                    <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm max-h-64 overflow-y-auto font-sans">
-                        {details.isMultiGame && details.multiGameSummary ? (
-                            <>
-                                {details.multiGameSummary.map(game => (
-                                     <div key={game.gameName} className="border-b border-slate-800 pb-2 mb-2">
-                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{game.gameName}</span></div>
-                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Bets:</span><span className="font-mono text-cyan-300">{game.totalNumbers}</span></div>
-                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Cost:</span><span className="font-mono text-red-400">{game.totalAmount.toFixed(2)} PKR</span></div>
-                                     </div>
-                                ))}
-                                <div className="flex justify-between items-center border-t-2 border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Grand Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.grandTotalAmount.toFixed(2)} PKR</span></div>
-
-                            </>
-                        ) : (
-                             <>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName}</span></div>
-                                {details.subGameType === SubGameType.Bulk ? (
-                                    <>
-                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Bets:</span><span className="font-mono text-cyan-300">{details.totalNumbers}</span></div>
-                                        <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount?.toFixed(2)} PKR</span></div>
-                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Max Potential Win:</span><span className="font-mono text-emerald-400">{details.totalPotentialWinnings?.toFixed(2)} PKR</span></div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Type:</span><span className="font-bold text-white">{details.subGameType}</span></div>
-                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Numbers:</span><span className="font-mono text-cyan-300 w-full sm:max-w-[60%] truncate text-right" title={details.numbers?.join(', ')}>{details.numbers?.join(', ')}</span></div>
-                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Amount/Number:</span><span className="font-mono text-white">{details.amountPerNumber?.toFixed(2)} PKR</span></div>
-                                        <div className="flex justify-between items-center border-t border-slate-700 pt-3 mt-3"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-bold text-lg font-mono text-red-400">{details.totalAmount?.toFixed(2)} PKR</span></div>
-                                        <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Potential Win:</span><span className="font-mono text-emerald-400">{details.potentialWinnings?.toFixed(2)} PKR</span></div>
-                                    </>
-                                )}
-                            </>
-                        )}
-                    </div>
-
-                    {error && (
-                        <div className="bg-red-500/20 border-l-4 border-red-500 text-red-300 text-sm p-4 rounded-md mb-6 text-left animate-pulse">
-                            <p className="font-bold mb-1 uppercase tracking-wider">⚠️ LIMIT ERROR</p>
-                            {error}
-                        </div>
-                    )}
-
-
-                    <div className="flex justify-end space-x-4 pt-2">
-                        <button onClick={onClose} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-6 rounded-md transition-colors">Cancel</button>
-                        <button onClick={onConfirm} disabled={isLoading} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:bg-slate-600 disabled:cursor-wait">
-                            {isLoading ? 'Processing...' : 'Confirm'}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const AnimatedCheckIcon = () => (
-  <svg className="animated-check" viewBox="0 0 52 52">
-    <circle className="animated-check__circle" cx="26" cy="26" r="25" fill="none"/>
-    <path className="animated-check__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
-  </svg>
-);
-
-const BetConfirmationModal: React.FC<{ details: BetConfirmationDetails; onClose: () => void; }> = ({ details, onClose }) => {
-    const [isShowing, setIsShowing] = useState(false);
-    useEffect(() => { const timer = setTimeout(() => setIsShowing(true), 50); return () => clearTimeout(timer); }, []);
-    const handleClose = () => { setIsShowing(false); setTimeout(onClose, 300); };
-
-    return (
-        <div className={`fixed inset-0 bg-black flex justify-center items-center z-50 p-4 transition-opacity duration-300 ease-out ${isShowing ? 'bg-opacity-80' : 'bg-opacity-0'}`}>
-            <div className={`bg-slate-900/80 rounded-2xl shadow-2xl w-full max-w-md border border-green-500/30 transition-all duration-300 ease-out transform ${isShowing ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
-                <div className="p-8 text-center">
-                    <div className="mx-auto flex items-center justify-center h-24 w-24 rounded-full bg-green-500/20 mb-5 shadow-[0_0_20px_rgba(74,222,128,0.3)]">
-                       <AnimatedCheckIcon />
-                    </div>
-                    <h3 className="text-3xl font-bold text-white mb-2 uppercase tracking-wider">Bet Placed!</h3>
-                    <p className="text-slate-300 mb-8">Your bet has been recorded. Good luck!</p>
-                     <div className="text-left bg-slate-900/50 border border-slate-700 p-4 rounded-lg my-6 space-y-3 text-sm">
-                        {details.isMultiGame ? (
-                            <>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Bets Placed:</span><span className="font-mono text-cyan-300">{details.grandTotalNumbers}</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.grandTotalAmount.toFixed(2)} PKR</span></div>
-                            </>
-                        ) : (
-                             <>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Game:</span><span className="font-bold text-white">{details.gameName}</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Your Numbers:</span><span className="font-mono text-cyan-300 text-right w-full sm:max-w-[60%] truncate">{details.numbers?.join(', ')}</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Total Cost:</span><span className="font-mono text-red-400">{details.totalAmount?.toFixed(2)} PKR</span></div>
-                                <div className="flex justify-between items-center"><span className="font-medium text-slate-400">Potential Win:</span><span className="font-mono text-emerald-400">{details.potentialWinnings?.toFixed(2)} PKR</span></div>
-                            </>
-                        )}
-                    </div>
-                    <button onClick={handleClose} className="bg-gradient-to-r from-sky-600 to-cyan-500 hover:from-sky-500 hover:to-cyan-400 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 w-full transform hover:scale-105 shadow-lg shadow-sky-500/20">DONE</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const SummaryCard: React.FC<{ title: string; value: number; color: string }> = ({ title, value, color }) => (
-    <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-        <p className="text-sm text-slate-400 uppercase tracking-wider">{title}</p>
-        <p className={`text-3xl font-bold font-mono mt-1 ${color}`}>{value.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-    </div>
-);
-
-interface WalletSummary {
-    deposit: number;
-    prize: number;
-    commission: number;
-    booking: number;
-    withdrawal: number;
-}
-
-const WalletSummaryView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
-    const summary: WalletSummary = useMemo(() => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const dailySummary: WalletSummary = {
-            deposit: 0, prize: 0, commission: 0, booking: 0, withdrawal: 0,
-        };
-
-        const todayEntries = entries.filter(entry => new Date(entry.timestamp) >= today);
-        
-        todayEntries.forEach(entry => {
-            const description = entry.description.toLowerCase();
-            if (entry.credit > 0) {
-                if (description.includes('top-up') || description.includes('deposit')) {
-                    dailySummary.deposit += entry.credit;
-                } else if (description.includes('prize')) {
-                    dailySummary.prize += entry.credit;
-                } else if (description.includes('commission') || description.includes('comm earned')) {
-                    dailySummary.commission += entry.credit;
-                }
-            } else if (entry.debit > 0) {
-                if (description.includes('bet placed')) {
-                    dailySummary.booking += entry.debit;
-                } else if (description.includes('withdrawal')) {
-                    dailySummary.withdrawal += entry.debit;
-                }
-            }
-        });
-
-        return dailySummary;
-    }, [entries]);
-
-    return (
-        <div className="mt-12">
-            <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">Today’s Wallet Summary</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 text-center">
-                <SummaryCard title="Deposit" value={summary.deposit} color="text-green-400" />
-                <SummaryCard title="Prize" value={summary.prize} color="text-emerald-400" />
-                <SummaryCard title="Commission" value={summary.commission} color="text-cyan-400" />
-                <SummaryCard title="Booking" value={summary.booking} color="text-red-400" />
-                <SummaryCard title="Withdrawal" value={summary.withdrawal} color="text-amber-400" />
-            </div>
-        </div>
-    );
-};
-
-// --- NEW GAME BY GAME BREAKDOWN VIEW ---
-interface UserGameSummary {
-    gameName: string;
-    winningNumber: string;
-    totalStake: number;
-    totalPayout: number;
-    totalCommission: number;
-    net: number;
-}
-
-const GameBreakdownView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ bets, games, user }) => {
-    const gameSummaries = useMemo(() => {
-        // Group bets by game
-        const betsByGame = new Map<string, Bet[]>();
-        bets.forEach(bet => {
-            const list = betsByGame.get(bet.gameId) || [];
-            list.push(bet);
-            betsByGame.set(bet.gameId, list);
-        });
-
-        const summaries: UserGameSummary[] = [];
-        betsByGame.forEach((gameBets, gameId) => {
-            const game = games.find(g => g.id === gameId);
-            if (!game) return;
-
-            const totalStake = gameBets.reduce((sum, b) => sum + b.totalAmount, 0);
-            const totalPayout = gameBets.reduce((sum, b) => sum + calculateBetPayout(b, game, user.prizeRates), 0);
-            const totalCommission = totalStake * (user.commissionRate / 100);
-
-            summaries.push({
-                gameName: game.name,
-                winningNumber: game.winningNumber || '-',
-                totalStake,
-                totalPayout,
-                totalCommission,
-                net: totalPayout + totalCommission - totalStake
-            });
-        });
-
-        return summaries.sort((a, b) => a.gameName.localeCompare(b.gameName));
-    }, [bets, games, user]);
-
-    const grandTotals = useMemo(() => {
-        return gameSummaries.reduce((acc, curr) => ({
-            totalStake: acc.totalStake + curr.totalStake,
-            totalPayout: acc.totalPayout + curr.totalPayout,
-            totalCommission: acc.totalCommission + curr.totalCommission,
-            net: acc.net + curr.net
-        }), { totalStake: 0, totalPayout: 0, totalCommission: 0, net: 0 });
-    }, [gameSummaries]);
-
-    if (gameSummaries.length === 0) return null;
-
-    return (
-        <div className="mt-12">
-            <h3 className="text-2xl font-bold mb-4 text-sky-400 uppercase tracking-widest">My Game Breakdown</h3>
-            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto mobile-scroll-x">
-                    <table className="w-full text-left min-w-[700px]">
-                        <thead className="bg-slate-800/50">
-                            <tr>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Result</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Payout</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Commission</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Profit / Loss</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800 font-mono">
-                            {gameSummaries.map(summary => (
-                                <tr key={summary.gameName} className="hover:bg-sky-500/10 transition-colors">
-                                    <td className="p-4 font-bold text-white font-sans">{summary.gameName}</td>
-                                    <td className="p-4 text-cyan-300 font-bold text-lg">{summary.winningNumber}</td>
-                                    <td className="p-4 text-right text-white">{summary.totalStake.toFixed(2)}</td>
-                                    <td className="p-4 text-right text-emerald-400">{summary.totalPayout > 0 ? summary.totalPayout.toFixed(2) : '-'}</td>
-                                    <td className="p-4 text-right text-sky-300">{summary.totalCommission.toFixed(2)}</td>
-                                    <td className={`p-4 text-right font-bold ${summary.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                        {summary.net > 0 ? '+' : ''}{summary.net.toFixed(2)}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                        <tfoot className="bg-slate-800/80 border-t-2 border-slate-700">
-                            <tr className="font-bold text-white uppercase text-xs">
-                                <td colSpan={2} className="p-4 text-sky-400">Total Performance</td>
-                                <td className="p-4 text-right font-mono">{grandTotals.totalStake.toFixed(2)}</td>
-                                <td className="p-4 text-right font-mono text-emerald-400">{grandTotals.totalPayout.toFixed(2)}</td>
-                                <td className="p-4 text-right font-mono text-sky-300">{grandTotals.totalCommission.toFixed(2)}</td>
-                                <td className={`p-4 text-right font-mono text-lg ${grandTotals.net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {grandTotals.net > 0 ? '+' : ''}{grandTotals.net.toFixed(2)}
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
+// --- FIX: Define and Export UserPanel ---
 interface UserPanelProps {
   user: User;
   games: Game[];
   bets: Bet[];
-  placeBet: (details: {
-    userId: string;
-    gameId: string;
-    betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-  }) => Promise<void>;
+  placeBet: (details: any) => Promise<void>;
 }
 
-
-const getPrizeRateForBet = (subGameType: SubGameType, prizeRates: PrizeRates) => {
-    switch(subGameType) {
-        case SubGameType.OneDigitOpen: return prizeRates.oneDigitOpen;
-        case SubGameType.OneDigitClose: return prizeRates.oneDigitClose;
-        default: return prizeRates.twoDigit;
-    }
-};
-
 const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) => {
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
-  const [betConfirmation, setBetConfirmation] = useState<BetConfirmationDetails | null>(null);
-  const [betToConfirm, setBetToConfirm] = useState<BetConfirmationDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [bettingError, setBettingError] = useState<string | null>(null);
-  
-  const userBets = bets.filter(b => b.userId === user.id);
+    const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+    const [apiError, setApiError] = useState<string | null>(null);
 
-  const handleReviewBet = (details: {
-        gameId: string,
-        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[],
-    } | {
-        isMultiGame: true,
-        multiGameBets: Map<string, { gameName: string, betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>
-    }) => {
-    setBettingError(null);
-    let confirmationDetails: BetConfirmationDetails;
-
-    if ('isMultiGame' in details) {
-        let grandTotalAmount = 0;
-        let grandTotalNumbers = 0;
-        const multiGameSummary = Array.from(details.multiGameBets.entries()).map(([gameId, data]) => {
-            let totalAmount = 0;
-            let totalNumbers = 0;
-            data.betGroups.forEach(group => {
-                totalAmount += group.numbers.length * group.amountPerNumber;
-                totalNumbers += group.numbers.length;
-            });
-            grandTotalAmount += totalAmount;
-            grandTotalNumbers += totalNumbers;
-            return { gameName: data.gameName, totalAmount, totalNumbers, betGroups: data.betGroups, gameId };
-        });
-
-        confirmationDetails = {
-            isMultiGame: true,
-            grandTotalAmount,
-            grandTotalNumbers,
-            multiGameSummary
-        };
-    } else {
-        const game = games.find(g => g.id === details.gameId);
-        if (!game) return;
-
-        let totalAmount = 0;
-        let totalNumbers = 0;
-        let totalPotentialWinnings = 0;
-
-        details.betGroups.forEach(group => {
-            totalAmount += group.numbers.length * group.amountPerNumber;
-            totalNumbers += group.numbers.length;
-            const prizeRate = getPrizeRateForBet(group.subGameType, user.prizeRates);
-            const potentialWinForGroup = group.amountPerNumber * prizeRate;
-            if (potentialWinForGroup > totalPotentialWinnings) {
-                totalPotentialWinnings = potentialWinForGroup;
-            }
-        });
-
-        confirmationDetails = {
-            isMultiGame: false,
-            grandTotalAmount: totalAmount,
-            grandTotalNumbers: totalNumbers,
-            gameId: game.id,
-            gameName: game.name,
-            totalAmount,
-            totalNumbers,
-            betGroups: details.betGroups,
-            totalPotentialWinnings,
-            // Add single bet details for simple confirmation view
-            subGameType: details.betGroups[0]?.subGameType,
-            numbers: details.betGroups[0]?.numbers,
-            amountPerNumber: details.betGroups[0]?.amountPerNumber,
-            potentialWinnings: totalPotentialWinnings,
-        };
-    }
-    
-    setBetToConfirm(confirmationDetails);
-};
-
-  
-  const handleConfirmBet = async () => {
-    if (!betToConfirm) return;
-
-    setIsLoading(true);
-    setBettingError(null);
-    let isSuccess = false;
-    
-    const betsToPlace: { gameId: string, betGroups: any[] }[] = [];
-    if (betToConfirm.isMultiGame && betToConfirm.multiGameSummary) {
-        betToConfirm.multiGameSummary.forEach(gameData => {
-            betsToPlace.push({ gameId: gameData.gameId, betGroups: gameData.betGroups });
-        });
-    } else if (betToConfirm.gameId && betToConfirm.betGroups) {
-        betsToPlace.push({ gameId: betToConfirm.gameId, betGroups: betToConfirm.betGroups });
-    }
-
-    try {
-        await Promise.all(betsToPlace.map(bet => placeBet({
-            userId: user.id,
-            gameId: bet.gameId,
-            betGroups: bet.betGroups,
-        })));
-        
-        isSuccess = true;
-    } catch (error: any) {
-        console.error("Bet placement failed:", error);
-        setBettingError(error.message);
-        isSuccess = false;
-    } finally {
-        setIsLoading(false);
-
-        if (isSuccess) {
-            setBetConfirmation(betToConfirm);
-            setBetToConfirm(null); // Only close if successful
-            setSelectedGame(null); 
+    const handlePlaceBet = async (details: any) => {
+        try {
+            await placeBet(details);
+            setSelectedGame(null);
+        } catch (err: any) {
+            setApiError(err.message || "Failed to place bet.");
         }
-        // If not successful, we keep betToConfirm active so the user can see the error in the modal
-    }
-  };
+    };
 
-  return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
-       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-800/50 p-4 rounded-lg mb-8 border border-slate-700 gap-4">
-        <div className="flex items-center">
-            {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt={user.name} className="w-16 h-16 rounded-full mr-5 border-2 border-sky-400 object-cover"/>
-            ) : (
-                <div className="w-16 h-16 rounded-full mr-5 border-2 border-sky-400 bg-slate-700 flex items-center justify-center">
-                    <span className="font-bold text-3xl">{user.name.charAt(0)}</span>
+    return (
+        <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-white uppercase tracking-widest">User Dashboard</h2>
+                    <p className="text-slate-400">Welcome back, <span className="text-sky-400 font-bold">{user.name}</span></p>
                 </div>
-            )}
-            <div>
-              <h2 className="text-2xl font-bold text-white uppercase tracking-wider">{user.name}</h2>
-              <p className="text-slate-400">Welcome back! Ready to play?</p>
+                <div className="bg-slate-800/50 px-6 py-3 rounded-xl border border-slate-700 shadow-lg flex flex-col items-end">
+                    <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-1">Available Wallet</p>
+                    <p className="text-2xl font-black text-cyan-400 font-mono">PKR {user.wallet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                </div>
             </div>
-        </div>
-        <div className="flex items-center gap-4 w-full md:w-auto self-stretch">
-            <div className="bg-slate-900/50 p-3 rounded-md text-center flex-1 border border-slate-700 flex flex-col justify-center">
-                <p className="text-xs text-slate-400 uppercase">Balance</p>
-                <p className="font-mono font-bold text-lg text-emerald-400">PKR {user.wallet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-            </div>
-        </div>
-      </div>
-       {user.isRestricted && (
-          <div className="bg-red-500/20 border border-red-500/30 text-red-300 p-4 rounded-lg mb-8 text-center" role="alert">
-              <p className="font-bold text-lg">Your account is restricted.</p>
-              <p>You cannot place bets at this time. Please contact your dealer for assistance.</p>
-          </div>
-      )}
 
-      <h2 className="text-3xl font-bold text-sky-400 mb-6 uppercase tracking-widest">Available Games</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {games.map(game => (
-          <GameCard key={game.id} game={game} onPlay={setSelectedGame} isRestricted={user.isRestricted} />
-        ))}
-      </div>
-      
-      <WalletSummaryView entries={user.ledger} />
-      <GameBreakdownView bets={userBets} games={games} user={user} />
-      <BetHistoryView bets={userBets} games={games} user={user} />
-      <LedgerView entries={user.ledger} />
-      
-      {selectedGame && <BettingModal game={selectedGame} games={games} user={user} onClose={() => { setSelectedGame(null); setBettingError(null); }} onPlaceBet={handleReviewBet} apiError={bettingError} clearApiError={() => setBettingError(null)} />}
-      {betToConfirm && <BetConfirmationPromptModal details={betToConfirm} onConfirm={handleConfirmBet} onClose={() => { setBetToConfirm(null); setBettingError(null); }} isLoading={isLoading} error={bettingError} />}
-      {betConfirmation && <BetConfirmationModal details={betConfirmation} onClose={() => setBetConfirmation(null)} />}
-    </div>
-  );
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {games.map(game => (
+                    <GameCard 
+                        key={game.id} 
+                        game={game} 
+                        onPlay={setSelectedGame} 
+                        isRestricted={user.isRestricted} 
+                    />
+                ))}
+            </div>
+
+            <BettingModal 
+                game={selectedGame} 
+                games={games}
+                user={user} 
+                onClose={() => setSelectedGame(null)} 
+                onPlaceBet={handlePlaceBet}
+                apiError={apiError}
+                clearApiError={() => setApiError(null)}
+            />
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
+                <BetHistoryView bets={bets} games={games} user={user} />
+                <LedgerView entries={user.ledger} />
+            </div>
+        </div>
+    );
 };
 
 export default UserPanel;
