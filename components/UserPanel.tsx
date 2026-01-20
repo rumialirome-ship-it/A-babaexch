@@ -24,6 +24,41 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
     );
 };
 
+const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[] }> = ({ games, bets }) => {
+    const data = useMemo(() => {
+        return games.map(game => {
+            const gameBets = bets.filter(b => b.gameId === game.id);
+            const totalStake = gameBets.reduce((sum, b) => sum + b.totalAmount, 0);
+            return {
+                id: game.id,
+                name: game.name,
+                logo: game.logo,
+                totalStake
+            };
+        }).filter(d => d.totalStake > 0).sort((a, b) => b.totalStake - a.totalStake);
+    }, [games, bets]);
+
+    if (data.length === 0) return null;
+
+    return (
+        <div className="mb-8 animate-fade-in">
+            <h3 className="text-xl font-bold text-white uppercase tracking-widest mb-4 flex items-center gap-2">
+                My Session Summary
+                <span className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30">Current Cycle</span>
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {data.map(item => (
+                    <div key={item.id} className="bg-slate-800/40 border border-slate-700 p-3 rounded-xl flex flex-col items-center text-center hover:border-cyan-500/50 transition-colors">
+                        <img src={item.logo} className="w-8 h-8 rounded-full mb-2 opacity-80" alt="" />
+                        <p className="text-[10px] text-slate-400 uppercase font-black tracking-tighter mb-1 truncate w-full">{item.name}</p>
+                        <p className="text-sm font-bold text-cyan-400 font-mono">Rs {item.totalStake.toLocaleString()}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
@@ -931,6 +966,8 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
                     <p className="text-2xl font-black text-cyan-400 font-mono">PKR {user.wallet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                 </div>
             </div>
+
+            <GameStakeBreakdown games={games} bets={bets} />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {games.map(game => (
