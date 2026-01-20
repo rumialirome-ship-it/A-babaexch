@@ -148,7 +148,6 @@ export const UserForm: React.FC<{
         setIsLoading(true);
         try {
             const userPayload: User = {
-                ...user,
                 id: formData.id,
                 name: formData.name,
                 contact: formData.contact,
@@ -158,7 +157,7 @@ export const UserForm: React.FC<{
                 wallet: Number(formData.wallet) || 0,
                 commissionRate: Number(formData.commissionRate) || 0,
                 isRestricted: user?.isRestricted ?? false,
-                ledger: user?.ledger ?? [],
+                ledger: [], // CRITICAL: Strip ledger to prevent 413 Request Entity Too Large error
                 avatarUrl: formData.avatarUrl,
                 betLimits: {
                     oneDigit: Number(formData.betLimits.oneDigit) || 0,

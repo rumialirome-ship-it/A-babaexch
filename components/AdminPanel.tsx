@@ -389,7 +389,7 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
                 oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
                 twoDigit: Number(formData.prizeRates.twoDigit) || 0,
             },
-            ledger: dealer?.ledger || [],
+            ledger: [], // CRITICAL: Strip ledger to prevent 413 error
             avatarUrl: formData.avatarUrl,
         };
 
@@ -481,6 +481,7 @@ const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Pro
             ...admin,
             name: formData.name,
             avatarUrl: formData.avatarUrl,
+            ledger: [], // CRITICAL: Strip ledger to prevent 413 error
             prizeRates: {
                 oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
                 oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
@@ -1374,9 +1375,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
 
   const handleAdminUserUpdate = async (userData: User) => {
         try {
+            // CRITICAL: Strip ledger here too for admin updates
+            const payload = { ...userData, ledger: [] };
             const response = await fetchWithAuth(`/api/admin/users/${userData.id}`, {
                 method: 'PUT',
-                body: JSON.stringify(userData)
+                body: JSON.stringify(payload)
             });
             if (response.ok) {
                 alert('User updated successfully.');
