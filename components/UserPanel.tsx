@@ -128,7 +128,6 @@ const calculateBetPayout = (bet: Bet, game: Game | undefined, userPrizeRates: Pr
 
     if (winningNumbersCount > 0) {
         const getPrizeMultiplier = (rates: PrizeRates, subGameType: SubGameType) => {
-            // Fix: Directly use enum values in case statements for switch(subGameType)
             switch (subGameType) {
                 case SubGameType.OneDigitOpen: return rates.oneDigitOpen;
                 case SubGameType.OneDigitClose: return rates.oneDigitClose;
@@ -262,7 +261,8 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
     
-    // UI FIX: Prioritize backend isMarketOpen. If backend says it's open, allow play.
+    // UI FIX: Prioritize backend market status. 
+    // If backend says open, allow play regardless of small local clock differences.
     const isPlayable = !!game.isMarketOpen && !isRestricted && (status === 'OPEN' || status === 'LOADING');
     const isMarketClosedForDisplay = !game.isMarketOpen;
 
@@ -315,10 +315,10 @@ interface BettingModalProps {
     onPlaceBet: (details: any) => Promise<void>;
 }
 
-// Type for the new Combo Game UI state
+// Type for the Combo Game UI state
 interface ComboLine {
     number: string;
-    stake: string; // Keep as string for input field control
+    stake: string; 
     selected: boolean;
 }
 
@@ -332,15 +332,15 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     const [isAiLoading, setIsAiLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // --- New State for Combo Game ---
+    // --- State for Combo Game ---
     const [comboDigitsInput, setComboDigitsInput] = useState('');
     const [generatedCombos, setGeneratedCombos] = useState<ComboLine[]>([]);
     const [comboGlobalStake, setComboGlobalStake] = useState('');
 
-    // --- Added Countdown for Modal ---
+    // --- CRITICAL: Safe Countdown Hook ---
     const { text: countdownText } = useCountdown(game?.drawTime || '00:00');
 
-
+    // --- CRITICAL: Safe Tabs Memo ---
     const availableSubGameTabs = useMemo(() => {
         if (!game) return [];
         const allSubGameTypes = [SubGameType.TwoDigit, SubGameType.OneDigitOpen, SubGameType.OneDigitClose, SubGameType.Bulk, SubGameType.Combo];
@@ -354,11 +354,10 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         }
         
         return allSubGameTypes;
-
     }, [game]);
 
     useEffect(() => {
-        // Clear all inputs when the sub-game type (tab) changes to prevent submitting old data
+        // Clear all inputs when the sub-game type (tab) changes
         setManualNumbersInput('');
         setManualAmountInput('');
         setBulkInput('');
@@ -411,7 +410,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             const data = await response.json();
             const numbers = data.luckyNumbers.replace(/,/g, '');
             
-            // Format for the input
             let formatted = '';
             if (subGameType === SubGameType.TwoDigit) {
                 formatted = (numbers.match(/.{1,2}/g) || []).join(', ');
@@ -426,9 +424,8 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         }
     };
 
-    if (!game) return null;
-
-     const parsedBulkBet = useMemo(() => {
+    // --- CRITICAL: Safe Bulk Memo ---
+    const parsedBulkBet = useMemo(() => {
         type BetGroupMap = Map<string, { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }>;
         interface ParsedResult {
             betsByGame: Map<string, { gameName: string; totalCost: number; totalNumbers: number; betGroups: BetGroupMap }>;
@@ -437,8 +434,9 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             errors: string[];
         }
         const result: ParsedResult = { betsByGame: new Map(), grandTotalCost: 0, grandTotalNumbers: 0, errors: [] };
-        const input = bulkInput.trim();
-        if (!input) return result;
+        
+        // FIX: Return early if game is null to avoid crash
+        if (!game || !bulkInput.trim()) return result;
 
         const gameNameMap = new Map<string, string>();
         games.forEach(g => gameNameMap.set(g.name.toLowerCase().replace(/\s+/g, ''), g.id));
@@ -447,7 +445,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
 
         let currentGameId: string | null = game.id;
         
-        for (const line of input.split('\n')) {
+        for (const line of bulkInput.trim().split('\n')) {
             let currentLine = line.trim();
             if (!currentLine) continue;
 
@@ -469,7 +467,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             const stakeMatch = currentLine.match(/(?:rs|r)\s*(\d+\.?\d*)/i);
             const stake = stakeMatch ? parseFloat(stakeMatch[1]) : 0;
             if (stake <= 0) {
-                result.errors.push(`Line "${line}" has no valid stake (e.g., 'r10' or 'rs10').`);
+                result.errors.push(`Line "${line}" has no valid stake.`);
                 continue;
             }
             let betPart = stakeMatch ? currentLine.substring(0, stakeMatch.index).trim() : currentLine;
@@ -552,7 +550,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         return result;
     }, [bulkInput, games, game]);
 
-    // --- New Combo Game Logic ---
+    // --- Combo Logic ---
     const handleGenerateCombos = () => {
         setError(null);
         const digits = comboDigitsInput.replace(/\D/g, '');
@@ -583,37 +581,13 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         setGeneratedCombos(prev => prev.map((c, i) => i === index ? { ...c, stake } : c));
     };
     
-    const handleSelectAllCombos = (selected: boolean) => {
-        setGeneratedCombos(prev => prev.map(c => ({...c, selected})));
-    };
-    
     const handleApplyGlobalStake = () => {
         if (parseFloat(comboGlobalStake) > 0) {
             setGeneratedCombos(prev => prev.map(c => ({...c, stake: comboGlobalStake})));
         }
     };
-    
-    const comboSummary = useMemo(() => {
-        return generatedCombos.reduce((summary, combo) => {
-            if (combo.selected) {
-                summary.count++;
-                const stake = parseFloat(combo.stake);
-                if (!isNaN(stake) && stake > 0) {
-                    summary.totalCost += stake;
-                }
-            }
-            return summary;
-        }, { count: 0, totalCost: 0 });
-    }, [generatedCombos]);
 
-    const allCombosSelected = useMemo(() => {
-        if (generatedCombos.length === 0) return false;
-        return generatedCombos.every(c => {
-             const stakeValue = parseFloat(c.stake);
-             return c.selected && !isNaN(stakeValue) && stakeValue > 0;
-        });
-    }, [generatedCombos]);
-
+    // --- Manual Parsers ---
     const parsedManualBet = useMemo(() => {
         const result = { numbers: [] as string[], totalCost: 0, error: null as string | null, numberCount: 0, stake: 0 };
         const amount = parseFloat(manualAmountInput);
@@ -625,7 +599,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             switch (subGameType) {
                 case SubGameType.OneDigitOpen: case SubGameType.OneDigitClose: numbers = digitsOnly.split(''); break;
                 case SubGameType.TwoDigit:
-                    if (digitsOnly.length % 2 !== 0) { result.error = "For 2-digit games, the total number of digits must be even."; } else { numbers = digitsOnly.match(/.{2}/g) || []; }
+                    if (digitsOnly.length % 2 !== 0) { result.error = "Total number of digits must be even."; } else { numbers = digitsOnly.match(/.{2}/g) || []; }
                     break;
             }
         }
@@ -636,6 +610,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     }, [manualNumbersInput, manualAmountInput, subGameType]);
 
     const handleBet = async () => {
+        if (!game) return;
         setError(null);
         setIsSubmitting(true);
 
@@ -643,9 +618,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             if (subGameType === SubGameType.Combo) {
                 const validBets = generatedCombos.filter(c => c.selected && parseFloat(c.stake) > 0);
                 if (validBets.length === 0) throw new Error("Please select combinations and enter valid stakes.");
-
-                const totalCost = validBets.reduce((sum, c) => sum + parseFloat(c.stake), 0);
-                if (totalCost > user.wallet) throw new Error(`Insufficient balance.`);
 
                 const groups = new Map<number, string[]>();
                 validBets.forEach(bet => {
@@ -661,10 +633,9 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                 
                 await onPlaceBet({ gameId: game.id, betGroups });
             } else if (subGameType === SubGameType.Bulk) {
-                const { betsByGame, grandTotalCost, errors } = parsedBulkBet;
+                const { betsByGame, errors } = parsedBulkBet;
                 if (errors.length > 0) throw new Error(errors[0]);
                 if (betsByGame.size === 0) throw new Error("No valid bets entered.");
-                if (grandTotalCost > user.wallet) throw new Error(`Insufficient balance.`);
 
                 const multiGameBets = new Map<string, { gameName: string; betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>();
                 betsByGame.forEach((gameData, gameId) => {
@@ -688,18 +659,13 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         }
     };
 
+    // FIX: Render nothing if game is null (safeguard)
+    if (!game) return null;
+
     const getPlaceholder = () => {
         switch(subGameType) {
             case SubGameType.OneDigitOpen: case SubGameType.OneDigitClose: return "e.g. 1, 2, 9";
             default: return "e.g. 14, 05, 78";
-        }
-    };
-    
-    const getPrizeRate = (type: SubGameType) => {
-        switch(type) {
-            case SubGameType.OneDigitOpen: return user.prizeRates.oneDigitOpen;
-            case SubGameType.OneDigitClose: return user.prizeRates.oneDigitClose;
-            default: return user.prizeRates.twoDigit;
         }
     };
 
@@ -708,7 +674,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className="bg-slate-900/80 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh]">
+            <div className="bg-slate-900/90 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
                     <div className="flex flex-col gap-1">
                         <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
@@ -722,7 +688,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                             </div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white self-start mt-1">{Icons.close}</button>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white self-start mt-1 p-2 rounded-full hover:bg-slate-800 transition-colors">{Icons.close}</button>
                 </div>
                 <div className="p-6 overflow-y-auto">
                     <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-4 self-start flex-wrap border border-slate-700">
@@ -858,7 +824,7 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
             setSelectedGame(null);
         } catch (err: any) {
             setToast({ msg: err.message || "Failed to place bet.", type: 'error' });
-            throw err; // Propagate to modal to keep it open if error
+            throw err; 
         }
     };
 
@@ -888,13 +854,15 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
                 ))}
             </div>
 
-            <BettingModal 
-                game={selectedGame} 
-                games={games}
-                user={user} 
-                onClose={() => setSelectedGame(null)} 
-                onPlaceBet={handlePlaceBet}
-            />
+            {selectedGame && (
+                <BettingModal 
+                    game={selectedGame} 
+                    games={games}
+                    user={user} 
+                    onClose={() => setSelectedGame(null)} 
+                    onPlaceBet={handlePlaceBet}
+                />
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
                 <BetHistoryView bets={bets} games={games} user={user} />

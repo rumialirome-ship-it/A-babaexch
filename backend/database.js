@@ -19,7 +19,7 @@ function isGameOpen(drawTime) {
     const currentCycleStart = new Date(pktTime);
     currentCycleStart.setUTCHours(16, 0, 0, 0);
     if (pktH < 16) {
-        // If it's before 4 PM PKT, the cycle started at 4 PM yesterday
+        // If it's before 4 PM PKT today, the cycle actually started at 4 PM yesterday
         currentCycleStart.setUTCDate(currentCycleStart.getUTCDate() - 1);
     }
 
@@ -34,7 +34,8 @@ function isGameOpen(drawTime) {
     }
 
     // Market is open if we are past 4:00 PM and before the Draw Time
-    return pktTime >= currentCycleStart && pktTime < currentCycleEnd;
+    const isOpen = pktTime >= currentCycleStart && pktTime < currentCycleEnd;
+    return isOpen;
 }
 
 const connect = () => {
@@ -230,7 +231,7 @@ const getFinancialSummary = () => {
                 if (wins.length > 0) {
                     const u = allUsers[bet.userId], d = allDealers[bet.dealerId];
                     if (u && d) {
-                        pouts += wins.length * bet.amountPerNumber * getMultiplier(u.prizeRates, bet.subGameType);
+                        payouts += wins.length * bet.amountPerNumber * getMultiplier(u.prizeRates, bet.subGameType);
                         dProfit += wins.length * bet.amountPerNumber * (getMultiplier(d.prizeRates, bet.subGameType) - getMultiplier(u.prizeRates, bet.subGameType));
                     }
                 }
@@ -389,7 +390,7 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         const dealer = findAccountById(user.dealerId, 'dealers');
         const game = findAccountById(gId, 'games');
         
-        // Use the centralized isGameOpen logic for validation
+        // CRITICAL: Robust status check before processing wallet
         if (!game || !isGameOpen(game.drawTime) || (game.winningNumber && !game.winningNumber.endsWith('_'))) {
             throw { status: 400, message: "Market is currently closed for this game." };
         }
