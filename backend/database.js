@@ -78,7 +78,7 @@ const findAccountById = (id, table) => {
     }
 
     try {
-        // Commission Rate Safeguard
+        // Commission Rate Safeguard - Ensure it's treated as a number
         account.commissionRate = Number(account.commissionRate) || 0;
 
         if (account.prizeRates && typeof account.prizeRates === 'string') {
@@ -166,7 +166,8 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
         throw { status: 400, message: `Insufficient funds.` };
     }
     
-    const newBalance = lastBalance - debit + credit;
+    // Use 2 decimal place rounding to prevent floating-point accumulation errors
+    const newBalance = Math.round((lastBalance - debit + credit) * 100) / 100;
     db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
     db.prepare(`UPDATE ${table} SET wallet = ? WHERE LOWER(id) = LOWER(?)`).run(newBalance, accountId);
 };
@@ -479,28 +480,29 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
 
         if (user.wallet < requestTotal) throw { status: 400, message: `Insufficient funds.` };
         
-        // CRITICAL: Strict numerical commission logic
+        // CRITICAL: Freshly fetch commission rates to avoid stale state
         const userCommRate = Number(user.commissionRate) || 0;
         const dealerCommRate = Number(dealer.commissionRate) || 0;
         
-        const userComm = requestTotal * (userCommRate / 100);
-        const dComm = requestTotal * ((dealerCommRate - userCommRate) / 100);
+        // Calculate commissions with explicit precision
+        const userComm = Math.round(requestTotal * (userCommRate / 100) * 100) / 100;
+        const dComm = Math.round(requestTotal * ((dealerCommRate - userCommRate) / 100) * 100) / 100;
         
-        // Step 1: User Stake Payment
+        // Step 1: User Stake Payment (Deduct from User)
         addLedgerEntry(user.id, 'USER', `Bet placed on ${game.name}`, requestTotal, 0);
         
-        // Step 2: User Commission Addition (Instant)
+        // Step 2: User Commission Addition (Credit back to User instantly)
         if (userComm > 0) {
             addLedgerEntry(user.id, 'USER', `Comm earned: ${game.name} (${userCommRate}%)`, 0, userComm);
         }
         
-        // Step 3: Admin Updates
+        // Step 3: Admin Updates (Admin receives full stake, but then pays out commissions)
         addLedgerEntry(admin.id, 'ADMIN', `Stake: ${user.name} @ ${game.name}`, 0, requestTotal);
         if (userComm > 0) {
             addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${user.name}`, userComm, 0);
         }
         
-        // Step 4: Dealer Override Commission
+        // Step 4: Dealer Override Commission (Admin pays Dealer)
         if (dComm > 0) { 
             addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${dealer.name} (Override)`, dComm, 0); 
             addLedgerEntry(dealer.id, 'DEALER', `Comm from ${user.name} @ ${game.name}`, 0, dComm); 

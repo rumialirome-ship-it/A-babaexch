@@ -95,7 +95,53 @@ const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[], user: User }> =
                 Today's Betting Sheet
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded border border-emerald-500/30 font-black tracking-tighter uppercase">Market Breakdown</span>
             </h3>
-            <div className="bg-slate-800/40 rounded-xl overflow-hidden border border-slate-700 shadow-xl backdrop-blur-md">
+
+            {/* Mobile View */}
+            <div className="sm:hidden space-y-4">
+                {data.map(item => (
+                    <div key={item.id} className="bg-slate-800/40 p-5 rounded-2xl border border-slate-700 shadow-xl backdrop-blur-md">
+                        <div className="flex items-center gap-3 mb-4">
+                            <img src={item.logo} className="w-12 h-12 rounded-full border-2 border-slate-700 shadow-lg" alt="" />
+                            <div>
+                                <div className="text-white font-black text-base uppercase tracking-tight">{item.name}</div>
+                                <div className="flex items-center gap-2">
+                                    {item.isMarketOpen ? (
+                                        <span className="bg-cyan-500/10 text-cyan-400 text-[9px] px-2 py-0.5 rounded-full border border-cyan-500/20 font-black uppercase tracking-widest">Active</span>
+                                    ) : (
+                                        <span className="bg-slate-700/50 text-slate-500 text-[9px] px-2 py-0.5 rounded-full border border-slate-600/50 font-black uppercase tracking-widest">Closed</span>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="ml-auto text-right">
+                                {item.winningNumber && !item.winningNumber.endsWith('_') ? (
+                                    <div className="font-mono text-3xl font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]">{item.winningNumber}</div>
+                                ) : (
+                                    <div className="text-slate-600 font-bold italic text-xs">Waiting...</div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-700/50">
+                            <div>
+                                <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest">Total Stake</div>
+                                <div className="font-mono text-white font-bold">Rs {item.totalStake.toLocaleString()}</div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-[9px] text-sky-500 uppercase font-black tracking-widest">Commission</div>
+                                <div className="font-mono text-sky-400 font-bold">Rs {item.totalCommission.toFixed(2)}</div>
+                            </div>
+                            <div className="col-span-2 text-center py-2 bg-emerald-500/5 rounded-lg border border-emerald-500/10">
+                                <div className="text-[9px] text-emerald-500 uppercase font-black tracking-widest">Winning Prize</div>
+                                <div className={`font-mono font-black text-xl ${item.totalPrize > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
+                                    {item.totalPrize > 0 ? `Rs ${item.totalPrize.toLocaleString()}` : '-'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Desktop View */}
+            <div className="hidden sm:block bg-slate-800/40 rounded-xl overflow-hidden border border-slate-700 shadow-xl backdrop-blur-md">
                 <div className="overflow-x-auto no-scrollbar">
                     <table className="w-full text-left min-w-[800px]">
                         <thead className="bg-slate-800/80 border-b border-slate-700">

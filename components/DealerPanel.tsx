@@ -40,35 +40,66 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
 };
 
 const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
-    <div className="bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
-        <div className="overflow-y-auto max-h-[60vh] mobile-scroll-x">
-            <table className="w-full text-left min-w-[600px]">
-                <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
-                    <tr>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Debit</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Credit</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                    {Array.isArray(entries) && [...entries].reverse().map(entry => (
-                        <tr key={entry.id} className="hover:bg-emerald-500/10 text-sm transition-colors">
-                            <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp?.toLocaleString() || 'N/A'}</td>
-                            <td className="p-3 text-white">{entry.description}</td>
-                            <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
-                            <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
-                            <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
-                        </tr>
-                    ))}
-                    {(!Array.isArray(entries) || entries.length === 0) && (
+    <div className="space-y-4">
+        {/* Mobile View */}
+        <div className="sm:hidden space-y-3">
+            {Array.isArray(entries) && [...entries].reverse().map(entry => (
+                <div key={entry.id} className="bg-slate-800/40 p-4 rounded-xl border border-slate-700 shadow-md">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="text-[10px] text-slate-500 font-mono">{entry.timestamp?.toLocaleString() || 'N/A'}</div>
+                        <div className="text-right">
+                            <div className="text-[9px] text-slate-500 uppercase font-black">Balance</div>
+                            <div className="font-mono text-white font-bold">Rs {entry.balance.toFixed(2)}</div>
+                        </div>
+                    </div>
+                    <div className="text-sm text-slate-200 mb-2 font-semibold">{entry.description}</div>
+                    <div className="flex gap-4">
+                        {entry.debit > 0 && (
+                            <div>
+                                <div className="text-[9px] text-red-500 uppercase font-black">Debit (-)</div>
+                                <div className="text-red-400 font-mono font-bold">Rs {entry.debit.toFixed(2)}</div>
+                            </div>
+                        )}
+                        {entry.credit > 0 && (
+                            <div>
+                                <div className="text-[9px] text-emerald-500 uppercase font-black">Credit (+)</div>
+                                <div className="text-emerald-400 font-mono font-bold">Rs {entry.credit.toFixed(2)}</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ))}
+            {(!Array.isArray(entries) || entries.length === 0) && (
+                <div className="p-8 text-center text-slate-500 text-sm">No records found.</div>
+            )}
+        </div>
+
+        {/* Desktop View */}
+        <div className="hidden sm:block bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
+            <div className="overflow-y-auto max-h-[60vh] mobile-scroll-x">
+                <table className="w-full text-left min-w-[600px]">
+                    <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
                         <tr>
-                            <td colSpan={5} className="p-8 text-center text-slate-500">No records found.</td>
+                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
+                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
+                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Debit</th>
+                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Credit</th>
+                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance</th>
                         </tr>
-                    )}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                        {Array.isArray(entries) && [...entries].reverse().map(entry => (
+                            <tr key={entry.id} className="hover:bg-emerald-500/10 text-sm transition-colors">
+                                <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp?.toLocaleString() || 'N/A'}</td>
+                                <td className="p-3 text-white">{entry.description}</td>
+                                <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
+                                <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
+                                <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 );
@@ -157,7 +188,7 @@ export const UserForm: React.FC<{
                 wallet: Number(formData.wallet) || 0,
                 commissionRate: Number(formData.commissionRate) || 0,
                 isRestricted: user?.isRestricted ?? false,
-                ledger: [], // CRITICAL: Strip ledger to prevent 413 Request Entity Too Large error
+                ledger: [], 
                 avatarUrl: formData.avatarUrl,
                 betLimits: {
                     oneDigit: Number(formData.betLimits.oneDigit) || 0,
@@ -221,7 +252,6 @@ export const UserForm: React.FC<{
                 <div className="sm:col-span-1">
                     <label className={labelClass}>User Commission Rate (%)</label>
                     <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} className={inputClass} placeholder="e.g. 5.5" />
-                    <p className="text-[9px] text-slate-500 mt-1 italic">Enter the percentage this user earns on every bet.</p>
                 </div>
             </div>
 
@@ -379,7 +409,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
             <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">Managed Users <span className="bg-slate-800 px-2 py-0.5 rounded text-xs text-emerald-400 font-mono">{dealerUsers.length}</span></h3>
             <div className="flex gap-2">
                 <div className="relative flex-grow sm:w-64">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">{Icons.search}</span>
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
                     <input type="text" placeholder="Search accounts..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-lg border border-slate-700 text-white w-full text-xs focus:ring-1 focus:ring-emerald-500" />
                 </div>
                 <button onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-lg font-black px-4 sm:px-6 transition-all shadow-xl shadow-emerald-900/20 whitespace-nowrap text-xs uppercase tracking-widest">New User</button>
@@ -587,6 +617,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
+    
     const filteredBets = useMemo(() => {
         if (!Array.isArray(bets)) return [];
         return bets.filter(bet => {
@@ -601,19 +632,67 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
             return true;
         }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }, [bets, games, users, startDate, endDate, searchTerm]);
+
     return (
         <div className="space-y-4">
             <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest" />
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest" />
-                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Filter History..." className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest" />
-                <button onClick={() => {setStartDate(''); setEndDate(''); setSearchTerm('');}} className="bg-slate-700 text-white p-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-600 transition-all">Clear Filters</button>
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest w-full" />
+                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest w-full" />
+                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Filter History..." className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest w-full" />
+                <button onClick={() => {setStartDate(''); setEndDate(''); setSearchTerm('');}} className="bg-slate-700 text-white p-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-600 transition-all w-full">Clear Filters</button>
             </div>
-            <div className="bg-slate-800/40 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl"><table className="w-full text-left min-w-[700px]"><thead className="bg-slate-800/80 border-b border-slate-700"><tr><th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Time</th><th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Player</th><th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Game</th><th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Details</th><th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest text-right">Stake</th></tr></thead><tbody className="divide-y divide-slate-800">
+
+            {/* Mobile Card View */}
+            <div className="sm:hidden space-y-3">
                 {filteredBets.map(bet => (
-                    <tr key={bet.id} className="hover:bg-slate-700/20"><td className="p-4 text-[10px] text-slate-400 whitespace-nowrap font-mono">{new Date(bet.timestamp).toLocaleString()}</td><td className="p-4 text-xs font-bold text-white">{users.find(u => u.id === bet.userId)?.name || 'Unknown'}</td><td className="p-4 text-xs font-bold text-sky-400">{games.find(g => g.id === bet.gameId)?.name || 'Game'}</td><td className="p-4"><div className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">{bet.subGameType}</div><div className="text-[10px] text-slate-500 font-mono">{bet.numbers.join(',')}</div></td><td className="p-4 text-right font-mono text-white text-xs font-bold">{bet.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
+                    <div key={bet.id} className="bg-slate-800/40 p-4 rounded-xl border border-slate-700 shadow-lg">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="text-[10px] text-slate-500 font-mono">{new Date(bet.timestamp).toLocaleString()}</div>
+                            <div className="text-right font-mono text-emerald-400 font-bold text-sm">Rs {bet.totalAmount.toLocaleString()}</div>
+                        </div>
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="text-sm font-bold text-white">{users.find(u => u.id === bet.userId)?.name || 'Unknown'}</div>
+                            <div className="text-xs font-bold text-sky-400">{games.find(g => g.id === bet.gameId)?.name || 'Game'}</div>
+                        </div>
+                        <div className="pt-2 border-t border-slate-700/50">
+                            <div className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">{bet.subGameType}</div>
+                            <div className="text-[10px] text-slate-500 font-mono break-words">{bet.numbers.join(', ')}</div>
+                        </div>
+                    </div>
                 ))}
-            </tbody></table></div>
+                {filteredBets.length === 0 && <div className="p-12 text-center text-slate-500 text-xs uppercase font-black">No records found.</div>}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block bg-slate-800/40 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[700px]">
+                        <thead className="bg-slate-800/80 border-b border-slate-700">
+                            <tr>
+                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Time</th>
+                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Player</th>
+                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Game</th>
+                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Details</th>
+                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest text-right">Stake</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {filteredBets.map(bet => (
+                                <tr key={bet.id} className="hover:bg-slate-700/20 transition-colors">
+                                    <td className="p-4 text-[10px] text-slate-400 whitespace-nowrap font-mono">{new Date(bet.timestamp).toLocaleString()}</td>
+                                    <td className="p-4 text-xs font-bold text-white">{users.find(u => u.id === bet.userId)?.name || 'Unknown'}</td>
+                                    <td className="p-4 text-xs font-bold text-sky-400">{games.find(g => g.id === bet.gameId)?.name || 'Game'}</td>
+                                    <td className="p-4">
+                                        <div className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">{bet.subGameType}</div>
+                                        <div className="text-[10px] text-slate-500 font-mono">{bet.numbers.join(', ')}</div>
+                                    </td>
+                                    <td className="p-4 text-right font-mono text-white text-xs font-bold">{bet.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 };
