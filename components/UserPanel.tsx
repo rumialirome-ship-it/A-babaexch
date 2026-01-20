@@ -33,7 +33,9 @@ const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[] }> = ({ games, b
                 id: game.id,
                 name: game.name,
                 logo: game.logo,
-                totalStake
+                totalStake,
+                winningNumber: game.winningNumber,
+                isMarketOpen: game.isMarketOpen
             };
         }).filter(d => d.totalStake > 0).sort((a, b) => b.totalStake - a.totalStake);
     }, [games, bets]);
@@ -41,19 +43,66 @@ const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[] }> = ({ games, b
     if (data.length === 0) return null;
 
     return (
-        <div className="mb-8 animate-fade-in">
-            <h3 className="text-xl font-bold text-white uppercase tracking-widest mb-4 flex items-center gap-2">
-                My Session Summary
-                <span className="text-[10px] bg-sky-500/20 text-sky-400 px-2 py-0.5 rounded border border-sky-500/30">Current Cycle</span>
+        <div className="mb-12 animate-fade-in">
+            <h3 className="text-2xl font-bold text-white uppercase tracking-widest mb-6 flex items-center gap-3">
+                Today's Betting Sheet
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded border border-emerald-500/30 font-black tracking-tighter">GAME-WISE BREAKDOWN</span>
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {data.map(item => (
-                    <div key={item.id} className="bg-slate-800/40 border border-slate-700 p-3 rounded-xl flex flex-col items-center text-center hover:border-cyan-500/50 transition-colors">
-                        <img src={item.logo} className="w-8 h-8 rounded-full mb-2 opacity-80" alt="" />
-                        <p className="text-[10px] text-slate-400 uppercase font-black tracking-tighter mb-1 truncate w-full">{item.name}</p>
-                        <p className="text-sm font-bold text-cyan-400 font-mono">Rs {item.totalStake.toLocaleString()}</p>
-                    </div>
-                ))}
+            <div className="bg-slate-800/40 rounded-xl overflow-hidden border border-slate-700 shadow-xl backdrop-blur-md">
+                <div className="overflow-x-auto no-scrollbar">
+                    <table className="w-full text-left min-w-[600px]">
+                        <thead className="bg-slate-800/80 border-b border-slate-700">
+                            <tr>
+                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Market</th>
+                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Result</th>
+                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">My Stake</th>
+                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                            {data.map(item => (
+                                <tr key={item.id} className="hover:bg-slate-700/20 transition-all group">
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-3">
+                                            <img src={item.logo} className="w-10 h-10 rounded-full border border-slate-700" alt="" />
+                                            <div>
+                                                <div className="text-white font-bold text-sm uppercase tracking-tight">{item.name}</div>
+                                                <div className="text-[10px] text-slate-500 font-mono tracking-tighter">Today's Draw</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        {item.winningNumber && !item.winningNumber.endsWith('_') ? (
+                                            <span className="font-mono text-2xl font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]">{item.winningNumber}</span>
+                                        ) : (
+                                            <span className="text-slate-600 font-bold italic text-xs">Waiting...</span>
+                                        )}
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <div className="font-mono text-cyan-400 font-bold text-lg">Rs {item.totalStake.toLocaleString()}</div>
+                                        <div className="text-[9px] text-slate-500 uppercase font-black">Total Invested</div>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        {item.isMarketOpen ? (
+                                            <span className="bg-cyan-500/10 text-cyan-400 text-[10px] px-2.5 py-1 rounded-full border border-cyan-500/20 font-black uppercase">Open</span>
+                                        ) : (
+                                            <span className="bg-slate-700/50 text-slate-500 text-[10px] px-2.5 py-1 rounded-full border border-slate-600/50 font-black uppercase">Closed</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot className="bg-slate-800/80 border-t-2 border-slate-700">
+                            <tr>
+                                <td colSpan={2} className="p-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Grand Total Stakes</td>
+                                <td className="p-4 text-right">
+                                    <span className="font-mono text-2xl font-black text-white">Rs {data.reduce((s, i) => s + i.totalStake, 0).toLocaleString()}</span>
+                                </td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -694,7 +743,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             }
         } catch (err: any) {
             setError(err.message);
-            setIsConfirming(false); // Go back if error
+            setIsConfirming(false); 
         } finally {
             setIsSubmitting(false);
         }
@@ -713,13 +762,26 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono";
     const displayedError = error || (parsedBulkBet.errors.length > 0 ? parsedBulkBet.errors[0] : null) || parsedManualBet.error;
 
+    // --- Confirmation View Logic ---
+    const totalSelectedNumbers = subGameType === SubGameType.Bulk 
+        ? parsedBulkBet.grandTotalNumbers 
+        : subGameType === SubGameType.Combo 
+        ? generatedCombos.filter(c => c.selected).length 
+        : parsedManualBet.numberCount;
+
+    const finalBetTotalCost = subGameType === SubGameType.Bulk 
+        ? parsedBulkBet.grandTotalCost 
+        : subGameType === SubGameType.Combo 
+        ? generatedCombos.reduce((s, c) => c.selected ? s + (parseFloat(c.stake) || 0) : s, 0)
+        : parsedManualBet.totalCost;
+
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className="bg-slate-900/90 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh]">
+            <div className="bg-slate-900/90 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh] overflow-hidden">
                 <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
                     <div className="flex flex-col gap-1">
                         <h3 className="text-xl font-bold text-white uppercase tracking-wider">
-                            {isConfirming ? "Verify Your Selection" : `Play: ${game.name}`}
+                            {isConfirming ? "Confirm Your Bet" : `Play: ${game.name}`}
                         </h3>
                         <div className="flex items-center gap-2">
                             <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-bold text-amber-400 uppercase tracking-widest shadow-sm">
@@ -731,82 +793,67 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                             </div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white self-start mt-1 p-2 rounded-full hover:bg-slate-800 transition-colors">{Icons.close}</button>
+                    {!isConfirming && <button onClick={onClose} className="text-slate-400 hover:text-white self-start mt-1 p-2 rounded-full hover:bg-slate-800 transition-colors">{Icons.close}</button>}
                 </div>
 
                 <div className="p-6 overflow-y-auto">
                     {isConfirming ? (
-                        <div className="animate-fade-in">
-                            <div className="text-center mb-6">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 mb-4 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="animate-fade-in text-center">
+                            <div className="mb-6">
+                                <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-500/20 rounded-full border-2 border-emerald-500 mb-4 animate-bounce">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                     </svg>
                                 </div>
-                                <p className="text-slate-300 text-sm font-medium">Please review your bet details before confirming. These funds will be deducted from your wallet immediately.</p>
+                                <h4 className="text-lg font-bold text-white uppercase tracking-widest mb-1">Bet Confirmation</h4>
+                                <p className="text-slate-400 text-xs">Please review your entries. Funds will be deducted from your wallet.</p>
                             </div>
 
-                            <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden mb-6">
-                                <div className="grid grid-cols-2 divide-x divide-slate-700">
-                                    <div className="p-4 bg-slate-800/30">
-                                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Game Market</p>
-                                        <p className="text-white font-bold">{subGameType === SubGameType.Bulk ? 'Multiple Markets' : game.name}</p>
-                                    </div>
-                                    <div className="p-4 bg-slate-800/30">
-                                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Bet Category</p>
-                                        <p className="text-sky-400 font-bold">{subGameType}</p>
-                                    </div>
+                            <div className="bg-slate-800 rounded-xl border border-slate-700 divide-y divide-slate-700 overflow-hidden mb-6">
+                                <div className="p-4 flex justify-between items-center">
+                                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Game Category</span>
+                                    <span className="text-sky-400 font-black">{subGameType}</span>
                                 </div>
-                                <div className="p-4 border-t border-slate-700 max-h-32 overflow-y-auto">
-                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-2">Selected Numbers</p>
-                                    <div className="flex flex-wrap gap-1.5">
+                                <div className="p-4 text-left">
+                                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-2">Selected Number(s)</span>
+                                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-2 no-scrollbar">
                                         {(subGameType === SubGameType.Bulk ? [] : 
                                           subGameType === SubGameType.Combo ? generatedCombos.filter(c => c.selected).map(c => c.number) : 
                                           parsedManualBet.numbers
                                         ).map((num, i) => (
-                                            <span key={i} className="px-2 py-0.5 bg-slate-700 text-cyan-300 rounded font-mono text-sm border border-slate-600">{num}</span>
+                                            <span key={i} className="px-2 py-1 bg-slate-900 border border-slate-700 rounded font-mono text-cyan-300 text-sm">{num}</span>
                                         ))}
-                                        {subGameType === SubGameType.Bulk && <span className="text-white text-sm font-mono italic">Check detailed game breakdown below</span>}
+                                        {subGameType === SubGameType.Bulk && <span className="text-white italic text-xs">Multiple entries from bulk text.</span>}
                                     </div>
                                 </div>
-                                <div className="p-4 border-t border-slate-700 bg-emerald-500/5 flex justify-between items-center">
-                                    <div>
-                                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Total Numbers</p>
-                                        <p className="text-white font-black text-xl font-mono">
-                                            {subGameType === SubGameType.Bulk ? parsedBulkBet.grandTotalNumbers : 
-                                             subGameType === SubGameType.Combo ? generatedCombos.filter(c => c.selected).length :
-                                             parsedManualBet.numberCount}
-                                        </p>
+                                <div className="p-4 grid grid-cols-2 bg-slate-900/50">
+                                    <div className="text-left">
+                                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Count</span>
+                                        <span className="text-xl font-black text-white">{totalSelectedNumbers}</span>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-[10px] text-emerald-500 uppercase font-black tracking-widest">Total Amount (PKR)</p>
-                                        <p className="text-emerald-400 font-black text-3xl font-mono drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">
-                                            {subGameType === SubGameType.Bulk ? parsedBulkBet.grandTotalCost.toFixed(2) :
-                                             subGameType === SubGameType.Combo ? generatedCombos.reduce((s, c) => c.selected ? s + (parseFloat(c.stake) || 0) : s, 0).toFixed(2) :
-                                             parsedManualBet.totalCost.toFixed(2)}
-                                        </p>
+                                        <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest block">Total Payable</span>
+                                        <span className="text-2xl font-black text-emerald-400 font-mono">Rs {finalBetTotalCost.toLocaleString()}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <button onClick={() => setIsConfirming(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-md transition-all border border-slate-700">
-                                    CANCEL & EDIT
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => setIsConfirming(false)}
+                                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg border border-slate-700 transition-all uppercase tracking-widest text-xs"
+                                >
+                                    Cancel & Edit
                                 </button>
                                 <button 
-                                    onClick={handleBet} 
-                                    disabled={isSubmitting} 
-                                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 px-6 rounded-md transition-all shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-2"
+                                    onClick={handleBet}
+                                    disabled={isSubmitting}
+                                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-lg shadow-lg shadow-emerald-900/40 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2"
                                 >
                                     {isSubmitting ? (
-                                        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
                                     ) : (
-                                        <>
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            CONFIRM & SUBMIT
-                                        </>
+                                        "Confirm & Pay"
                                     )}
                                 </button>
                             </div>
@@ -918,7 +965,13 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                             )}
 
                             <div className="flex justify-end pt-2">
-                                <button onClick={() => setIsConfirming(true)} disabled={!!displayedError || (subGameType === SubGameType.Bulk ? parsedBulkBet.grandTotalCost === 0 : subGameType === SubGameType.Combo ? generatedCombos.filter(c => c.selected && parseFloat(c.stake) > 0).length === 0 : parsedManualBet.totalCost === 0)} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:opacity-50">
+                                <button 
+                                    onClick={() => {
+                                        if (finalBetTotalCost > 0 && !displayedError) setIsConfirming(true);
+                                    }} 
+                                    disabled={finalBetTotalCost <= 0 || !!displayedError}
+                                    className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:opacity-50"
+                                >
                                     PLACE BET
                                 </button>
                             </div>

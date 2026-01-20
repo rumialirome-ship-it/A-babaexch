@@ -78,17 +78,25 @@ const findAccountById = (id, table) => {
     }
 
     try {
-        // SAFEGUARD: Ensure objects are never null when requested by the frontend
         if (account.prizeRates && typeof account.prizeRates === 'string') {
             account.prizeRates = JSON.parse(account.prizeRates);
         } else if (!account.prizeRates) {
             account.prizeRates = { oneDigitOpen: 0, oneDigitClose: 0, twoDigit: 0 };
         }
 
+        // CRITICAL FIX: Ensure betLimits is never null and contains required keys
         if (account.betLimits && typeof account.betLimits === 'string') {
             account.betLimits = JSON.parse(account.betLimits);
-        } else if (!account.betLimits && (table === 'users' || table === 'dealers')) {
+        }
+        
+        if (!account.betLimits && (table === 'users' || table === 'dealers')) {
             account.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
+        } else if (account.betLimits) {
+            account.betLimits = {
+                oneDigit: account.betLimits.oneDigit || 0,
+                twoDigit: account.betLimits.twoDigit || 0,
+                perDraw: account.betLimits.perDraw || 0
+            };
         }
         
         if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
@@ -131,7 +139,9 @@ const getAllFromTable = (table, withLedger = false) => {
 
             if (acc.betLimits && typeof acc.betLimits === 'string') {
                 acc.betLimits = JSON.parse(acc.betLimits);
-            } else if (!acc.betLimits && (table === 'users' || table === 'dealers')) {
+            }
+            
+            if (!acc.betLimits && (table === 'users' || table === 'dealers')) {
                 acc.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
             }
 
@@ -424,8 +434,10 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         const userExistingTotal = existingBets.filter(b => b.userId === uId).reduce((s, b) => s + b.totalAmount, 0);
         const requestTotal = groups.reduce((s, g) => s + g.numbers.length * g.amountPerNumber, 0);
         
-        if (user.betLimits && user.betLimits.perDraw > 0 && (userExistingTotal + requestTotal) > user.betLimits.perDraw) {
-            throw { status: 400, message: `Limit Reached: Draw total exceeds your PKR ${user.betLimits.perDraw} limit.` };
+        // SAFE ACCESS: Robust check for betLimits object
+        const perDrawLimit = user.betLimits ? (user.betLimits.perDraw || 0) : 0;
+        if (perDrawLimit > 0 && (userExistingTotal + requestTotal) > perDrawLimit) {
+            throw { status: 400, message: `Limit Reached: Draw total exceeds your PKR ${perDrawLimit} limit.` };
         }
 
         const numberStakeMap = new Map();
