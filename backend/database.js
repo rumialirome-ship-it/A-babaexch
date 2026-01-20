@@ -77,16 +77,27 @@ const findAccountById = (id, table) => {
     const stmt = db.prepare(`SELECT * FROM ${table} WHERE LOWER(id) = LOWER(?)`);
     const account = stmt.get(id);
     if (!account) return null;
+    
     try {
         if (table !== 'games') {
             account.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp ASC').all(id);
         } else {
-            account.isMarketOpen = isMarketOpen(account.drawTime);
+            // FIX: Corrected typo from isMarketOpen to isGameOpen
+            account.isMarketOpen = isGameOpen(account.drawTime);
         }
-        if (account.prizeRates) account.prizeRates = JSON.parse(account.prizeRates);
-        if (account.betLimits) account.betLimits = JSON.parse(account.betLimits);
+    } catch (e) {
+        console.error(`Error processing related data for ${table}:`, e);
+    }
+
+    // Move JSON parsing outside of the try-catch for better reliability
+    try {
+        if (account.prizeRates && typeof account.prizeRates === 'string') account.prizeRates = JSON.parse(account.prizeRates);
+        if (account.betLimits && typeof account.betLimits === 'string') account.betLimits = JSON.parse(account.betLimits);
         if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
-    } catch (e) {}
+    } catch (e) {
+        console.error(`Error parsing JSON fields for ${table}:`, e);
+    }
+    
     return account;
 };
 
@@ -115,8 +126,8 @@ const getAllFromTable = (table, withLedger = false) => {
         try {
             if (withLedger && acc.id) acc.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp ASC').all(acc.id);
             if (table === 'games' && acc.drawTime) acc.isMarketOpen = isGameOpen(acc.drawTime);
-            if (acc.prizeRates) acc.prizeRates = JSON.parse(acc.prizeRates);
-            if (acc.betLimits) acc.betLimits = JSON.parse(acc.betLimits);
+            if (acc.prizeRates && typeof acc.prizeRates === 'string') acc.prizeRates = JSON.parse(acc.prizeRates);
+            if (acc.betLimits && typeof acc.betLimits === 'string') acc.betLimits = JSON.parse(acc.betLimits);
             if (table === 'bets' && acc.numbers) acc.numbers = JSON.parse(acc.numbers);
             if ('isRestricted' in acc) acc.isRestricted = !!acc.isRestricted;
         } catch (e) {}
@@ -393,6 +404,12 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         
         const dealer = findAccountById(user.dealerId, 'dealers');
         const game = findAccountById(gId, 'games');
+        
+        // FIX: Critical validation - Prevent betting on closed markets or finished games
+        if (!game || !game.isMarketOpen || (game.winningNumber && !game.winningNumber.endsWith('_'))) {
+            throw { status: 400, message: "Market is currently closed for this game." };
+        }
+
         const admin = findAccountById('Guru', 'admins');
         const globalLimits = db.prepare('SELECT * FROM number_limits').all();
         const existingBets = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(gId);
