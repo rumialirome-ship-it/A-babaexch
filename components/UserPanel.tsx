@@ -331,6 +331,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     const [error, setError] = useState<string | null>(null);
     const [isAiLoading, setIsAiLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isConfirming, setIsConfirming] = useState(false);
 
     // --- State for Combo Game ---
     const [comboDigitsInput, setComboDigitsInput] = useState('');
@@ -365,6 +366,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         setGeneratedCombos([]);
         setComboGlobalStake('');
         setError(null);
+        setIsConfirming(false);
     }, [subGameType]);
 
     const handleManualNumberChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -619,6 +621,9 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                 const validBets = generatedCombos.filter(c => c.selected && parseFloat(c.stake) > 0);
                 if (validBets.length === 0) throw new Error("Please select combinations and enter valid stakes.");
 
+                const totalCost = validBets.reduce((sum, c) => sum + parseFloat(c.stake), 0);
+                if (totalCost > user.wallet) throw new Error(`Insufficient balance.`);
+
                 const groups = new Map<number, string[]>();
                 validBets.forEach(bet => {
                     const stake = parseFloat(bet.stake);
@@ -654,6 +659,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             }
         } catch (err: any) {
             setError(err.message);
+            setIsConfirming(false); // Go back if error
         } finally {
             setIsSubmitting(false);
         }
@@ -677,7 +683,9 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             <div className="bg-slate-900/90 rounded-lg shadow-2xl w-full max-w-lg border border-sky-500/30 flex flex-col max-h-[90vh]">
                 <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
                     <div className="flex flex-col gap-1">
-                        <h3 className="text-xl font-bold text-white uppercase tracking-wider">Play: {game.name}</h3>
+                        <h3 className="text-xl font-bold text-white uppercase tracking-wider">
+                            {isConfirming ? "Verify Your Selection" : `Play: ${game.name}`}
+                        </h3>
                         <div className="flex items-center gap-2">
                             <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 rounded text-[9px] font-bold text-amber-400 uppercase tracking-widest shadow-sm">
                                 <span className="w-2.5 h-2.5 text-amber-400">{Icons.clock}</span>
@@ -690,116 +698,197 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-white self-start mt-1 p-2 rounded-full hover:bg-slate-800 transition-colors">{Icons.close}</button>
                 </div>
+
                 <div className="p-6 overflow-y-auto">
-                    <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-4 self-start flex-wrap border border-slate-700">
-                        {availableSubGameTabs.map(tab => (
-                            <button key={tab} onClick={() => setSubGameType(tab)} className={`flex-auto py-2 px-3 text-sm font-semibold rounded-md transition-all duration-300 ${subGameType === tab ? 'bg-slate-700 text-sky-400 shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
-                                {tab}
-                            </button>
-                        ))}
-                    </div>
-                    
-                    {subGameType === SubGameType.Bulk ? (
-                        <>
-                           <div className="mb-2">
-                                <label className="block text-slate-400 mb-1 text-sm font-medium">Super Bulk Entry</label>
-                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"Example:\n43,9x,x2 rs20\nLS2 01,58 rs50\nK 32807 r5"} className={inputClass} />
-                            </div>
-                            
-                             {parsedBulkBet.betsByGame.size > 0 && (
-                                <div className="mb-4 bg-slate-800 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto space-y-2">
-                                    {Array.from(parsedBulkBet.betsByGame.entries()).map(([gameId, gameData]) => (
-                                        <div key={gameId} className="p-2 rounded-md bg-green-500/10 border-l-4 border-green-500">
-                                            <div className="flex justify-between items-center font-mono text-sm">
-                                                <span className="font-bold text-white">{gameData.gameName}</span>
-                                                <div className="flex items-center gap-4 text-xs">
-                                                    <span className="text-slate-300">Bets: <span className="font-bold text-white">{gameData.totalNumbers}</span></span>
-                                                    <span className="text-slate-300">Cost: <span className="font-bold text-white">{gameData.totalCost.toFixed(2)}</span></span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                    {isConfirming ? (
+                        <div className="animate-fade-in">
+                            <div className="text-center mb-6">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 mb-4 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
                                 </div>
-                            )}
-                            
-                            <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-2 gap-2 text-center border border-slate-700">
-                                <div><p className="text-slate-400 text-xs uppercase">Total Bets</p><p className="font-bold text-white text-lg">{parsedBulkBet.grandTotalNumbers}</p></div>
-                                <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedBulkBet.grandTotalCost.toFixed(2)}</p></div>
-                            </div>
-                        </>
-                    ) : subGameType === SubGameType.Combo ? (
-                        <>
-                            <div className="mb-4">
-                                <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Digits (3-6)</label>
-                                <div className="flex gap-2">
-                                    <input type="text" value={comboDigitsInput} onChange={e => setComboDigitsInput(e.target.value)} placeholder="e.g., 324" className={inputClass} maxLength={6}/>
-                                    <button onClick={handleGenerateCombos} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap">Generate</button>
-                                </div>
+                                <p className="text-slate-300 text-sm font-medium">Please review your bet details before confirming. These funds will be deducted from your wallet immediately.</p>
                             </div>
 
-                            {generatedCombos.length > 0 && (
-                                <>
-                                <div className="mb-4">
-                                     <label className="block text-slate-400 mb-1 text-sm font-medium">Apply Stake to All</label>
-                                    <div className="flex gap-2">
-                                        <input type="number" value={comboGlobalStake} onChange={e => setComboGlobalStake(e.target.value)} placeholder="e.g. 10" className={inputClass} />
-                                        <button onClick={handleApplyGlobalStake} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md">Apply</button>
+                            <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden mb-6">
+                                <div className="grid grid-cols-2 divide-x divide-slate-700">
+                                    <div className="p-4 bg-slate-800/30">
+                                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Game Market</p>
+                                        <p className="text-white font-bold">{subGameType === SubGameType.Bulk ? 'Multiple Markets' : game.name}</p>
+                                    </div>
+                                    <div className="p-4 bg-slate-800/30">
+                                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Bet Category</p>
+                                        <p className="text-sky-400 font-bold">{subGameType}</p>
                                     </div>
                                 </div>
-
-                                <div className="bg-slate-800 p-3 rounded-md border border-slate-700 max-h-48 overflow-y-auto space-y-2">
-                                    {generatedCombos.map((combo, index) => (
-                                        <div key={index} className="flex items-center p-2 rounded-md hover:bg-slate-700/50">
-                                            <input type="checkbox" checked={combo.selected} onChange={(e) => handleComboSelectionChange(index, e.target.checked)} className="mr-3 h-4 w-4 rounded bg-slate-900 border-slate-600 text-sky-600 focus:ring-sky-500" />
-                                            <label className="w-1/3 font-mono text-lg text-white">{combo.number}</label>
-                                            <div className="w-2/3">
-                                                <input type="number" value={combo.stake} onChange={e => handleComboStakeChange(index, e.target.value)} placeholder="0" className="w-full bg-slate-900 p-1.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono text-right" />
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="p-4 border-t border-slate-700 max-h-32 overflow-y-auto">
+                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-2">Selected Numbers</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {(subGameType === SubGameType.Bulk ? [] : 
+                                          subGameType === SubGameType.Combo ? generatedCombos.filter(c => c.selected).map(c => c.number) : 
+                                          parsedManualBet.numbers
+                                        ).map((num, i) => (
+                                            <span key={i} className="px-2 py-0.5 bg-slate-700 text-cyan-300 rounded font-mono text-sm border border-slate-600">{num}</span>
+                                        ))}
+                                        {subGameType === SubGameType.Bulk && <span className="text-white text-sm font-mono italic">Check detailed game breakdown below</span>}
+                                    </div>
                                 </div>
-                                </>
-                            )}
-                        </>
+                                <div className="p-4 border-t border-slate-700 bg-emerald-500/5 flex justify-between items-center">
+                                    <div>
+                                        <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Total Numbers</p>
+                                        <p className="text-white font-black text-xl font-mono">
+                                            {subGameType === SubGameType.Bulk ? parsedBulkBet.grandTotalNumbers : 
+                                             subGameType === SubGameType.Combo ? generatedCombos.filter(c => c.selected).length :
+                                             parsedManualBet.numberCount}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-emerald-500 uppercase font-black tracking-widest">Total Amount (PKR)</p>
+                                        <p className="text-emerald-400 font-black text-3xl font-mono drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">
+                                            {subGameType === SubGameType.Bulk ? parsedBulkBet.grandTotalCost.toFixed(2) :
+                                             subGameType === SubGameType.Combo ? generatedCombos.reduce((s, c) => c.selected ? s + (parseFloat(c.stake) || 0) : s, 0).toFixed(2) :
+                                             parsedManualBet.totalCost.toFixed(2)}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <button onClick={() => setIsConfirming(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-md transition-all border border-slate-700">
+                                    CANCEL & EDIT
+                                </button>
+                                <button 
+                                    onClick={handleBet} 
+                                    disabled={isSubmitting} 
+                                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 px-6 rounded-md transition-all shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-2"
+                                >
+                                    {isSubmitting ? (
+                                        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                    ) : (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            CONFIRM & SUBMIT
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
                     ) : (
                         <>
-                            <div className="mb-4">
-                                <div className="flex justify-between items-end mb-1">
-                                    <label className="block text-slate-400 text-sm font-medium">Enter Number(s)</label>
-                                    <button 
-                                        onClick={handleAiLuckyPick} 
-                                        disabled={isAiLoading}
-                                        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-cyan-400 hover:text-cyan-300 disabled:opacity-50 transition-all mb-1"
-                                    >
-                                        {isAiLoading ? <div className="w-3 h-3 border-2 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin"></div> : Icons.sparkles}
-                                        AI Pick
+                            <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-4 self-start flex-wrap border border-slate-700">
+                                {availableSubGameTabs.map(tab => (
+                                    <button key={tab} onClick={() => setSubGameType(tab)} className={`flex-auto py-2 px-3 text-sm font-semibold rounded-md transition-all duration-300 ${subGameType === tab ? 'bg-slate-700 text-sky-400 shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
+                                        {tab}
                                     </button>
+                                ))}
+                            </div>
+                            
+                            {subGameType === SubGameType.Bulk ? (
+                                <>
+                                <div className="mb-2">
+                                        <label className="block text-slate-400 mb-1 text-sm font-medium">Super Bulk Entry</label>
+                                        <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"Example:\n43,9x,x2 rs20\nLS2 01,58 rs50\nK 32807 r5"} className={inputClass} />
+                                    </div>
+                                    
+                                    {parsedBulkBet.betsByGame.size > 0 && (
+                                        <div className="mb-4 bg-slate-800 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto space-y-2">
+                                            {Array.from(parsedBulkBet.betsByGame.entries()).map(([gameId, gameData]) => (
+                                                <div key={gameId} className="p-2 rounded-md bg-green-500/10 border-l-4 border-green-500">
+                                                    <div className="flex justify-between items-center font-mono text-sm">
+                                                        <span className="font-bold text-white">{gameData.gameName}</span>
+                                                        <div className="flex items-center gap-4 text-xs">
+                                                            <span className="text-slate-300">Bets: <span className="font-bold text-white">{gameData.totalNumbers}</span></span>
+                                                            <span className="text-slate-300">Cost: <span className="font-bold text-white">{gameData.totalCost.toFixed(2)}</span></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    
+                                    <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-2 gap-2 text-center border border-slate-700">
+                                        <div><p className="text-slate-400 text-xs uppercase">Total Bets</p><p className="font-bold text-white text-lg">{parsedBulkBet.grandTotalNumbers}</p></div>
+                                        <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedBulkBet.grandTotalCost.toFixed(2)}</p></div>
+                                    </div>
+                                </>
+                            ) : subGameType === SubGameType.Combo ? (
+                                <>
+                                    <div className="mb-4">
+                                        <label className="block text-slate-400 mb-1 text-sm font-medium">Enter Digits (3-6)</label>
+                                        <div className="flex gap-2">
+                                            <input type="text" value={comboDigitsInput} onChange={e => setComboDigitsInput(e.target.value)} placeholder="e.g., 324" className={inputClass} maxLength={6}/>
+                                            <button onClick={handleGenerateCombos} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap">Generate</button>
+                                        </div>
+                                    </div>
+
+                                    {generatedCombos.length > 0 && (
+                                        <>
+                                        <div className="mb-4">
+                                            <label className="block text-slate-400 mb-1 text-sm font-medium">Apply Stake to All</label>
+                                            <div className="flex gap-2">
+                                                <input type="number" value={comboGlobalStake} onChange={e => setComboGlobalStake(e.target.value)} placeholder="e.g. 10" className={inputClass} />
+                                                <button onClick={handleApplyGlobalStake} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md">Apply</button>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-slate-800 p-3 rounded-md border border-slate-700 max-h-48 overflow-y-auto space-y-2">
+                                            {generatedCombos.map((combo, index) => (
+                                                <div key={index} className="flex items-center p-2 rounded-md hover:bg-slate-700/50">
+                                                    <input type="checkbox" checked={combo.selected} onChange={(e) => handleComboSelectionChange(index, e.target.checked)} className="mr-3 h-4 w-4 rounded bg-slate-900 border-slate-600 text-sky-600 focus:ring-sky-500" />
+                                                    <label className="w-1/3 font-mono text-lg text-white">{combo.number}</label>
+                                                    <div className="w-2/3">
+                                                        <input type="number" value={combo.stake} onChange={e => handleComboStakeChange(index, e.target.value)} placeholder="0" className="w-full bg-slate-900 p-1.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono text-right" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        </>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    <div className="mb-4">
+                                        <div className="flex justify-between items-end mb-1">
+                                            <label className="block text-slate-400 text-sm font-medium">Enter Number(s)</label>
+                                            <button 
+                                                onClick={handleAiLuckyPick} 
+                                                disabled={isAiLoading}
+                                                className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-cyan-400 hover:text-cyan-300 disabled:opacity-50 transition-all mb-1"
+                                            >
+                                                {isAiLoading ? <div className="w-3 h-3 border-2 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin"></div> : Icons.sparkles}
+                                                AI Pick
+                                            </button>
+                                        </div>
+                                        <textarea value={manualNumbersInput} onChange={handleManualNumberChange} rows={3} placeholder={getPlaceholder()} className={inputClass} />
+                                    </div>
+                                    <div className="mb-4">
+                                        <label className="block text-slate-400 mb-1 text-sm font-medium">Amount per Number</label>
+                                        <input type="number" value={manualAmountInput} onChange={e => setManualAmountInput(e.target.value)} placeholder="e.g. 10" className={inputClass} />
+                                    </div>
+                                    <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-3 gap-2 text-center border border-slate-700">
+                                        <div><p className="text-slate-400 text-xs uppercase">Numbers</p><p className="font-bold text-white text-lg">{parsedManualBet.numberCount}</p></div>
+                                        <div><p className="text-slate-400 text-xs uppercase">Stake/Number</p><p className="font-bold text-white text-lg font-mono">{parsedManualBet.stake.toFixed(2)}</p></div>
+                                        <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedManualBet.totalCost.toFixed(2)}</p></div>
+                                    </div>
+                                </>
+                            )}
+
+                            {displayedError && (
+                                <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-xs p-3 rounded-md mb-4" role="alert">
+                                    {displayedError}
                                 </div>
-                                <textarea value={manualNumbersInput} onChange={handleManualNumberChange} rows={3} placeholder={getPlaceholder()} className={inputClass} />
-                            </div>
-                            <div className="mb-4">
-                                <label className="block text-slate-400 mb-1 text-sm font-medium">Amount per Number</label>
-                                <input type="number" value={manualAmountInput} onChange={e => setManualAmountInput(e.target.value)} placeholder="e.g. 10" className={inputClass} />
-                            </div>
-                            <div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-3 gap-2 text-center border border-slate-700">
-                                <div><p className="text-slate-400 text-xs uppercase">Numbers</p><p className="font-bold text-white text-lg">{parsedManualBet.numberCount}</p></div>
-                                <div><p className="text-slate-400 text-xs uppercase">Stake/Number</p><p className="font-bold text-white text-lg font-mono">{parsedManualBet.stake.toFixed(2)}</p></div>
-                                <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedManualBet.totalCost.toFixed(2)}</p></div>
+                            )}
+
+                            <div className="flex justify-end pt-2">
+                                <button onClick={() => setIsConfirming(true)} disabled={!!displayedError || (subGameType === SubGameType.Bulk ? parsedBulkBet.grandTotalCost === 0 : subGameType === SubGameType.Combo ? generatedCombos.filter(c => c.selected && parseFloat(c.stake) > 0).length === 0 : parsedManualBet.totalCost === 0)} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:opacity-50">
+                                    PLACE BET
+                                </button>
                             </div>
                         </>
                     )}
-
-                    {displayedError && (
-                        <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-xs p-3 rounded-md mb-4" role="alert">
-                            {displayedError}
-                        </div>
-                    )}
-
-                    <div className="flex justify-end pt-2">
-                         <button onClick={handleBet} disabled={isSubmitting} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:opacity-50">
-                            {isSubmitting ? 'PLACING...' : 'PLACE BET'}
-                         </button>
-                    </div>
                 </div>
             </div>
         </div>

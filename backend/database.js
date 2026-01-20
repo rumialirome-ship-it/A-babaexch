@@ -79,7 +79,13 @@ const findAccountById = (id, table) => {
 
     try {
         if (account.prizeRates && typeof account.prizeRates === 'string') account.prizeRates = JSON.parse(account.prizeRates);
-        if (account.betLimits && typeof account.betLimits === 'string') account.betLimits = JSON.parse(account.betLimits);
+        if (account.betLimits && typeof account.betLimits === 'string') {
+            account.betLimits = JSON.parse(account.betLimits);
+        } else if (table === 'users' && !account.betLimits) {
+            // SAFEGUARD: Ensure betLimits is never null for users
+            account.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
+        }
+        
         if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
     } catch (e) {}
     
@@ -112,7 +118,13 @@ const getAllFromTable = (table, withLedger = false) => {
             if (withLedger && acc.id) acc.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp ASC').all(acc.id);
             if (table === 'games' && acc.drawTime) acc.isMarketOpen = isGameOpen(acc.drawTime);
             if (acc.prizeRates && typeof acc.prizeRates === 'string') acc.prizeRates = JSON.parse(acc.prizeRates);
-            if (acc.betLimits && typeof acc.betLimits === 'string') acc.betLimits = JSON.parse(acc.betLimits);
+            
+            if (acc.betLimits && typeof acc.betLimits === 'string') {
+                acc.betLimits = JSON.parse(acc.betLimits);
+            } else if (table === 'users' && !acc.betLimits) {
+                acc.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
+            }
+
             if (table === 'bets' && acc.numbers) acc.numbers = JSON.parse(acc.numbers);
             if ('isRestricted' in acc) acc.isRestricted = !!acc.isRestricted;
         } catch (e) {}
@@ -402,7 +414,7 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         const userExistingTotal = existingBets.filter(b => b.userId === uId).reduce((s, b) => s + b.totalAmount, 0);
         const requestTotal = groups.reduce((s, g) => s + g.numbers.length * g.amountPerNumber, 0);
         
-        if (user.betLimits?.perDraw > 0 && (userExistingTotal + requestTotal) > user.betLimits.perDraw) {
+        if (user.betLimits && user.betLimits.perDraw > 0 && (userExistingTotal + requestTotal) > user.betLimits.perDraw) {
             throw { status: 400, message: `Limit Reached: Draw total exceeds your PKR ${user.betLimits.perDraw} limit.` };
         }
 
@@ -420,7 +432,7 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
             const stake = g.amountPerNumber;
             const type = g.subGameType;
             const limitType = type === '1 Digit Open' ? '1-open' : type === '1 Digit Close' ? '1-close' : '2-digit';
-            const userSingleLimit = limitType === '2-digit' ? user.betLimits.twoDigit : user.betLimits.oneDigit;
+            const userSingleLimit = limitType === '2-digit' ? (user.betLimits ? user.betLimits.twoDigit : 0) : (user.betLimits ? user.betLimits.oneDigit : 0);
 
             g.numbers.forEach(n => {
                 const key = `${type}_${n}`;
