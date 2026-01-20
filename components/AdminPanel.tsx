@@ -447,6 +447,95 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
     );
 };
 
+const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Promise<void> }> = ({ admin, onSave }) => {
+    const [formData, setFormData] = useState({
+        name: admin.name,
+        avatarUrl: admin.avatarUrl || '',
+        prizeRates: {
+            oneDigitOpen: admin.prizeRates.oneDigitOpen.toString(),
+            oneDigitClose: admin.prizeRates.oneDigitClose.toString(),
+            twoDigit: admin.prizeRates.twoDigit.toString(),
+        }
+    });
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        if (name.includes('.')) {
+            const [parent, child] = name.split('.');
+            setFormData(prev => ({ 
+                ...prev, 
+                [parent]: { 
+                    ...(prev[parent as keyof typeof prev] as object), 
+                    [child]: value 
+                } 
+            }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSave({
+            ...admin,
+            name: formData.name,
+            avatarUrl: formData.avatarUrl,
+            prizeRates: {
+                oneDigitOpen: parseFloat(formData.prizeRates.oneDigitOpen) || 0,
+                oneDigitClose: parseFloat(formData.prizeRates.oneDigitClose) || 0,
+                twoDigit: parseFloat(formData.prizeRates.twoDigit) || 0,
+            }
+        });
+    };
+
+    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
+
+    return (
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 max-w-2xl mx-auto">
+            <h3 className="text-xl font-bold text-white mb-6 uppercase tracking-widest border-b border-slate-700 pb-2 flex items-center gap-2">
+                System Global Settings
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">System Display Name</label>
+                        <input type="text" name="name" value={formData.name} onChange={handleChange} className={inputClass} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Avatar URL</label>
+                        <input type="url" name="avatarUrl" value={formData.avatarUrl} onChange={handleChange} className={inputClass} />
+                    </div>
+                </div>
+                
+                <fieldset className="border border-slate-600 p-5 rounded-lg bg-slate-900/30">
+                    <legend className="px-2 text-sm font-bold text-cyan-400 uppercase tracking-tighter">Master Prize Ceilings (Multipliers)</legend>
+                    <p className="text-xs text-slate-500 mb-4 italic">Note: These values set the absolute maximum prize potential for the entire system.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">2 Digit</label>
+                            <input type="text" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">1D Open</label>
+                            <input type="text" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">1D Close</label>
+                            <input type="text" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} />
+                        </div>
+                    </div>
+                </fieldset>
+
+                <div className="flex justify-end pt-4">
+                    <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-black py-3 px-10 rounded-md transition-all uppercase tracking-widest shadow-lg shadow-cyan-900/20">
+                        Update Global Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
 const DealerTransactionForm: React.FC<{ 
     dealers: Dealer[]; 
     onTransaction: (dealerId: string, amount: number) => void; 
@@ -1071,6 +1160,7 @@ interface AdminPanelProps {
   admin: Admin; 
   dealers: Dealer[]; 
   onSaveDealer: (dealer: Dealer, originalId?: string) => Promise<void>;
+  onUpdateAdmin: (admin: Admin) => Promise<void>;
   users: User[]; 
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   games: Game[]; 
@@ -1090,7 +1180,7 @@ interface AdminPanelProps {
   onRefreshData?: () => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData }) => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -1309,6 +1399,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
     { id: 'limits', label: 'Limits', icon: Icons.clipboardList }, 
     { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search }, 
     { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
+    { id: 'settings', label: 'Settings', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
   ];
 
   return (
@@ -1327,6 +1418,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, u
       {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} bets={bets} />}
       {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
       {activeTab === 'limits' && <NumberLimitsView />}
+      {activeTab === 'settings' && <SystemSettingsForm admin={admin} onSave={onUpdateAdmin} />}
 
       {activeTab === 'dealers' && (
         <div>

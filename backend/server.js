@@ -256,6 +256,12 @@ app.put('/api/admin/dealers/:id', authMiddleware, (req, res) => {
     catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
+app.put('/api/admin/profile', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateAdmin(req.body, req.user.id)); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+});
+
 app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try {

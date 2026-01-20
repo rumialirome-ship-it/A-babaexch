@@ -184,6 +184,7 @@ const AppContent: React.FC = () => {
                             <AdminPanel 
                                 admin={account as Admin} dealers={dealers} 
                                 onSaveDealer={async (d, o) => { const url = o ? `/api/admin/dealers/${o}` : '/api/admin/dealers'; await fetchWithAuth(url, { method: o ? 'PUT' : 'POST', body: JSON.stringify(d) }); fetchPrivateData(); }} 
+                                onUpdateAdmin={async (a) => { await fetchWithAuth('/api/admin/profile', { method: 'PUT', body: JSON.stringify(a) }); fetchPrivateData(); }}
                                 users={users} setUsers={setUsers} games={games} bets={bets} 
                                 declareWinner={async (id, num) => { await fetchWithAuth(`/api/admin/games/${id}/declare-winner`, { method: 'POST', body: JSON.stringify({ winningNumber: num }) }); fetchPrivateData(); }}
                                 updateWinner={async (id, num) => { await fetchWithAuth(`/api/admin/games/${id}/update-winner`, { method: 'PUT', body: JSON.stringify({ newWinningNumber: num }) }); fetchPrivateData(); }}
