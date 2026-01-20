@@ -78,13 +78,15 @@ const findAccountById = (id, table) => {
     }
 
     try {
+        // Commission Rate Safeguard
+        account.commissionRate = Number(account.commissionRate) || 0;
+
         if (account.prizeRates && typeof account.prizeRates === 'string') {
             account.prizeRates = JSON.parse(account.prizeRates);
         } else if (!account.prizeRates) {
             account.prizeRates = { oneDigitOpen: 0, oneDigitClose: 0, twoDigit: 0 };
         }
 
-        // CRITICAL FIX: Ensure betLimits is never null and contains required keys
         if (account.betLimits && typeof account.betLimits === 'string') {
             account.betLimits = JSON.parse(account.betLimits);
         }
@@ -128,6 +130,7 @@ const updatePassword = (accountId, contact, newPassword) => {
 const getAllFromTable = (table, withLedger = false) => {
     return db.prepare(`SELECT * FROM ${table}`).all().map(acc => {
         try {
+            acc.commissionRate = Number(acc.commissionRate) || 0;
             if (withLedger && acc.id) acc.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp ASC').all(acc.id);
             if (table === 'games' && acc.drawTime) acc.isMarketOpen = isGameOpen(acc.drawTime);
             
@@ -420,9 +423,9 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         if (!user || user.isRestricted) throw { status: 403, message: 'Restricted or not found.' };
         
         const dealer = findAccountById(user.dealerId, 'dealers');
+        if (!dealer) throw { status: 400, message: 'Dealer data not found.' };
+
         const game = findAccountById(gId, 'games');
-        
-        // CRITICAL: Robust status check before processing wallet
         if (!game || !isGameOpen(game.drawTime) || (game.winningNumber && !game.winningNumber.endsWith('_'))) {
             throw { status: 400, message: "Market is currently closed for this game." };
         }
@@ -434,7 +437,6 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         const userExistingTotal = existingBets.filter(b => b.userId === uId).reduce((s, b) => s + b.totalAmount, 0);
         const requestTotal = groups.reduce((s, g) => s + g.numbers.length * g.amountPerNumber, 0);
         
-        // SAFE ACCESS: Robust check for betLimits object
         const perDrawLimit = user.betLimits ? (user.betLimits.perDraw || 0) : 0;
         if (perDrawLimit > 0 && (userExistingTotal + requestTotal) > perDrawLimit) {
             throw { status: 400, message: `Limit Reached: Draw total exceeds your PKR ${perDrawLimit} limit.` };
@@ -455,7 +457,6 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
             const type = g.subGameType;
             const limitType = type === '1 Digit Open' ? '1-open' : type === '1 Digit Close' ? '1-close' : '2-digit';
             
-            // SAFE ACCESS: Check if betLimits exists before reading
             const userSingleLimit = limitType === '2-digit' 
                 ? (user.betLimits ? (user.betLimits.twoDigit || 0) : 0) 
                 : (user.betLimits ? (user.betLimits.oneDigit || 0) : 0);
@@ -478,17 +479,31 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
 
         if (user.wallet < requestTotal) throw { status: 400, message: `Insufficient funds.` };
         
-        const userComm = requestTotal * (user.commissionRate / 100);
-        const dComm = requestTotal * ((dealer.commissionRate - user.commissionRate) / 100);
+        // CRITICAL: Strict numerical commission logic
+        const userCommRate = Number(user.commissionRate) || 0;
+        const dealerCommRate = Number(dealer.commissionRate) || 0;
         
+        const userComm = requestTotal * (userCommRate / 100);
+        const dComm = requestTotal * ((dealerCommRate - userCommRate) / 100);
+        
+        // Step 1: User Stake Payment
         addLedgerEntry(user.id, 'USER', `Bet placed on ${game.name}`, requestTotal, 0);
-        if (userComm > 0) addLedgerEntry(user.id, 'USER', `Comm earned`, 0, userComm);
         
-        addLedgerEntry(admin.id, 'ADMIN', `Stake: ${user.name}`, 0, requestTotal);
-        if (userComm > 0) addLedgerEntry(admin.id, 'ADMIN', `Comm to user`, userComm, 0);
+        // Step 2: User Commission Addition (Instant)
+        if (userComm > 0) {
+            addLedgerEntry(user.id, 'USER', `Comm earned: ${game.name} (${userCommRate}%)`, 0, userComm);
+        }
+        
+        // Step 3: Admin Updates
+        addLedgerEntry(admin.id, 'ADMIN', `Stake: ${user.name} @ ${game.name}`, 0, requestTotal);
+        if (userComm > 0) {
+            addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${user.name}`, userComm, 0);
+        }
+        
+        // Step 4: Dealer Override Commission
         if (dComm > 0) { 
-            addLedgerEntry(admin.id, 'ADMIN', `Comm to dealer`, dComm, 0); 
-            addLedgerEntry(dealer.id, 'DEALER', `Comm from ${user.name}`, 0, dComm); 
+            addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${dealer.name} (Override)`, dComm, 0); 
+            addLedgerEntry(dealer.id, 'DEALER', `Comm from ${user.name} @ ${game.name}`, 0, dComm); 
         }
 
         const created = [];
