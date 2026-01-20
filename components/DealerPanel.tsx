@@ -90,38 +90,48 @@ export const UserForm: React.FC<{
     const [formData, setFormData] = useState(() => {
         if (user) {
             return {
-                ...user,
+                id: user.id,
+                name: user.name,
+                contact: user.contact || '',
+                area: user.area || '',
                 password: '',
+                wallet: user.wallet.toString(),
+                commissionRate: user.commissionRate.toString(),
                 betLimits: {
-                    oneDigit: user.betLimits?.oneDigit ?? 1000,
-                    twoDigit: user.betLimits?.twoDigit ?? 5000,
-                    perDraw: user.betLimits?.perDraw ?? 20000,
+                    oneDigit: (user.betLimits?.oneDigit ?? 1000).toString(),
+                    twoDigit: (user.betLimits?.twoDigit ?? 5000).toString(),
+                    perDraw: (user.betLimits?.perDraw ?? 20000).toString(),
                 },
                 prizeRates: {
-                    oneDigitOpen: user.prizeRates?.oneDigitOpen ?? 9.50,
-                    oneDigitClose: user.prizeRates?.oneDigitClose ?? 9.50,
-                    twoDigit: user.prizeRates?.twoDigit ?? 85.00
-                }
+                    oneDigitOpen: (user.prizeRates?.oneDigitOpen ?? 9.50).toString(),
+                    oneDigitClose: (user.prizeRates?.oneDigitClose ?? 9.50).toString(),
+                    twoDigit: (user.prizeRates?.twoDigit ?? 85.00).toString()
+                },
+                avatarUrl: user.avatarUrl || ''
             };
         }
         return {
-            id: '', name: '', area: '', contact: '', commissionRate: 0, 
-            prizeRates: { oneDigitOpen: 9.50, oneDigitClose: 9.50, twoDigit: 85.00 }, 
-            avatarUrl: '', wallet: 0,
-            betLimits: { oneDigit: 1000, twoDigit: 5000, perDraw: 20000 }
+            id: '', name: '', area: '', contact: '', 
+            commissionRate: '0', 
+            prizeRates: { oneDigitOpen: '9.50', oneDigitClose: '9.50', twoDigit: '85.00' }, 
+            avatarUrl: '', wallet: '0',
+            betLimits: { oneDigit: '1000', twoDigit: '5000', perDraw: '20000' }
         };
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value, type } = e.target;
+        const { name, value } = e.target;
         if (name.includes('.')) {
             const [parent, child] = name.split('.');
             setFormData(prev => ({ 
                 ...prev, 
-                [parent]: { ...(prev[parent as keyof typeof prev] as object), [child]: type === 'number' ? (value === '' ? '' : parseFloat(value)) : value } 
+                [parent]: { 
+                    ...(prev[parent as keyof typeof prev] as object), 
+                    [child]: value 
+                } 
             }));
         } else {
-            setFormData(prev => ({ ...prev, [name]: type === 'number' ? (value === '' ? '' : parseFloat(value)) : value }));
+            setFormData(prev => ({ ...prev, [name]: value }));
         }
     };
     
@@ -137,25 +147,32 @@ export const UserForm: React.FC<{
 
         setIsLoading(true);
         try {
-            const userPayload = {
-                ...formData,
+            const userPayload: User = {
+                ...user,
+                id: formData.id,
+                name: formData.name,
+                contact: formData.contact,
+                area: formData.area,
                 password: activePass,
                 dealerId,
+                wallet: parseFloat(formData.wallet) || 0,
+                commissionRate: parseFloat(formData.commissionRate) || 0,
                 isRestricted: user?.isRestricted ?? false,
                 ledger: user?.ledger ?? [],
+                avatarUrl: formData.avatarUrl,
                 betLimits: {
-                    oneDigit: Number(formData.betLimits.oneDigit),
-                    twoDigit: Number(formData.betLimits.twoDigit),
-                    perDraw: Number(formData.betLimits.perDraw)
+                    oneDigit: parseFloat(formData.betLimits.oneDigit) || 0,
+                    twoDigit: parseFloat(formData.betLimits.twoDigit) || 0,
+                    perDraw: parseFloat(formData.betLimits.perDraw) || 0
                 },
                 prizeRates: {
-                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen),
-                    oneDigitClose: Number(formData.prizeRates.oneDigitClose),
-                    twoDigit: Number(formData.prizeRates.twoDigit)
+                    oneDigitOpen: parseFloat(formData.prizeRates.oneDigitOpen) || 0,
+                    oneDigitClose: parseFloat(formData.prizeRates.oneDigitClose) || 0,
+                    twoDigit: parseFloat(formData.prizeRates.twoDigit) || 0
                 }
-            } as User;
+            };
 
-            await onSave(userPayload, user?.id, user ? undefined : Number(formData.wallet));
+            await onSave(userPayload, user?.id, user ? undefined : parseFloat(formData.wallet));
             showToast(user ? "✅ User updated successfully!" : "✅ User added successfully!", "success");
             onCancel();
         } catch (err: any) {
@@ -200,11 +217,11 @@ export const UserForm: React.FC<{
 
                 <div className="sm:col-span-1">
                     <label className={labelClass}>Wallet Balance (PKR)</label>
-                    <input type="number" name="wallet" value={formData.wallet} onChange={handleChange} className={inputClass} disabled={!!user} step="0.01" />
+                    <input type="text" name="wallet" value={formData.wallet} onChange={handleChange} className={inputClass} disabled={!!user} />
                 </div>
                 <div className="sm:col-span-1">
                     <label className={labelClass}>Comm. Rate (%)</label>
-                    <input type="number" name="commissionRate" value={formData.commissionRate} onChange={handleChange} className={inputClass} step="0.1" />
+                    <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} className={inputClass} />
                 </div>
             </div>
 
@@ -212,15 +229,15 @@ export const UserForm: React.FC<{
                 <div className="sm:col-span-3 text-xs font-black text-emerald-500 uppercase tracking-tighter mb-1">Prize Settings</div>
                 <div>
                     <label className={labelClass}>Rate (2 Digit)</label>
-                    <input type="number" step="0.01" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} />
+                    <input type="text" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} />
                 </div>
                 <div>
                     <label className={labelClass}>Rate (Open)</label>
-                    <input type="number" step="0.01" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} />
+                    <input type="text" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} />
                 </div>
                 <div>
                     <label className={labelClass}>Rate (Close)</label>
-                    <input type="number" step="0.01" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} />
+                    <input type="text" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} />
                 </div>
             </div>
 
@@ -228,15 +245,15 @@ export const UserForm: React.FC<{
                 <div className="sm:col-span-3 text-xs font-black text-cyan-500 uppercase tracking-tighter mb-1">Bet Limits</div>
                 <div>
                     <label className={labelClass}>Limit (2D)</label>
-                    <input type="number" name="betLimits.twoDigit" value={formData.betLimits.twoDigit} onChange={handleChange} className={inputClass} />
+                    <input type="text" name="betLimits.twoDigit" value={formData.betLimits.twoDigit} onChange={handleChange} className={inputClass} />
                 </div>
                 <div>
                     <label className={labelClass}>Limit (1D)</label>
-                    <input type="number" name="betLimits.oneDigit" value={formData.betLimits.oneDigit} onChange={handleChange} className={inputClass} />
+                    <input type="text" name="betLimits.oneDigit" value={formData.betLimits.oneDigit} onChange={handleChange} className={inputClass} />
                 </div>
                 <div>
                     <label className={labelClass}>Per Draw</label>
-                    <input type="number" name="betLimits.perDraw" value={formData.betLimits.perDraw} onChange={handleChange} className={inputClass} />
+                    <input type="text" name="betLimits.perDraw" value={formData.betLimits.perDraw} onChange={handleChange} className={inputClass} />
                 </div>
             </div>
 

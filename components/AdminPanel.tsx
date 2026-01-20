@@ -303,12 +303,40 @@ const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers
 };
 
 const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => Promise<void>; onCancel: () => void; adminPrizeRates: PrizeRates }> = ({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
+    // Keep internal state as strings to allow flexible typing (decimals, clearing)
     const [formData, setFormData] = useState(() => {
-        const defaults = { id: '', name: '', password: '', area: '', contact: '', commissionRate: 0, prizeRates: { ...adminPrizeRates }, avatarUrl: '', wallet: '' };
         if (dealer) {
-            return { ...dealer, password: '' };
+            return {
+                id: dealer.id,
+                name: dealer.name,
+                password: '',
+                area: dealer.area || '',
+                contact: dealer.contact || '',
+                commissionRate: dealer.commissionRate.toString(),
+                prizeRates: {
+                    oneDigitOpen: dealer.prizeRates.oneDigitOpen.toString(),
+                    oneDigitClose: dealer.prizeRates.oneDigitClose.toString(),
+                    twoDigit: dealer.prizeRates.twoDigit.toString(),
+                },
+                avatarUrl: dealer.avatarUrl || '',
+                wallet: dealer.wallet.toString()
+            };
         }
-        return defaults;
+        return {
+            id: '',
+            name: '',
+            password: '',
+            area: '',
+            contact: '',
+            commissionRate: '0',
+            prizeRates: {
+                oneDigitOpen: adminPrizeRates.oneDigitOpen.toString(),
+                oneDigitClose: adminPrizeRates.oneDigitClose.toString(),
+                twoDigit: adminPrizeRates.twoDigit.toString(),
+            },
+            avatarUrl: '',
+            wallet: '0'
+        };
     });
     
     const [password, setPassword] = useState('');
@@ -320,19 +348,24 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
         const { name, value, type, checked } = e.target;
         if (name.includes('.')) {
             const [parent, child] = name.split('.');
-            setFormData(prev => ({ ...prev, [parent]: { ...(prev[parent as keyof typeof prev] as object), [child]: type === 'number' ? parseFloat(value) : value } }));
+            setFormData(prev => ({ 
+                ...prev, 
+                [parent]: { 
+                    ...(prev[parent as keyof typeof prev] as object), 
+                    [child]: value 
+                } 
+            }));
         } else {
-             if(!dealer && name === 'password') {
-                 setFormData(prev => ({ ...prev, password: value }));
-                 return;
-            }
-            setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? (checked as any) : (type === 'number' ? (value ? parseFloat(value) : '') : value) }));
+            setFormData(prev => ({ 
+                ...prev, 
+                [name]: type === 'checkbox' ? (checked as any) : value 
+            }));
         }
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const newPassword = dealer ? password : formData.password!;
+        const newPassword = dealer ? password : formData.password;
         if (newPassword && newPassword !== confirmPassword) { alert("New passwords do not match."); return; }
         if (!dealer && !newPassword) { alert("Password is required for new dealers."); return; }
         
@@ -342,50 +375,35 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
             return;
         }
 
-        let finalData: Dealer;
-        if (dealer) {
-            finalData = { 
-                ...dealer, 
-                ...formData, 
-                password: newPassword ? newPassword : dealer.password,
-                wallet: Number(formData.wallet) || 0,
-                commissionRate: Number(formData.commissionRate) || 0,
-                prizeRates: {
-                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
-                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
-                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
-                }
-            };
-        } else {
-            finalData = {
-                id: formData.id as string, 
-                name: formData.name, 
-                password: newPassword, 
-                area: formData.area,
-                contact: formData.contact, 
-                wallet: Number(formData.wallet) || 0,
-                commissionRate: Number(formData.commissionRate) || 0, 
-                isRestricted: false, 
-                prizeRates: {
-                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
-                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
-                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
-                },
-                ledger: [], 
-                avatarUrl: formData.avatarUrl,
-            };
-        }
+        const finalData: Dealer = {
+            id: formData.id,
+            name: formData.name,
+            password: newPassword ? newPassword : (dealer?.password || ''),
+            area: formData.area,
+            contact: formData.contact,
+            wallet: parseFloat(formData.wallet) || 0,
+            commissionRate: parseFloat(formData.commissionRate) || 0,
+            isRestricted: dealer?.isRestricted ?? false,
+            prizeRates: {
+                oneDigitOpen: parseFloat(formData.prizeRates.oneDigitOpen) || 0,
+                oneDigitClose: parseFloat(formData.prizeRates.oneDigitClose) || 0,
+                twoDigit: parseFloat(formData.prizeRates.twoDigit) || 0,
+            },
+            ledger: dealer?.ledger || [],
+            avatarUrl: formData.avatarUrl,
+        };
+
         onSave(finalData, dealer?.id);
     };
 
-    const displayPassword = dealer ? password : formData.password!;
+    const displayPassword = dealer ? password : formData.password;
     const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
             <div>
                 <label className="block text-sm font-medium text-slate-400 mb-1">Dealer Login ID</label>
-                <input type="text" name="id" value={formData.id as string} onChange={handleChange} placeholder="Dealer Login ID (e.g., dealer02)" className={inputClass} required />
+                <input type="text" name="id" value={formData.id} onChange={handleChange} placeholder="Dealer Login ID (e.g., dealer02)" className={inputClass} required />
             </div>
             <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Dealer Display Name" className={inputClass} required />
             <div className="relative">
@@ -404,20 +422,20 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
              {!dealer && (
                 <div>
                   <label className="block text-sm font-medium text-slate-400 mb-1">Initial Wallet Amount (PKR)</label>
-                  <input type="number" name="wallet" value={formData.wallet as string} onChange={handleChange} placeholder="e.g. 10000" className={inputClass} />
+                  <input type="text" name="wallet" value={formData.wallet} onChange={handleChange} placeholder="e.g. 10000" className={inputClass} />
                 </div>
             )}
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-1">Commission Rate (%)</label>
-              <input type="number" name="commissionRate" value={formData.commissionRate} onChange={handleChange} placeholder="e.g. 5" className={inputClass} />
+              <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} placeholder="e.g. 5" className={inputClass} />
             </div>
             
             <fieldset className="border border-slate-600 p-4 rounded-md">
                 <legend className="px-2 text-sm font-medium text-slate-400">Prize Rates</legend>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div><label className="text-xs">2 Digit</label><input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
-                    <div><label className="text-xs">1D Open</label><input type="number" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
-                    <div><label className="text-xs">1D Close</label><input type="number" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
+                    <div><label className="text-xs">2 Digit</label><input type="text" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
+                    <div><label className="text-xs">1D Open</label><input type="text" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
+                    <div><label className="text-xs">1D Close</label><input type="text" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
                 </div>
             </fieldset>
 
