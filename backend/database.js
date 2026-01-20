@@ -7,46 +7,44 @@ const DB_PATH = path.join(__dirname, 'database.sqlite');
 let db;
 
 // --- CENTRALIZED GAME TIMING LOGIC (PKT TIMEZONE) ---
-const PKT_OFFSET_HOURS = 5;
-const OPEN_HOUR_PKT = 16; // 4:00 PM in Pakistan
-
-function getGameCycle(drawTime) {
-    const now = new Date(); // UTC
-    const [drawHoursPKT, drawMinutesPKT] = drawTime.split(':').map(Number);
-
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth();
-    const day = now.getUTCDate();
-    
-    const openHourUTC = OPEN_HOUR_PKT - PKT_OFFSET_HOURS; // 11:00 AM UTC
-
-    const todayOpen = new Date(Date.UTC(year, month, day, openHourUTC, 0, 0));
-    const yesterdayOpen = new Date(todayOpen.getTime() - (24 * 60 * 60 * 1000));
-
-    const calculateCloseTime = (openDate) => {
-        const closeDate = new Date(openDate.getTime());
-        const drawHourUTC = drawHoursPKT - PKT_OFFSET_HOURS;
-        closeDate.setUTCHours(drawHourUTC, drawMinutesPKT, 0, 0);
-
-        if (drawHoursPKT < OPEN_HOUR_PKT) {
-            closeDate.setUTCDate(closeDate.getUTCDate() + 1);
-        }
-        return closeDate;
-    };
-
-    const yesterdayCycleClose = calculateCloseTime(yesterdayOpen);
-    if (now >= yesterdayOpen && now < yesterdayCycleClose) {
-        return { openTime: yesterdayOpen, closeTime: yesterdayCycleClose };
-    }
-
-    const todayCycleClose = calculateCloseTime(todayOpen);
-    return { openTime: todayOpen, closeTime: todayCycleClose };
-}
-
+// Market opens at 4:00 PM (16:00) every day and stays open until the draw time.
 function isGameOpen(drawTime) {
     const now = new Date();
-    const { openTime, closeTime } = getGameCycle(drawTime);
-    return now >= openTime && now < closeTime;
+    const [drawH, drawM] = drawTime.split(':').map(Number);
+    
+    // Create a date object for the current time in Pakistan
+    const pktTime = new Date(now.getTime() + (5 * 60 * 60 * 1000));
+    const pktH = pktTime.getUTCHours();
+    const pktDate = pktTime.getUTCDate();
+
+    // If it's before 4 PM PKT, the market for today isn't open yet 
+    // (unless we are in the early morning hours 00:00 - 04:00 and the draw is for the previous day's cycle)
+    
+    // Simplification: Calculate Draw Time for this specific cycle
+    const drawDate = new Date(pktTime);
+    drawDate.setUTCHours(drawH, drawM, 0, 0);
+
+    const openDate = new Date(pktTime);
+    openDate.setUTCHours(16, 0, 0, 0);
+
+    // If draw is early morning (e.g., 00:55 or 02:10), it belongs to the cycle that opened YESTERDAY
+    if (drawH < 16) {
+        // If current time is after 4 PM, this draw is for TOMORROW
+        if (pktH >= 16) {
+            drawDate.setUTCDate(pktDate + 1);
+        } else {
+            // If current time is early morning, the market opened yesterday
+            openDate.setUTCDate(pktDate - 1);
+        }
+    } else {
+        // If draw is evening (e.g. 18:00), and current time is early morning, draw was yesterday
+        if (pktH < 16) {
+            drawDate.setUTCDate(pktDate - 1);
+            openDate.setUTCDate(pktDate - 1);
+        }
+    }
+
+    return pktTime >= openDate && pktTime < drawDate;
 }
 
 const connect = () => {
@@ -82,21 +80,17 @@ const findAccountById = (id, table) => {
         if (table !== 'games') {
             account.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp ASC').all(id);
         } else {
-            // FIX: Corrected typo from isMarketOpen to isGameOpen
             account.isMarketOpen = isGameOpen(account.drawTime);
         }
     } catch (e) {
         console.error(`Error processing related data for ${table}:`, e);
     }
 
-    // Move JSON parsing outside of the try-catch for better reliability
     try {
         if (account.prizeRates && typeof account.prizeRates === 'string') account.prizeRates = JSON.parse(account.prizeRates);
         if (account.betLimits && typeof account.betLimits === 'string') account.betLimits = JSON.parse(account.betLimits);
         if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
-    } catch (e) {
-        console.error(`Error parsing JSON fields for ${table}:`, e);
-    }
+    } catch (e) {}
     
     return account;
 };
@@ -405,8 +399,8 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         const dealer = findAccountById(user.dealerId, 'dealers');
         const game = findAccountById(gId, 'games');
         
-        // FIX: Critical validation - Prevent betting on closed markets or finished games
-        if (!game || !game.isMarketOpen || (game.winningNumber && !game.winningNumber.endsWith('_'))) {
+        // CRITICAL: Prevent betting if market is closed for THIS game
+        if (!game || !isGameOpen(game.drawTime) || (game.winningNumber && !game.winningNumber.endsWith('_'))) {
             throw { status: 400, message: "Market is currently closed for this game." };
         }
 

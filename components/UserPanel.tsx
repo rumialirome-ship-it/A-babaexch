@@ -7,6 +7,23 @@ import { useAuth } from '../hooks/useAuth';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
+const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () => void }> = ({ message, type, onClose }) => {
+    useEffect(() => {
+        const timer = setTimeout(onClose, 4000);
+        return () => clearTimeout(timer);
+    }, [onClose]);
+
+    return (
+        <div className={`fixed top-4 right-4 z-[2000] p-4 rounded-lg shadow-2xl border flex items-center gap-3 animate-slide-in max-w-[90vw] sm:max-w-md ${
+            type === 'success' ? 'bg-emerald-900 border-emerald-500 text-emerald-50' : 'bg-red-900 border-red-500 text-red-50'
+        }`}>
+            <span className="text-xl shrink-0">{type === 'success' ? '✅' : '⚠️'}</span>
+            <span className="font-semibold text-sm">{message}</span>
+            <button onClick={onClose} className="ml-auto opacity-50 hover:opacity-100 p-1">{Icons.close}</button>
+        </div>
+    );
+};
+
 const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
@@ -111,13 +128,15 @@ const calculateBetPayout = (bet: Bet, game: Game | undefined, userPrizeRates: Pr
 
     if (winningNumbersCount > 0) {
         const getPrizeMultiplier = (rates: PrizeRates, subGameType: SubGameType) => {
+            // Fix: Directly use enum values in case statements for switch(subGameType)
             switch (subGameType) {
                 case SubGameType.OneDigitOpen: return rates.oneDigitOpen;
                 case SubGameType.OneDigitClose: return rates.oneDigitClose;
                 default: return rates.twoDigit;
             }
         };
-        return winningNumbersCount * bet.amountPerNumber * getPrizeMultiplier(userPrizeRates, bet.subGameType);
+        const multiplier = getPrizeMultiplier(userPrizeRates, bet.subGameType);
+        return winningNumbersCount * bet.amountPerNumber * multiplier;
     }
     return 0;
 };
@@ -291,17 +310,8 @@ interface BettingModalProps {
     games: Game[];
     user: User;
     onClose: () => void;
-    onPlaceBet: (details: {
-        gameId: string;
-        betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[];
-    } | {
-        isMultiGame: true;
-        multiGameBets: Map<string, { gameName: string, betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>;
-    }) => void;
-    apiError: string | null;
-    clearApiError: () => void;
+    onPlaceBet: (details: any) => Promise<void>;
 }
-
 
 // Type for the new Combo Game UI state
 interface ComboLine {
@@ -310,7 +320,7 @@ interface ComboLine {
     selected: boolean;
 }
 
-const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose, onPlaceBet, apiError, clearApiError }) => {
+const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose, onPlaceBet }) => {
     const { fetchWithAuth } = useAuth();
     const [subGameType, setSubGameType] = useState<SubGameType>(SubGameType.TwoDigit);
     const [manualNumbersInput, setManualNumbersInput] = useState('');
@@ -318,6 +328,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     const [bulkInput, setBulkInput] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isAiLoading, setIsAiLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // --- New State for Combo Game ---
     const [comboDigitsInput, setComboDigitsInput] = useState('');
@@ -386,13 +397,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         }
     }, [availableSubGameTabs, subGameType]);
 
-    // This effect clears the parent's API error when the user starts a new interaction.
-    useEffect(() => {
-        if (apiError) {
-            clearApiError();
-        }
-    }, [manualNumbersInput, manualAmountInput, bulkInput, comboDigitsInput, comboGlobalStake, subGameType, clearApiError]);
-
     const handleAiLuckyPick = async () => {
         if (isAiLoading) return;
         setIsAiLoading(true);
@@ -437,7 +441,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         const gameNameMap = new Map<string, string>();
         games.forEach(g => gameNameMap.set(g.name.toLowerCase().replace(/\s+/g, ''), g.id));
         const gameNameRegex = new RegExp(`\\b(${Array.from(gameNameMap.keys()).join('|')})\\b`, 'i');
-        const delimiterRegex = /[-.,_*\/+<>=%;'\s]+/; // Removed 'x' and 'X' from delimiters
+        const delimiterRegex = /[-.,_*\/+<>=%;'\s]+/; 
 
         let currentGameId: string | null = game.id;
         
@@ -477,7 +481,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             const isAkcGame = gameNameOnLine === 'AKC';
             const determineType = (token: string): SubGameType | null => {
                 if (isAkcGame) {
-                    if (/^[xX]\d$/.test(token)) return SubGameType.OneDigitClose;
+                    if (/^[xX]?\d$/.test(token)) return SubGameType.OneDigitClose;
                     return null;
                 }
                 if (/^\d{1,2}$/.test(token)) return SubGameType.TwoDigit;
@@ -512,7 +516,9 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                     let numberValue = '';
                     if (tokenType === SubGameType.TwoDigit) numberValue = token.padStart(2, '0');
                     else if (tokenType === SubGameType.OneDigitOpen) numberValue = token[0];
-                    else if (tokenType === SubGameType.OneDigitClose) numberValue = token[1];
+                    else if (tokenType === SubGameType.OneDigitClose) {
+                         numberValue = token.length === 2 ? token[1] : token[0];
+                    }
                     
                     betItems.push({ number: numberValue, subGameType: tokenType });
                 }
@@ -606,8 +612,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
         });
     }, [generatedCombos]);
 
-    // --- End New Combo Game Logic ---
-
     const parsedManualBet = useMemo(() => {
         const result = { numbers: [] as string[], totalCost: 0, error: null as string | null, numberCount: 0, stake: 0 };
         const amount = parseFloat(manualAmountInput);
@@ -623,63 +627,63 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                     break;
             }
         }
-        result.numbers = [...new Set(numbers)]; // Unique numbers only for manual entry
+        result.numbers = [...new Set(numbers)]; 
         result.numberCount = result.numbers.length;
         if (result.stake > 0) { result.totalCost = result.numberCount * result.stake; }
         return result;
     }, [manualNumbersInput, manualAmountInput, subGameType]);
 
-    const handleBet = () => {
+    const handleBet = async () => {
         setError(null);
+        setIsSubmitting(true);
 
-        if (subGameType === SubGameType.Combo) {
-            const validBets = generatedCombos.filter(c => c.selected && parseFloat(c.stake) > 0);
-            if (validBets.length === 0) { setError("Please select at least one combination and enter a valid stake."); return; }
+        try {
+            if (subGameType === SubGameType.Combo) {
+                const validBets = generatedCombos.filter(c => c.selected && parseFloat(c.stake) > 0);
+                if (validBets.length === 0) throw new Error("Please select combinations and enter valid stakes.");
 
-            const totalCost = validBets.reduce((sum, c) => sum + parseFloat(c.stake), 0);
-            if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
+                const totalCost = validBets.reduce((sum, c) => sum + parseFloat(c.stake), 0);
+                if (totalCost > user.wallet) throw new Error(`Insufficient balance.`);
 
-            const groups = new Map<number, string[]>();
-            validBets.forEach(bet => {
-                const stake = parseFloat(bet.stake);
-                if (!groups.has(stake)) groups.set(stake, []);
-                groups.get(stake)!.push(bet.number);
-            });
-            const betGroups = Array.from(groups.entries()).map(([amount, numbers]) => ({
-                subGameType: SubGameType.Combo,
-                numbers,
-                amountPerNumber: amount,
-            }));
-            
-            onPlaceBet({ gameId: game.id, betGroups });
-            setComboDigitsInput(''); setGeneratedCombos([]); setComboGlobalStake('');
-            return;
+                const groups = new Map<number, string[]>();
+                validBets.forEach(bet => {
+                    const stake = parseFloat(bet.stake);
+                    if (!groups.has(stake)) groups.set(stake, []);
+                    groups.get(stake)!.push(bet.number);
+                });
+                const betGroups = Array.from(groups.entries()).map(([amount, numbers]) => ({
+                    subGameType: SubGameType.Combo,
+                    numbers,
+                    amountPerNumber: amount,
+                }));
+                
+                await onPlaceBet({ gameId: game.id, betGroups });
+            } else if (subGameType === SubGameType.Bulk) {
+                const { betsByGame, grandTotalCost, errors } = parsedBulkBet;
+                if (errors.length > 0) throw new Error(errors[0]);
+                if (betsByGame.size === 0) throw new Error("No valid bets entered.");
+                if (grandTotalCost > user.wallet) throw new Error(`Insufficient balance.`);
+
+                const multiGameBets = new Map<string, { gameName: string; betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>();
+                betsByGame.forEach((gameData, gameId) => {
+                    multiGameBets.set(gameId, { gameName: gameData.gameName, betGroups: Array.from(gameData.betGroups.values()) });
+                });
+
+                await onPlaceBet({ isMultiGame: true, multiGameBets });
+            } else {
+                const { numbers, totalCost, error: parseError, stake } = parsedManualBet;
+                if (stake <= 0) throw new Error("Please enter a valid amount.");
+                if (parseError) throw new Error(parseError);
+                if (numbers.length === 0) throw new Error("Please enter at least one number.");
+                if (totalCost > user.wallet) throw new Error(`Insufficient balance.`);
+                
+                await onPlaceBet({ gameId: game.id, betGroups: [{ subGameType, numbers, amountPerNumber: stake }] });
+            }
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setIsSubmitting(false);
         }
-
-        if (subGameType === SubGameType.Bulk) {
-            const { betsByGame, grandTotalCost, errors } = parsedBulkBet;
-            if (errors.length > 0) { setError(errors.join(' ')); return; }
-            if (betsByGame.size === 0) { setError("No valid bets entered."); return; }
-            if (grandTotalCost > user.wallet) { setError(`Insufficient balance. Required: ${grandTotalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-
-            const multiGameBets = new Map<string, { gameName: string; betGroups: { subGameType: SubGameType; numbers: string[]; amountPerNumber: number }[] }>();
-            betsByGame.forEach((gameData, gameId) => {
-                const betGroups = Array.from(gameData.betGroups.values());
-                multiGameBets.set(gameId, { gameName: gameData.gameName, betGroups });
-            });
-
-            onPlaceBet({ isMultiGame: true, multiGameBets });
-            return;
-        }
-        
-        const { numbers, totalCost, error: parseError, stake } = parsedManualBet;
-        if (stake <= 0) { setError("Please enter a valid amount."); return; }
-        if (parseError) { setError(parseError); return; }
-        if (numbers.length === 0) { setError("Please enter at least one number."); return; }
-        if (totalCost > user.wallet) { setError(`Insufficient balance. Required: ${totalCost.toFixed(2)}, Available: ${user.wallet.toFixed(2)}`); return; }
-        
-        onPlaceBet({ gameId: game.id, betGroups: [{ subGameType, numbers, amountPerNumber: stake }] });
-        setManualNumbersInput(''); setManualAmountInput('');
     };
 
     const getPlaceholder = () => {
@@ -698,7 +702,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     };
 
     const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono";
-    const displayedError = apiError || error || (parsedBulkBet.errors.length > 0 ? parsedBulkBet.errors.join(' ') : null) || parsedManualBet.error;
+    const displayedError = error || (parsedBulkBet.errors.length > 0 ? parsedBulkBet.errors[0] : null) || parsedManualBet.error;
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
@@ -732,7 +736,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                            <div className="mb-2">
                                 <label className="block text-slate-400 mb-1 text-sm font-medium">Super Bulk Entry</label>
                                 <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"Example:\n43,9x,x2 rs20\nLS2 01,58 rs50\nK 32807 r5"} className={inputClass} />
-                                <p className="text-xs text-slate-500 mt-1">Mix 2-digit, open (e.g. 5x), close (e.g. x8), and combos (K).</p>
                             </div>
                             
                              {parsedBulkBet.betsByGame.size > 0 && (
@@ -777,11 +780,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                                 </div>
 
                                 <div className="bg-slate-800 p-3 rounded-md border border-slate-700 max-h-48 overflow-y-auto space-y-2">
-                                    <div className="flex items-center px-2 py-1 text-xs text-slate-400 border-b border-slate-700">
-                                        <input type="checkbox" checked={allCombosSelected} onChange={e => handleSelectAllCombos(e.target.checked)} className="mr-3 h-4 w-4 rounded bg-slate-900 border-slate-600 text-sky-600 focus:ring-sky-500" />
-                                        <span className="w-1/3 font-semibold">Combination</span>
-                                        <span className="w-2/3 font-semibold text-right">Stake Amount (PKR)</span>
-                                    </div>
                                     {generatedCombos.map((combo, index) => (
                                         <div key={index} className="flex items-center p-2 rounded-md hover:bg-slate-700/50">
                                             <input type="checkbox" checked={combo.selected} onChange={(e) => handleComboSelectionChange(index, e.target.checked)} className="mr-3 h-4 w-4 rounded bg-slate-900 border-slate-600 text-sky-600 focus:ring-sky-500" />
@@ -794,26 +792,19 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                                 </div>
                                 </>
                             )}
-                            
-                            <div className="text-sm bg-slate-800/50 p-3 rounded-md mt-4 grid grid-cols-2 gap-2 text-center border border-slate-700">
-                                <div><p className="text-slate-400 text-xs uppercase">Selected Bets</p><p className="font-bold text-white text-lg">{comboSummary.count}</p></div>
-                                <div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{comboSummary.totalCost.toFixed(2)}</p></div>
-                            </div>
                         </>
                     ) : (
                         <>
                             <div className="mb-4">
                                 <div className="flex justify-between items-end mb-1">
-                                    <label className="block text-slate-400 text-sm font-medium">Enter Number(s) (comma-separated)</label>
+                                    <label className="block text-slate-400 text-sm font-medium">Enter Number(s)</label>
                                     <button 
                                         onClick={handleAiLuckyPick} 
                                         disabled={isAiLoading}
-                                        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-sky-500 hover:from-cyan-300 hover:to-sky-400 disabled:opacity-50 transition-all mb-1"
+                                        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-cyan-400 hover:text-cyan-300 disabled:opacity-50 transition-all mb-1"
                                     >
-                                        {isAiLoading ? (
-                                            <div className="w-3 h-3 border-2 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin"></div>
-                                        ) : Icons.sparkles}
-                                        {isAiLoading ? 'Oracles Thinking...' : 'AI Lucky Pick'}
+                                        {isAiLoading ? <div className="w-3 h-3 border-2 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin"></div> : Icons.sparkles}
+                                        AI Pick
                                     </button>
                                 </div>
                                 <textarea value={manualNumbersInput} onChange={handleManualNumberChange} rows={3} placeholder={getPlaceholder()} className={inputClass} />
@@ -830,19 +821,16 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                         </>
                     )}
 
-                    <div className="text-sm bg-slate-800/50 p-3 rounded-md my-4 flex justify-around border border-slate-700">
-                        <p className="text-slate-300">Prize Rate: <span className="font-bold text-emerald-400">{getPrizeRate(subGameType)}x</span></p>
-                        <p className="text-slate-300">Commission: <span className="font-bold text-green-400">{user.commissionRate}%</span></p>
-                    </div>
-
                     {displayedError && (
-                        <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-sm p-3 rounded-md mb-4" role="alert">
+                        <div className="bg-red-500/20 border border-red-500/30 text-red-300 text-xs p-3 rounded-md mb-4" role="alert">
                             {displayedError}
                         </div>
                     )}
 
                     <div className="flex justify-end pt-2">
-                         <button onClick={handleBet} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors">PLACE BET</button>
+                         <button onClick={handleBet} disabled={isSubmitting} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2.5 px-6 rounded-md transition-colors disabled:opacity-50">
+                            {isSubmitting ? 'PLACING...' : 'PLACE BET'}
+                         </button>
                     </div>
                 </div>
             </div>
@@ -850,7 +838,6 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
     );
 };
 
-// --- FIX: Define and Export UserPanel ---
 interface UserPanelProps {
   user: User;
   games: Game[];
@@ -860,19 +847,23 @@ interface UserPanelProps {
 
 const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) => {
     const [selectedGame, setSelectedGame] = useState<Game | null>(null);
-    const [apiError, setApiError] = useState<string | null>(null);
+    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
     const handlePlaceBet = async (details: any) => {
         try {
             await placeBet(details);
+            setToast({ msg: "✅ Bet placed successfully!", type: 'success' });
             setSelectedGame(null);
         } catch (err: any) {
-            setApiError(err.message || "Failed to place bet.");
+            setToast({ msg: err.message || "Failed to place bet.", type: 'error' });
+            throw err; // Propagate to modal to keep it open if error
         }
     };
 
     return (
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+            {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+            
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
                     <h2 className="text-3xl font-bold text-white uppercase tracking-widest">User Dashboard</h2>
@@ -901,8 +892,6 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
                 user={user} 
                 onClose={() => setSelectedGame(null)} 
                 onPlaceBet={handlePlaceBet}
-                apiError={apiError}
-                clearApiError={() => setApiError(null)}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
