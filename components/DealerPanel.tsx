@@ -96,7 +96,7 @@ export const UserForm: React.FC<{
                 area: user.area || '',
                 password: '',
                 wallet: user.wallet.toString(),
-                commissionRate: user.commissionRate.toString(),
+                commissionRate: (user.commissionRate ?? 0).toString(),
                 betLimits: {
                     oneDigit: (user.betLimits?.oneDigit ?? 1000).toString(),
                     twoDigit: (user.betLimits?.twoDigit ?? 5000).toString(),
@@ -155,24 +155,24 @@ export const UserForm: React.FC<{
                 area: formData.area,
                 password: activePass,
                 dealerId,
-                wallet: parseFloat(formData.wallet) || 0,
-                commissionRate: parseFloat(formData.commissionRate) || 0,
+                wallet: Number(formData.wallet) || 0,
+                commissionRate: Number(formData.commissionRate) || 0,
                 isRestricted: user?.isRestricted ?? false,
                 ledger: user?.ledger ?? [],
                 avatarUrl: formData.avatarUrl,
                 betLimits: {
-                    oneDigit: parseFloat(formData.betLimits.oneDigit) || 0,
-                    twoDigit: parseFloat(formData.betLimits.twoDigit) || 0,
-                    perDraw: parseFloat(formData.betLimits.perDraw) || 0
+                    oneDigit: Number(formData.betLimits.oneDigit) || 0,
+                    twoDigit: Number(formData.betLimits.twoDigit) || 0,
+                    perDraw: Number(formData.betLimits.perDraw) || 0
                 },
                 prizeRates: {
-                    oneDigitOpen: parseFloat(formData.prizeRates.oneDigitOpen) || 0,
-                    oneDigitClose: parseFloat(formData.prizeRates.oneDigitClose) || 0,
-                    twoDigit: parseFloat(formData.prizeRates.twoDigit) || 0
+                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                    twoDigit: Number(formData.prizeRates.twoDigit) || 0
                 }
             };
 
-            await onSave(userPayload, user?.id, user ? undefined : parseFloat(formData.wallet));
+            await onSave(userPayload, user?.id, user ? undefined : Number(formData.wallet));
             showToast(user ? "✅ User updated successfully!" : "✅ User added successfully!", "success");
             onCancel();
         } catch (err: any) {
@@ -220,8 +220,9 @@ export const UserForm: React.FC<{
                     <input type="text" name="wallet" value={formData.wallet} onChange={handleChange} className={inputClass} disabled={!!user} />
                 </div>
                 <div className="sm:col-span-1">
-                    <label className={labelClass}>Comm. Rate (%)</label>
-                    <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} className={inputClass} />
+                    <label className={labelClass}>User Commission Rate (%)</label>
+                    <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} className={inputClass} placeholder="e.g. 5.5" />
+                    <p className="text-[9px] text-slate-500 mt-1 italic">Enter the percentage this user earns on every bet.</p>
                 </div>
             </div>
 
@@ -329,7 +330,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   const safeUsers = useMemo(() => Array.isArray(users) ? users : [], [users]);
-  const safeDealer = dealer || { id: '', name: '', prizeRates: {}, ledger: [] };
+  const safeDealer = dealer || { id: '', name: '', prizeRates: {}, ledger: [], commissionRate: 0 };
 
   const showToast = (msg: string, type: 'success' | 'error') => setToast({ msg, type });
 
@@ -356,7 +357,14 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-8 gap-4">
-          <h2 className="text-2xl sm:text-3xl font-black text-emerald-400 uppercase tracking-tighter">Dealer Panel</h2>
+          <div className="flex flex-col">
+            <h2 className="text-2xl sm:text-3xl font-black text-emerald-400 uppercase tracking-tighter">Dealer Panel</h2>
+            <div className="flex items-center gap-2 mt-1">
+                <span className="bg-emerald-500/10 text-emerald-500 text-[10px] px-2 py-0.5 rounded border border-emerald-500/20 font-black uppercase tracking-widest">
+                    My Commission: {safeDealer.commissionRate}%
+                </span>
+            </div>
+          </div>
           <div className="bg-slate-800/50 p-1 rounded-lg flex items-center space-x-1 border border-slate-700 w-full md:w-auto overflow-x-auto no-scrollbar">
             {tabs.map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`shrink-0 flex items-center space-x-2 py-2 px-3 sm:px-4 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-md transition-all ${activeTab === tab.id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700 hover:text-white'}`}>
@@ -381,21 +389,22 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
 
           <div className="bg-slate-800/40 rounded-xl overflow-hidden border border-slate-700 backdrop-blur-sm shadow-2xl">
             <div className="overflow-x-auto mobile-scroll-x">
-                <table className="w-full text-left min-w-[800px]">
+                <table className="w-full text-left min-w-[900px]">
                     <thead className="bg-slate-800/80 border-b border-slate-700">
                         <tr>
                             <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Account Info</th>
                             <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Location</th>
                             <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Balance (PKR)</th>
+                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Comm %</th>
                             <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Status</th>
                             <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
                         {!isLoaded ? (
-                            <tr><td colSpan={5} className="p-12 text-center text-slate-500 font-bold animate-pulse text-xs uppercase tracking-widest">Synchronizing Encrypted Data...</td></tr>
+                            <tr><td colSpan={6} className="p-12 text-center text-slate-500 font-bold animate-pulse text-xs uppercase tracking-widest">Synchronizing Encrypted Data...</td></tr>
                         ) : dealerUsers.length === 0 ? (
-                            <tr><td colSpan={5} className="p-12 text-center text-slate-500 font-bold text-xs uppercase tracking-widest">No users found in your network.</td></tr>
+                            <tr><td colSpan={6} className="p-12 text-center text-slate-500 font-bold text-xs uppercase tracking-widest">No users found in your network.</td></tr>
                         ) : dealerUsers.map(user => (
                             <tr key={user.id} className="hover:bg-slate-700/20 transition-all">
                                 <td className="p-4">
@@ -409,6 +418,9 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
                                 <td className="p-4 text-right">
                                     <div className="font-mono text-emerald-400 font-bold text-sm">{user.wallet.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
                                     <div className="text-[9px] text-slate-500 uppercase tracking-tighter">Current Funds</div>
+                                </td>
+                                <td className="p-4 text-center">
+                                    <div className="font-bold text-white text-xs">{user.commissionRate}%</div>
                                 </td>
                                 <td className="p-4 text-center">
                                     {user.isRestricted ? 

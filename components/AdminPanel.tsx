@@ -312,11 +312,11 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
                 password: '',
                 area: dealer.area || '',
                 contact: dealer.contact || '',
-                commissionRate: dealer.commissionRate.toString(),
+                commissionRate: (dealer.commissionRate ?? 0).toString(),
                 prizeRates: {
-                    oneDigitOpen: dealer.prizeRates.oneDigitOpen.toString(),
-                    oneDigitClose: dealer.prizeRates.oneDigitClose.toString(),
-                    twoDigit: dealer.prizeRates.twoDigit.toString(),
+                    oneDigitOpen: (dealer.prizeRates?.oneDigitOpen ?? 0).toString(),
+                    oneDigitClose: (dealer.prizeRates?.oneDigitClose ?? 0).toString(),
+                    twoDigit: (dealer.prizeRates?.twoDigit ?? 0).toString(),
                 },
                 avatarUrl: dealer.avatarUrl || '',
                 wallet: dealer.wallet.toString()
@@ -381,13 +381,13 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
             password: newPassword ? newPassword : (dealer?.password || ''),
             area: formData.area,
             contact: formData.contact,
-            wallet: parseFloat(formData.wallet) || 0,
-            commissionRate: parseFloat(formData.commissionRate) || 0,
+            wallet: Number(formData.wallet) || 0,
+            commissionRate: Number(formData.commissionRate) || 0,
             isRestricted: dealer?.isRestricted ?? false,
             prizeRates: {
-                oneDigitOpen: parseFloat(formData.prizeRates.oneDigitOpen) || 0,
-                oneDigitClose: parseFloat(formData.prizeRates.oneDigitClose) || 0,
-                twoDigit: parseFloat(formData.prizeRates.twoDigit) || 0,
+                oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                twoDigit: Number(formData.prizeRates.twoDigit) || 0,
             },
             ledger: dealer?.ledger || [],
             avatarUrl: formData.avatarUrl,
@@ -426,8 +426,9 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
                 </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Commission Rate (%)</label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Dealer Commission Rate (%)</label>
               <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} placeholder="e.g. 5" className={inputClass} />
+              <p className="text-[10px] text-slate-500 mt-1 italic">Sets how much this dealer earns from their system stake.</p>
             </div>
             
             <fieldset className="border border-slate-600 p-4 rounded-md">
@@ -481,9 +482,9 @@ const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Pro
             name: formData.name,
             avatarUrl: formData.avatarUrl,
             prizeRates: {
-                oneDigitOpen: parseFloat(formData.prizeRates.oneDigitOpen) || 0,
-                oneDigitClose: parseFloat(formData.prizeRates.oneDigitClose) || 0,
-                twoDigit: parseFloat(formData.prizeRates.twoDigit) || 0,
+                oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                twoDigit: Number(formData.prizeRates.twoDigit) || 0,
             }
         });
     };
@@ -1442,7 +1443,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID / Area</th>
                               <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Commission</th>
+                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Comm %</th>
                              <SortableHeader label="Status" sortKey="status" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
                              <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
                          </tr>
@@ -1456,7 +1457,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                                  </div></td>
                                  <td className="p-4 text-slate-400"><div className="font-mono">{dealer.id}</div><div className="text-xs">{dealer.area}</div></td>
                                  <td className="p-4 font-mono text-white">{dealer.wallet.toLocaleString()}</td>
-                                 <td className="p-4 text-slate-300">{dealer.commissionRate}%</td>
+                                 <td className="p-4 text-center font-bold text-white">{dealer.commissionRate}%</td>
                                  <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${dealer.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{dealer.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                  <td className="p-4">
                                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -1684,12 +1685,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
           </div>
            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
                <div className="overflow-x-auto mobile-scroll-x">
-                   <table className="w-full text-left min-w-[700px]">
+                   <table className="w-full text-left min-w-[800px]">
                        <thead className="bg-slate-800/50">
                            <tr>
                                <SortableHeader label="Name" sortKey="name" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
                                <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
+                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Comm %</th>
                                <SortableHeader label="Status" sortKey="status" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
                            </tr>
@@ -1706,6 +1708,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                                    </div></td>
                                    <td className="p-4 text-slate-400">{dealers.find(d => d.id === user.dealerId)?.name || 'N/A'}</td>
                                    <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
+                                   <td className="p-4 text-center font-bold text-white">{user.commissionRate}%</td>
                                    <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
                                    <td className="p-4 text-center">
                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
