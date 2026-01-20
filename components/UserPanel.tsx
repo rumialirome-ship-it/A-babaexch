@@ -261,7 +261,9 @@ const formatTime12h = (time24: string) => {
 const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }> = ({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
-    const isPlayable = !!game.isMarketOpen && !isRestricted && status === 'OPEN';
+    
+    // UI FIX: Prioritize backend isMarketOpen. If backend says it's open, allow play.
+    const isPlayable = !!game.isMarketOpen && !isRestricted && (status === 'OPEN' || status === 'LOADING');
     const isMarketClosedForDisplay = !game.isMarketOpen;
 
     return (

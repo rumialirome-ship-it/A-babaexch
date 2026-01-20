@@ -7,44 +7,34 @@ const DB_PATH = path.join(__dirname, 'database.sqlite');
 let db;
 
 // --- CENTRALIZED GAME TIMING LOGIC (PKT TIMEZONE) ---
-// Market opens at 4:00 PM (16:00) every day and stays open until the draw time.
 function isGameOpen(drawTime) {
     const now = new Date();
-    const [drawH, drawM] = drawTime.split(':').map(Number);
-    
-    // Create a date object for the current time in Pakistan
+    // Pakistan is UTC+5. Convert current UTC to PKT.
     const pktTime = new Date(now.getTime() + (5 * 60 * 60 * 1000));
-    const pktH = pktTime.getUTCHours();
-    const pktDate = pktTime.getUTCDate();
-
-    // If it's before 4 PM PKT, the market for today isn't open yet 
-    // (unless we are in the early morning hours 00:00 - 04:00 and the draw is for the previous day's cycle)
     
-    // Simplification: Calculate Draw Time for this specific cycle
-    const drawDate = new Date(pktTime);
-    drawDate.setUTCHours(drawH, drawM, 0, 0);
+    const [drawH, drawM] = drawTime.split(':').map(Number);
+    const pktH = pktTime.getUTCHours();
 
-    const openDate = new Date(pktTime);
-    openDate.setUTCHours(16, 0, 0, 0);
-
-    // If draw is early morning (e.g., 00:55 or 02:10), it belongs to the cycle that opened YESTERDAY
-    if (drawH < 16) {
-        // If current time is after 4 PM, this draw is for TOMORROW
-        if (pktH >= 16) {
-            drawDate.setUTCDate(pktDate + 1);
-        } else {
-            // If current time is early morning, the market opened yesterday
-            openDate.setUTCDate(pktDate - 1);
-        }
-    } else {
-        // If draw is evening (e.g. 18:00), and current time is early morning, draw was yesterday
-        if (pktH < 16) {
-            drawDate.setUTCDate(pktDate - 1);
-            openDate.setUTCDate(pktDate - 1);
-        }
+    // 1. Find the START of the current betting cycle (the most recent 4:00 PM PKT)
+    const currentCycleStart = new Date(pktTime);
+    currentCycleStart.setUTCHours(16, 0, 0, 0);
+    if (pktH < 16) {
+        // If it's before 4 PM PKT, the cycle started at 4 PM yesterday
+        currentCycleStart.setUTCDate(currentCycleStart.getUTCDate() - 1);
     }
 
-    return pktTime >= openDate && pktTime < drawDate;
+    // 2. Find the END of this cycle (the Draw Time)
+    const currentCycleEnd = new Date(currentCycleStart);
+    currentCycleEnd.setUTCHours(drawH, drawM, 0, 0);
+    
+    // If the draw hour is early morning (00:00 to 15:59), it happens on the 
+    // calendar day AFTER the 4:00 PM opening.
+    if (drawH < 16) {
+        currentCycleEnd.setUTCDate(currentCycleEnd.getUTCDate() + 1);
+    }
+
+    // Market is open if we are past 4:00 PM and before the Draw Time
+    return pktTime >= currentCycleStart && pktTime < currentCycleEnd;
 }
 
 const connect = () => {
@@ -240,7 +230,7 @@ const getFinancialSummary = () => {
                 if (wins.length > 0) {
                     const u = allUsers[bet.userId], d = allDealers[bet.dealerId];
                     if (u && d) {
-                        payouts += wins.length * bet.amountPerNumber * getMultiplier(u.prizeRates, bet.subGameType);
+                        pouts += wins.length * bet.amountPerNumber * getMultiplier(u.prizeRates, bet.subGameType);
                         dProfit += wins.length * bet.amountPerNumber * (getMultiplier(d.prizeRates, bet.subGameType) - getMultiplier(u.prizeRates, bet.subGameType));
                     }
                 }
@@ -399,7 +389,7 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         const dealer = findAccountById(user.dealerId, 'dealers');
         const game = findAccountById(gId, 'games');
         
-        // CRITICAL: Prevent betting if market is closed for THIS game
+        // Use the centralized isGameOpen logic for validation
         if (!game || !isGameOpen(game.drawTime) || (game.winningNumber && !game.winningNumber.endsWith('_'))) {
             throw { status: 400, message: "Market is currently closed for this game." };
         }
