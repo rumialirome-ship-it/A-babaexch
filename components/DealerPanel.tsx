@@ -529,7 +529,6 @@ const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
 
 const OpenGameOption: React.FC<{ game: Game }> = ({ game }) => {
     const { status, text } = useCountdown(game.drawTime);
-    // Logic updated to ensure LS3/morning games can be selected even if device time is off
     if (!game.isMarketOpen) return null;
     return <option value={game.id}>{game.name} (Draw: {game.drawTime})</option>;
 };
@@ -547,7 +546,8 @@ const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDe
             const lines = bulkInput.split('\n').filter(l => l.trim());
             const betGroups: any[] = [];
             lines.forEach(line => {
-                const stakeMatch = line.match(/(?:rs|r)\s*(\d+\.?\d*)/i);
+                // Support both "43 rs100" and shorthand "43 100"
+                const stakeMatch = line.match(/(?:rs|r)?\s*(\d+\.?\d*)$/i);
                 const stake = stakeMatch ? parseFloat(stakeMatch[1]) : 0;
                 if (stake <= 0) return;
                 const numbersPart = line.substring(0, stakeMatch!.index).trim();
@@ -556,7 +556,7 @@ const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDe
                     betGroups.push({ subGameType: SubGameType.TwoDigit, numbers, amountPerNumber: stake });
                 }
             });
-            if (betGroups.length === 0) { alert("Invalid Format: use '14, 25 rs100'"); setIsLoading(false); return; }
+            if (betGroups.length === 0) { alert("Invalid Format: use '14, 25 100'"); setIsLoading(false); return; }
             await placeBetAsDealer({ userId: selectedUserId, gameId: selectedGameId, betGroups });
             setBulkInput('');
             alert("Bets confirmed successfully!");
@@ -580,7 +580,7 @@ const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDe
                     {Array.isArray(games) && games.map(g => <OpenGameOption key={g.id} game={g} />)}
                 </select>
             </div>
-            <textarea rows={8} value={bulkInput} onChange={e => setBulkInput(e.target.value)} placeholder="Entry Format Example:&#10;14, 25, 33 rs50&#10;88, 91 rs100" className="w-full bg-slate-900 text-white p-4 rounded-xl border border-slate-700 font-mono text-xs focus:ring-1 focus:ring-emerald-500" />
+            <textarea rows={8} value={bulkInput} onChange={e => setBulkInput(e.target.value)} placeholder="Entry Format Example:&#10;14, 25 50&#10;88, 91 100" className="w-full bg-slate-900 text-white p-4 rounded-xl border border-slate-700 font-mono text-xs focus:ring-1 focus:ring-emerald-500" />
             <div className="flex justify-end mt-4">
                 <button onClick={handleProcessBets} disabled={!selectedUserId || !selectedGameId || !bulkInput || isLoading} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 px-10 rounded-xl disabled:opacity-50 transition-all uppercase tracking-widest text-xs shadow-lg shadow-emerald-900/40">
                     {isLoading ? 'PROCESSING...' : 'CONFIRM BULK ENTRIES'}

@@ -154,8 +154,23 @@ app.get('/api/admin/data', authMiddleware, (req, res) => {
 // --- ACTION ROUTES ---
 app.post('/api/user/bets', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
-    try { res.status(201).json(database.placeBulkBets(req.user.id, req.body.gameId, req.body.betGroups, 'USER')); }
-    catch (e) { res.status(e.status || 400).json({ message: e.message }); }
+    const { isMultiGame, multiGameBets, gameId, betGroups } = req.body;
+    
+    try {
+        if (isMultiGame && multiGameBets) {
+            const results = [];
+            database.runInTransaction(() => {
+                for (const [gId, data] of Object.entries(multiGameBets)) {
+                    results.push(...database.placeBulkBets(req.user.id, gId, (data as any).betGroups, 'USER'));
+                }
+            });
+            res.status(201).json(results);
+        } else {
+            res.status(201).json(database.placeBulkBets(req.user.id, gameId, betGroups, 'USER'));
+        }
+    } catch (e) {
+        res.status(e.status || 400).json({ message: e.message });
+    }
 });
 
 app.post('/api/dealer/bets/bulk', authMiddleware, (req, res) => {

@@ -74,6 +74,9 @@ const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[], user: User }> =
                 return sum + calculateBetPayout(bet, game, user.prizeRates);
             }, 0);
 
+            // Net Profit for the user = (Winnings + Commissions Earned) - Stake Invested
+            const netProfit = (totalPrize + totalCommission) - totalStake;
+
             return {
                 id: game.id,
                 name: game.name,
@@ -81,132 +84,129 @@ const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[], user: User }> =
                 totalStake,
                 totalCommission,
                 totalPrize,
+                netProfit,
                 winningNumber: game.winningNumber,
                 isMarketOpen: game.isMarketOpen
             };
         }).filter(d => d.totalStake > 0).sort((a, b) => b.totalStake - a.totalStake);
     }, [games, bets, user]);
 
+    const totals = useMemo(() => {
+        return data.reduce((acc, item) => ({
+            stake: acc.stake + item.totalStake,
+            commission: acc.commission + item.totalCommission,
+            prize: acc.prize + item.totalPrize,
+            profit: acc.profit + item.netProfit
+        }), { stake: 0, commission: 0, prize: 0, profit: 0 });
+    }, [data]);
+
     if (data.length === 0) return null;
 
     return (
         <div className="mb-12 animate-fade-in">
             <h3 className="text-2xl font-bold text-white uppercase tracking-widest mb-6 flex items-center gap-3">
-                Today's Betting Sheet
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded border border-emerald-500/30 font-black tracking-tighter uppercase">Market Breakdown</span>
+                Game-by-Game Breakdown
+                <span className="text-[10px] bg-sky-500/20 text-sky-400 px-3 py-1 rounded border border-sky-500/30 font-black tracking-tighter uppercase">Today's Performance</span>
             </h3>
 
-            {/* Mobile View */}
+            {/* Mobile View - Card based for better UX */}
             <div className="sm:hidden space-y-4">
                 {data.map(item => (
                     <div key={item.id} className="bg-slate-800/40 p-5 rounded-2xl border border-slate-700 shadow-xl backdrop-blur-md">
                         <div className="flex items-center gap-3 mb-4">
-                            <img src={item.logo} className="w-12 h-12 rounded-full border-2 border-slate-700 shadow-lg" alt="" />
+                            <img src={item.logo} className="w-12 h-12 rounded-full border-2 border-slate-700" alt="" />
                             <div>
                                 <div className="text-white font-black text-base uppercase tracking-tight">{item.name}</div>
-                                <div className="flex items-center gap-2">
-                                    {item.isMarketOpen ? (
-                                        <span className="bg-cyan-500/10 text-cyan-400 text-[9px] px-2 py-0.5 rounded-full border border-cyan-500/20 font-black uppercase tracking-widest">Active</span>
-                                    ) : (
-                                        <span className="bg-slate-700/50 text-slate-500 text-[9px] px-2 py-0.5 rounded-full border border-slate-600/50 font-black uppercase tracking-widest">Closed</span>
-                                    )}
-                                </div>
+                                <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Result: {item.winningNumber || '---'}</div>
                             </div>
                             <div className="ml-auto text-right">
-                                {item.winningNumber && !item.winningNumber.endsWith('_') ? (
-                                    <div className="font-mono text-3xl font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]">{item.winningNumber}</div>
-                                ) : (
-                                    <div className="text-slate-600 font-bold italic text-xs">Waiting...</div>
-                                )}
+                                <div className="text-[9px] text-slate-500 uppercase font-black">Net Profit</div>
+                                <div className={`font-mono font-bold ${item.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {item.netProfit >= 0 ? '+' : ''}{item.netProfit.toFixed(2)}
+                                </div>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-700/50">
-                            <div>
-                                <div className="text-[9px] text-slate-500 uppercase font-black tracking-widest">Total Stake</div>
-                                <div className="font-mono text-white font-bold">Rs {item.totalStake.toLocaleString()}</div>
+                        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-700/50">
+                            <div className="text-center">
+                                <div className="text-[8px] text-slate-500 uppercase font-black">Stake</div>
+                                <div className="text-xs font-mono text-white">Rs {item.totalStake.toLocaleString()}</div>
                             </div>
-                            <div className="text-right">
-                                <div className="text-[9px] text-sky-500 uppercase font-black tracking-widest">Commission</div>
-                                <div className="font-mono text-sky-400 font-bold">Rs {item.totalCommission.toFixed(2)}</div>
+                            <div className="text-center border-x border-slate-700/50">
+                                <div className="text-[8px] text-emerald-500 uppercase font-black">Winning</div>
+                                <div className="text-xs font-mono text-emerald-400">Rs {item.totalPrize.toLocaleString()}</div>
                             </div>
-                            <div className="col-span-2 text-center py-2 bg-emerald-500/5 rounded-lg border border-emerald-500/10">
-                                <div className="text-[9px] text-emerald-500 uppercase font-black tracking-widest">Winning Prize</div>
-                                <div className={`font-mono font-black text-xl ${item.totalPrize > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
-                                    {item.totalPrize > 0 ? `Rs ${item.totalPrize.toLocaleString()}` : '-'}
-                                </div>
+                            <div className="text-center">
+                                <div className="text-[8px] text-sky-500 uppercase font-black">Comm.</div>
+                                <div className="text-xs font-mono text-sky-400">Rs {item.totalCommission.toFixed(2)}</div>
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
 
-            {/* Desktop View */}
+            {/* Desktop View - High density table as requested */}
             <div className="hidden sm:block bg-slate-800/40 rounded-xl overflow-hidden border border-slate-700 shadow-xl backdrop-blur-md">
-                <div className="overflow-x-auto no-scrollbar">
-                    <table className="w-full text-left min-w-[800px]">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
                         <thead className="bg-slate-800/80 border-b border-slate-700">
                             <tr>
-                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Market</th>
-                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Result</th>
+                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Game</th>
                                 <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Stake</th>
-                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Commission</th>
-                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Winning Prize</th>
-                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
+                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Winning</th>
+                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Commissions</th>
+                                <th className="p-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Net Profit</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
                             {data.map(item => (
-                                <tr key={item.id} className="hover:bg-slate-700/20 transition-all group">
+                                <tr key={item.id} className="hover:bg-slate-700/20 transition-all">
                                     <td className="p-4">
                                         <div className="flex items-center gap-3">
-                                            <img src={item.logo} className="w-10 h-10 rounded-full border border-slate-700" alt="" />
+                                            <img src={item.logo} className="w-8 h-8 rounded-full border border-slate-700" alt="" />
                                             <div>
                                                 <div className="text-white font-bold text-sm uppercase tracking-tight">{item.name}</div>
-                                                <div className="text-[10px] text-slate-500 font-mono tracking-tighter">Session Active</div>
+                                                {item.winningNumber && !item.winningNumber.endsWith('_') && (
+                                                    <div className="text-[10px] text-emerald-500 font-mono">Result: {item.winningNumber}</div>
+                                                )}
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-4">
-                                        {item.winningNumber && !item.winningNumber.endsWith('_') ? (
-                                            <span className="font-mono text-2xl font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]">{item.winningNumber}</span>
-                                        ) : (
-                                            <span className="text-slate-600 font-bold italic text-xs">Awaiting...</span>
-                                        )}
+                                    <td className="p-4 text-right">
+                                        <div className="font-mono text-white font-bold">Rs {item.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                                     </td>
                                     <td className="p-4 text-right">
-                                        <div className="font-mono text-white font-bold text-base">Rs {item.totalStake.toLocaleString()}</div>
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        <div className="font-mono text-sky-400 font-bold text-base">Rs {item.totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        <div className={`font-mono font-black text-lg ${item.totalPrize > 0 ? 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]' : 'text-slate-500'}`}>
-                                            {item.totalPrize > 0 ? `Rs ${item.totalPrize.toLocaleString()}` : '-'}
+                                        <div className={`font-mono font-bold ${item.totalPrize > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                            Rs {item.totalPrize.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </div>
                                     </td>
-                                    <td className="p-4 text-center">
-                                        {item.isMarketOpen ? (
-                                            <span className="bg-cyan-500/10 text-cyan-400 text-[9px] px-2.5 py-0.5 rounded-full border border-cyan-500/20 font-black uppercase tracking-widest">Active</span>
-                                        ) : (
-                                            <span className="bg-slate-700/50 text-slate-500 text-[9px] px-2.5 py-0.5 rounded-full border border-slate-600/50 font-black uppercase tracking-widest">Closed</span>
-                                        )}
+                                    <td className="p-4 text-right">
+                                        <div className="font-mono text-sky-400">Rs {item.totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <div className={`font-mono font-black ${item.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            Rs {item.netProfit >= 0 ? '+' : ''}{item.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
-                        <tfoot className="bg-slate-800/80 border-t-2 border-slate-700 font-sans">
+                        <tfoot className="bg-slate-900/60 border-t-2 border-slate-700">
                             <tr>
-                                <td colSpan={2} className="p-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Session Totals</td>
+                                <td className="p-4 text-xs font-black text-slate-400 uppercase tracking-widest">Grand Total</td>
                                 <td className="p-4 text-right">
-                                    <span className="font-mono text-lg font-black text-white">Rs {data.reduce((s, i) => s + i.totalStake, 0).toLocaleString()}</span>
+                                    <div className="font-mono text-lg font-black text-white">Rs {totals.stake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                                 </td>
                                 <td className="p-4 text-right">
-                                    <span className="font-mono text-lg font-black text-sky-400">Rs {data.reduce((s, i) => s + i.totalCommission, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <div className="font-mono text-lg font-black text-emerald-400">Rs {totals.prize.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                                 </td>
                                 <td className="p-4 text-right">
-                                    <span className="font-mono text-xl font-black text-emerald-400">Rs {data.reduce((s, i) => s + i.totalPrize, 0).toLocaleString()}</span>
+                                    <div className="font-mono text-lg font-black text-sky-400">Rs {totals.commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                 </td>
-                                <td></td>
+                                <td className="p-4 text-right">
+                                    <div className={`font-mono text-xl font-black ${totals.profit >= 0 ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.3)]' : 'text-red-400'}`}>
+                                        Rs {totals.profit >= 0 ? '+' : ''}{totals.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
+                                </td>
                             </tr>
                         </tfoot>
                     </table>
@@ -576,9 +576,12 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             }
             if (!currentGameId) { result.errors.push(`Line "${line}" missing valid game.`); continue; }
             const gameNameOnLine = games.find(g => g.id === currentGameId)?.name || 'Unknown Game';
-            const stakeMatch = currentLine.match(/(?:rs|r)\s*(\d+\.?\d*)/i);
+            
+            // Loose Stake Detection: Support "43 rs100" and "43 100"
+            const stakeMatch = currentLine.match(/(?:rs|r)?\s*(\d+\.?\d*)$/i);
             const stake = stakeMatch ? parseFloat(stakeMatch[1]) : 0;
             if (stake <= 0) { result.errors.push(`Line "${line}" missing stake.`); continue; }
+            
             let betPart = stakeMatch ? currentLine.substring(0, stakeMatch.index).trim() : currentLine;
             const isCombo = /\b(k|combo)\b/i.test(betPart);
             betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
@@ -690,9 +693,17 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                 const { betsByGame, errors } = parsedBulkBet;
                 if (errors.length > 0) throw new Error(errors[0]);
                 if (betsByGame.size === 0) throw new Error("No valid bets entered.");
-                const multiGameBets = new Map<string, any>();
-                betsByGame.forEach((gameData: any, gameId: string) => { multiGameBets.set(gameId, { gameName: gameData.gameName, betGroups: Array.from(gameData.betGroups.values()) }); });
-                await onPlaceBet({ isMultiGame: true, multiGameBets });
+                
+                // CRITICAL FIX: Convert Map to plain object for JSON serialization
+                const multiGameBetsObj: any = {};
+                betsByGame.forEach((gameData: any, gameId: string) => { 
+                    multiGameBetsObj[gameId] = { 
+                        gameName: gameData.gameName, 
+                        betGroups: Array.from(gameData.betGroups.values()) 
+                    }; 
+                });
+                
+                await onPlaceBet({ isMultiGame: true, multiGameBets: multiGameBetsObj });
             } else {
                 const { numbers, totalCost, error: parseError, stake } = parsedManualBet;
                 if (stake <= 0) throw new Error("Enter valid amount.");
@@ -752,7 +763,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
                                 {availableSubGameTabs.map(tab => (<button key={tab} onClick={() => setSubGameType(tab)} className={`flex-auto py-2 px-3 text-sm font-semibold rounded-md transition-all duration-300 ${subGameType === tab ? 'bg-slate-700 text-sky-400 shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>{tab}</button>))}
                             </div>
                             {subGameType === SubGameType.Bulk ? (
-                                <><div className="mb-2"><label className="block text-slate-400 mb-1 text-sm font-medium">Super Bulk Entry</label><textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"Format:\n43,9x,x2 rs20\nLS2 01,58 rs50"} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono" /></div>{parsedBulkBet.betsByGame.size > 0 && (<div className="mb-4 bg-slate-800 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto space-y-2">{Array.from(parsedBulkBet.betsByGame.entries()).map(([gameId, gameData]: any) => (<div key={gameId} className="p-2 rounded-md bg-green-500/10 border-l-4 border-green-500"><div className="flex justify-between items-center font-mono text-sm"><span className="font-bold text-white">{gameData.gameName}</span><div className="flex items-center gap-4 text-xs"><span className="text-slate-300">Bets: <span className="font-bold text-white">{gameData.totalNumbers}</span></span><span className="text-slate-300">Cost: <span className="font-bold text-white">{gameData.totalCost.toFixed(2)}</span></span></div></div></div>))}</div>)}<div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-2 gap-2 text-center border border-slate-700"><div><p className="text-slate-400 text-xs uppercase">Total Bets</p><p className="font-bold text-white text-lg">{parsedBulkBet.grandTotalNumbers}</p></div><div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedBulkBet.grandTotalCost.toFixed(2)}</p></div></div></>
+                                <><div className="mb-2"><label className="block text-slate-400 mb-1 text-sm font-medium">Super Bulk Entry</label><textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={6} placeholder={"Format:\n43,9x,x2 20\nLS2 01,58 50"} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono" /></div>{parsedBulkBet.betsByGame.size > 0 && (<div className="mb-4 bg-slate-800 p-3 rounded-md border border-slate-700 max-h-40 overflow-y-auto space-y-2">{Array.from(parsedBulkBet.betsByGame.entries()).map(([gameId, gameData]: any) => (<div key={gameId} className="p-2 rounded-md bg-green-500/10 border-l-4 border-green-500"><div className="flex justify-between items-center font-mono text-sm"><span className="font-bold text-white">{gameData.gameName}</span><div className="flex items-center gap-4 text-xs"><span className="text-slate-300">Bets: <span className="font-bold text-white">{gameData.totalNumbers}</span></span><span className="text-slate-300">Cost: <span className="font-bold text-white">{gameData.totalCost.toFixed(2)}</span></span></div></div></div>))}</div>)}<div className="text-sm bg-slate-800/50 p-3 rounded-md mb-4 grid grid-cols-2 gap-2 text-center border border-slate-700"><div><p className="text-slate-400 text-xs uppercase">Total Bets</p><p className="font-bold text-white text-lg">{parsedBulkBet.grandTotalNumbers}</p></div><div><p className="text-slate-400 text-xs uppercase">Total Cost</p><p className="font-bold text-red-400 text-lg font-mono">{parsedBulkBet.grandTotalCost.toFixed(2)}</p></div></div></>
                             ) : subGameType === SubGameType.Combo ? (
                                 <><div className="mb-4"><label className="block text-slate-400 mb-1 text-sm font-medium">Combo Digits (3-6)</label><div className="flex gap-2"><input type="text" value={comboDigitsInput} onChange={e => setComboDigitsInput(e.target.value)} placeholder="e.g. 123" className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono" maxLength={6}/><button onClick={handleGenerateCombos} className="bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap">Generate</button></div></div>{generatedCombos.length > 0 && (<><div className="mb-4"><label className="block text-slate-400 mb-1 text-sm font-medium">Apply Stake to All</label><div className="flex gap-2"><input type="number" value={comboGlobalStake} onChange={e => setComboGlobalStake(e.target.value)} placeholder="e.g. 10" className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-sky-500 focus:outline-none text-white font-mono" /><button onClick={handleApplyGlobalStake} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md">Apply</button></div></div><div className="bg-slate-800 p-3 rounded-md border border-slate-700 max-h-48 overflow-y-auto space-y-2">{generatedCombos.map((combo, index) => (
                                     <div key={index} className="flex items-center p-2 rounded-md hover:bg-slate-700/50">
