@@ -6,14 +6,14 @@ export const useCountdown = (drawTime: string) => {
 
     const getCycle = useCallback(() => {
         const now = new Date();
-        // PKT is UTC+5. Simulate PKT for consistent logic.
-        const pktTime = new Date(now.getTime() + (5 * 60 * 60 * 1000));
+        // PKT is UTC+5. Simulate PKT bias for logical calculations.
+        const pktBias = new Date(now.getTime() + (5 * 60 * 60 * 1000));
         const [drawHours, drawMinutes] = drawTime.split(':').map(Number);
         
         // 1. Calculate START (the most recent 4:00 PM PKT)
-        const openTime = new Date(pktTime);
+        const openTime = new Date(pktBias);
         openTime.setUTCHours(16, 0, 0, 0);
-        if (pktTime.getUTCHours() < 16) {
+        if (pktBias.getUTCHours() < 16) {
             openTime.setUTCDate(openTime.getUTCDate() - 1);
         }
 
@@ -24,33 +24,31 @@ export const useCountdown = (drawTime: string) => {
             closeTime.setUTCDate(closeTime.getUTCDate() + 1);
         }
 
-        // 3. Convert back to browser local time for subtraction
-        const browserNow = now.getTime();
-        const localEndTime = browserNow + (closeTime.getTime() - pktTime.getTime());
-        const localStartTime = browserNow - (pktTime.getTime() - openTime.getTime());
+        // 3. Determine Market Status based on PKT bias
+        const isCurrentlyOpen = pktBias >= openTime && pktBias < closeTime;
 
         return { 
-            openTime: new Date(localStartTime), 
-            closeTime: new Date(localEndTime),
-            isCurrentlyOpen: pktTime >= openTime && pktTime < closeTime
+            openTime, 
+            closeTime,
+            pktBias,
+            isCurrentlyOpen
         };
     }, [drawTime]);
 
     useEffect(() => {
-        const formatTime12h = (date: Date) => {
-            let hours = date.getHours();
-            const minutes = date.getMinutes();
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12 || 12;
-            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+        const formatTime12h = (hours24: number, minutes: number) => {
+            const ampm = hours24 >= 12 ? 'PM' : 'AM';
+            const h = hours24 % 12 || 12;
+            return `${String(h).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
         };
 
         const update = () => {
-            const now = new Date();
-            const { openTime, closeTime, isCurrentlyOpen } = getCycle();
+            const { openTime, closeTime, pktBias, isCurrentlyOpen } = getCycle();
             
             if (isCurrentlyOpen) {
-                const distance = closeTime.getTime() - now.getTime();
+                // Distance calculation: Compare timestamps with the same bias
+                const distance = closeTime.getTime() - pktBias.getTime();
+                
                 if (distance <= 0) {
                     setDisplay({ status: 'CLOSED', text: 'CLOSED' });
                 } else {
@@ -63,12 +61,12 @@ export const useCountdown = (drawTime: string) => {
                     });
                 }
             } else {
-                if (now < openTime) {
-                    setDisplay({ status: 'SOON', text: formatTime12h(openTime) });
+                if (pktBias < openTime) {
+                    setDisplay({ status: 'SOON', text: formatTime12h(openTime.getUTCHours(), openTime.getUTCMinutes()) });
                 } else {
                     const nextOpen = new Date(openTime);
-                    nextOpen.setDate(nextOpen.getDate() + 1);
-                    setDisplay({ status: 'SOON', text: formatTime12h(nextOpen) });
+                    nextOpen.setUTCDate(nextOpen.getUTCDate() + 1);
+                    setDisplay({ status: 'SOON', text: formatTime12h(nextOpen.getUTCHours(), nextOpen.getUTCMinutes()) });
                 }
             }
         };

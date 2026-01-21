@@ -9,17 +9,18 @@ let db;
 // --- CENTRALIZED GAME TIMING LOGIC (PKT TIMEZONE) ---
 function isGameOpen(drawTime) {
     const now = new Date();
-    // Pakistan is UTC+5. Convert current UTC to PKT.
-    const pktTime = new Date(now.getTime() + (5 * 60 * 60 * 1000));
+    // Pakistan is UTC+5. Convert current UTC to PKT bias for hour/date extraction.
+    const pktBias = new Date(now.getTime() + (5 * 60 * 60 * 1000));
     
     const [drawH, drawM] = drawTime.split(':').map(Number);
-    const pktH = pktTime.getUTCHours();
+    const pktH = pktBias.getUTCHours();
 
     // 1. Find the START of the current betting cycle (the most recent 4:00 PM PKT)
-    const currentCycleStart = new Date(pktTime);
+    const currentCycleStart = new Date(pktBias);
     currentCycleStart.setUTCHours(16, 0, 0, 0);
+    
+    // If we are currently in the morning (before 4 PM), the cycle actually started yesterday at 4 PM
     if (pktH < 16) {
-        // If it's before 4 PM PKT today, the cycle actually started at 4 PM yesterday
         currentCycleStart.setUTCDate(currentCycleStart.getUTCDate() - 1);
     }
 
@@ -33,8 +34,8 @@ function isGameOpen(drawTime) {
         currentCycleEnd.setUTCDate(currentCycleEnd.getUTCDate() + 1);
     }
 
-    // Market is open if we are past 4:00 PM and before the Draw Time
-    const isOpen = pktTime >= currentCycleStart && pktTime < currentCycleEnd;
+    // Market is open if we are past 4:00 PM (Start) and before the specific Game Draw (End)
+    const isOpen = pktBias >= currentCycleStart && pktBias < currentCycleEnd;
     return isOpen;
 }
 
@@ -78,7 +79,6 @@ const findAccountById = (id, table) => {
     }
 
     try {
-        // Commission Rate Safeguard - Ensure it's treated as a number
         account.commissionRate = Number(account.commissionRate) || 0;
 
         if (account.prizeRates && typeof account.prizeRates === 'string') {
@@ -166,7 +166,7 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
         throw { status: 400, message: `Insufficient funds.` };
     }
     
-    // Use 2 decimal place rounding to prevent floating-point accumulation errors
+    // Explicit rounding to 2 decimal places
     const newBalance = Math.round((lastBalance - debit + credit) * 100) / 100;
     db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
     db.prepare(`UPDATE ${table} SET wallet = ? WHERE LOWER(id) = LOWER(?)`).run(newBalance, accountId);
@@ -234,8 +234,8 @@ const approvePayoutsForGame = (gameId) => {
             if (wins.length > 0) {
                 const user = allUsers[bet.userId], dealer = allDealers[bet.dealerId];
                 if (!user || !dealer) return;
-                const userPrize = wins.length * bet.amountPerNumber * getMultiplier(user.prizeRates, bet.subGameType);
-                const dProfit = wins.length * bet.amountPerNumber * (getMultiplier(dealer.prizeRates, bet.subGameType) - getMultiplier(user.prizeRates, bet.subGameType));
+                const userPrize = Math.round(wins.length * bet.amountPerNumber * getMultiplier(user.prizeRates, bet.subGameType) * 100) / 100;
+                const dProfit = Math.round(wins.length * bet.amountPerNumber * (getMultiplier(dealer.prizeRates, bet.subGameType) - getMultiplier(user.prizeRates, bet.subGameType)) * 100) / 100;
                 addLedgerEntry(user.id, 'USER', `Prize money: ${game.name}`, 0, userPrize);
                 addLedgerEntry(admin.id, 'ADMIN', `Prize payout: ${user.name}`, userPrize, 0);
                 addLedgerEntry(dealer.id, 'DEALER', `Profit: ${game.name}`, 0, dProfit);
@@ -480,29 +480,28 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
 
         if (user.wallet < requestTotal) throw { status: 400, message: `Insufficient funds.` };
         
-        // CRITICAL: Freshly fetch commission rates to avoid stale state
+        // CRITICAL: Rounding to prevent floating point drifts
         const userCommRate = Number(user.commissionRate) || 0;
         const dealerCommRate = Number(dealer.commissionRate) || 0;
         
-        // Calculate commissions with explicit precision
         const userComm = Math.round(requestTotal * (userCommRate / 100) * 100) / 100;
         const dComm = Math.round(requestTotal * ((dealerCommRate - userCommRate) / 100) * 100) / 100;
         
-        // Step 1: User Stake Payment (Deduct from User)
+        // Step 1: User Stake Payment
         addLedgerEntry(user.id, 'USER', `Bet placed on ${game.name}`, requestTotal, 0);
         
-        // Step 2: User Commission Addition (Credit back to User instantly)
+        // Step 2: User Commission Addition (Instant)
         if (userComm > 0) {
             addLedgerEntry(user.id, 'USER', `Comm earned: ${game.name} (${userCommRate}%)`, 0, userComm);
         }
         
-        // Step 3: Admin Updates (Admin receives full stake, but then pays out commissions)
+        // Step 3: Admin Updates
         addLedgerEntry(admin.id, 'ADMIN', `Stake: ${user.name} @ ${game.name}`, 0, requestTotal);
         if (userComm > 0) {
             addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${user.name}`, userComm, 0);
         }
         
-        // Step 4: Dealer Override Commission (Admin pays Dealer)
+        // Step 4: Dealer Override Commission
         if (dComm > 0) { 
             addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${dealer.name} (Override)`, dComm, 0); 
             addLedgerEntry(dealer.id, 'DEALER', `Comm from ${user.name} @ ${game.name}`, 0, dComm); 

@@ -529,8 +529,9 @@ const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
 
 const OpenGameOption: React.FC<{ game: Game }> = ({ game }) => {
     const { status, text } = useCountdown(game.drawTime);
-    if (status !== 'OPEN') return null;
-    return <option value={game.id}>{game.name} (Closes: {text})</option>;
+    // Logic updated to ensure LS3/morning games can be selected even if device time is off
+    if (!game.isMarketOpen) return null;
+    return <option value={game.id}>{game.name} (Draw: {game.drawTime})</option>;
 };
 
 const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDealer: (details: any) => Promise<void> }> = ({ users, games, placeBetAsDealer }) => {
