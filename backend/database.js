@@ -79,26 +79,28 @@ const findAccountById = (id, table) => {
     }
 
     try {
-        account.commissionRate = Number(account.commissionRate) || 0;
+        if (table === 'users' || table === 'dealers' || table === 'admins') {
+            account.commissionRate = Number(account.commissionRate) || 0;
 
-        if (account.prizeRates && typeof account.prizeRates === 'string') {
-            account.prizeRates = JSON.parse(account.prizeRates);
-        } else if (!account.prizeRates) {
-            account.prizeRates = { oneDigitOpen: 0, oneDigitClose: 0, twoDigit: 0 };
-        }
+            if (account.prizeRates && typeof account.prizeRates === 'string') {
+                account.prizeRates = JSON.parse(account.prizeRates);
+            } else if (!account.prizeRates) {
+                account.prizeRates = { oneDigitOpen: 0, oneDigitClose: 0, twoDigit: 0 };
+            }
 
-        if (account.betLimits && typeof account.betLimits === 'string') {
-            account.betLimits = JSON.parse(account.betLimits);
-        }
-        
-        if (!account.betLimits && (table === 'users' || table === 'dealers')) {
-            account.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
-        } else if (account.betLimits) {
-            account.betLimits = {
-                oneDigit: account.betLimits.oneDigit || 0,
-                twoDigit: account.betLimits.twoDigit || 0,
-                perDraw: account.betLimits.perDraw || 0
-            };
+            if (account.betLimits && typeof account.betLimits === 'string') {
+                account.betLimits = JSON.parse(account.betLimits);
+            }
+            
+            if (!account.betLimits && (table === 'users' || table === 'dealers')) {
+                account.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
+            } else if (account.betLimits) {
+                account.betLimits = {
+                    oneDigit: account.betLimits.oneDigit || 0,
+                    twoDigit: account.betLimits.twoDigit || 0,
+                    perDraw: account.betLimits.perDraw || 0
+                };
+            }
         }
         
         if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
@@ -130,22 +132,27 @@ const updatePassword = (accountId, contact, newPassword) => {
 const getAllFromTable = (table, withLedger = false) => {
     return db.prepare(`SELECT * FROM ${table}`).all().map(acc => {
         try {
-            acc.commissionRate = Number(acc.commissionRate) || 0;
-            if (withLedger && acc.id) acc.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp ASC').all(acc.id);
-            if (table === 'games' && acc.drawTime) acc.isMarketOpen = isGameOpen(acc.drawTime);
-            
-            if (acc.prizeRates && typeof acc.prizeRates === 'string') {
-                acc.prizeRates = JSON.parse(acc.prizeRates);
-            } else if (!acc.prizeRates) {
-                acc.prizeRates = { oneDigitOpen: 0, oneDigitClose: 0, twoDigit: 0 };
-            }
+            if (table === 'users' || table === 'dealers' || table === 'admins') {
+                acc.commissionRate = Number(acc.commissionRate) || 0;
+                if (withLedger && acc.id) acc.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp ASC').all(acc.id);
+                
+                if (acc.prizeRates && typeof acc.prizeRates === 'string') {
+                    acc.prizeRates = JSON.parse(acc.prizeRates);
+                } else if (!acc.prizeRates) {
+                    acc.prizeRates = { oneDigitOpen: 0, oneDigitClose: 0, twoDigit: 0 };
+                }
 
-            if (acc.betLimits && typeof acc.betLimits === 'string') {
-                acc.betLimits = JSON.parse(acc.betLimits);
+                if (acc.betLimits && typeof acc.betLimits === 'string') {
+                    acc.betLimits = JSON.parse(acc.betLimits);
+                }
+                
+                if (!acc.betLimits && (table === 'users' || table === 'dealers')) {
+                    acc.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
+                }
             }
             
-            if (!acc.betLimits && (table === 'users' || table === 'dealers')) {
-                acc.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
+            if (table === 'games' && acc.drawTime) {
+                acc.isMarketOpen = isGameOpen(acc.drawTime);
             }
 
             if (table === 'bets' && acc.numbers) acc.numbers = JSON.parse(acc.numbers);

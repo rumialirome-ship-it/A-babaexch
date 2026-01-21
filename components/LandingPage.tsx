@@ -324,11 +324,19 @@ const LandingPage: React.FC<{ games: Game[] }> = ({ games }) => {
 
                 <section id="games" className="mb-20">
                     <h2 className="text-3xl font-bold text-center mb-10 text-white uppercase tracking-widest">Today's Games</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
-                        {games.map(game => (
-                            <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
-                        ))}
-                    </div>
+                    
+                    {games.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-12 bg-slate-800/30 rounded-2xl border border-slate-700/50">
+                            <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4"></div>
+                            <p className="text-cyan-400 font-bold tracking-widest uppercase animate-pulse">Synchronizing Market Data...</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
+                            {games.map(game => (
+                                <GameDisplayCard key={game.id} game={game} onClick={handleGameClick} />
+                            ))}
+                        </div>
+                    )}
                 </section>
 
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">

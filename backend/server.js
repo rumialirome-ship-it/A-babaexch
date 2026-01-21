@@ -161,7 +161,9 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             const results = [];
             database.runInTransaction(() => {
                 for (const [gId, data] of Object.entries(multiGameBets)) {
-                    results.push(...database.placeBulkBets(req.user.id, gId, (data as any).betGroups, 'USER'));
+                    // Corrected: Removed TypeScript cast '(data as any)'
+                    const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
+                    if (processed) results.push(...processed);
                 }
             });
             res.status(201).json(results);
