@@ -1,57 +1,41 @@
 
 const path = require('path');
+const fs = require('fs');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
 
-// PERFORMANCE FIX: Use absolute path resolution to prevent PM2 from creating empty DB files in wrong directories
 const DB_PATH = path.resolve(__dirname, 'database.sqlite');
+const BACKUP_DIR = path.resolve(__dirname, 'backups');
+
+// Ensure backup directory exists
+if (!fs.existsSync(BACKUP_DIR)) {
+    fs.mkdirSync(BACKUP_DIR);
+}
+
 let db;
 
-// --- CENTRALIZED GAME TIMING LOGIC (PKT TIMEZONE) ---
 function isGameOpen(drawTime) {
     try {
         if (!drawTime || !drawTime.includes(':')) return false;
-        
         const now = new Date();
-        // Pakistan is UTC+5. Convert current UTC to PKT bias for hour/date extraction.
         const pktBias = new Date(now.getTime() + (5 * 60 * 60 * 1000));
-        
         const [drawH, drawM] = drawTime.split(':').map(Number);
         const pktH = pktBias.getUTCHours();
-
-        // 1. Find the START of the current betting cycle (the most recent 4:00 PM PKT)
         const currentCycleStart = new Date(pktBias);
         currentCycleStart.setUTCHours(16, 0, 0, 0);
-        
-        // If we are currently in the morning (before 4 PM), the cycle actually started yesterday at 4 PM
-        if (pktH < 16) {
-            currentCycleStart.setUTCDate(currentCycleStart.getUTCDate() - 1);
-        }
-
-        // 2. Find the END of this cycle (the Draw Time)
+        if (pktH < 16) currentCycleStart.setUTCDate(currentCycleStart.getUTCDate() - 1);
         const currentCycleEnd = new Date(currentCycleStart);
         currentCycleEnd.setUTCHours(drawH, drawM, 0, 0);
-        
-        // If the draw hour is early morning (00:00 to 15:59), it happens on the 
-        // calendar day AFTER the 4:00 PM opening.
-        if (drawH < 16) {
-            currentCycleEnd.setUTCDate(currentCycleEnd.getUTCDate() + 1);
-        }
-
-        // Market is open if we are past 4:00 PM (Start) and before the specific Game Draw (End)
-        const isOpen = pktBias >= currentCycleStart && pktBias < currentCycleEnd;
-        return isOpen;
-    } catch (e) {
-        return false;
-    }
+        if (drawH < 16) currentCycleEnd.setUTCDate(currentCycleEnd.getUTCDate() + 1);
+        return pktBias >= currentCycleStart && pktBias < currentCycleEnd;
+    } catch (e) { return false; }
 }
 
 const connect = () => {
     try {
-        // PERFORMANCE FIX: Added busy_timeout (10s) to handle concurrent writes from many users
         db = new Database(DB_PATH, { timeout: 10000 });
         db.pragma('journal_mode = WAL');
-        db.pragma('synchronous = NORMAL'); // Faster disk writes for VPS
+        db.pragma('synchronous = NORMAL');
         db.pragma('foreign_keys = ON');
         console.error(`--- Database Connected at: ${DB_PATH} ---`);
     } catch (error) {
@@ -60,15 +44,48 @@ const connect = () => {
     }
 };
 
+/**
+ * SAFE BACKUP LOGIC
+ * Creates a consistent copy of the DB even if users are writing to it.
+ */
+const createSafeBackup = (targetPath = null) => {
+    try {
+        const timestamp = new Date().toISOString().split('T')[0];
+        const backupFile = targetPath || path.join(BACKUP_DIR, `snapshot-${timestamp}-${Date.now()}.sqlite`);
+        
+        // SQLite "VACUUM INTO" is the official way to live-backup a WAL database
+        if (fs.existsSync(backupFile)) fs.unlinkSync(backupFile);
+        db.prepare(`VACUUM INTO ?`).run(backupFile);
+        
+        console.error(`--- Backup Created Successfully: ${backupFile} ---`);
+        return backupFile;
+    } catch (error) {
+        console.error('Backup Error:', error.message);
+        throw error;
+    }
+};
+
+/**
+ * PRUNE OLD BACKUPS
+ * Keeps only the last 7 days of snapshots to prevent VPS disk from filling up
+ */
+const pruneOldBackups = () => {
+    try {
+        const files = fs.readdirSync(BACKUP_DIR);
+        if (files.length > 10) {
+            const sorted = files.sort((a, b) => fs.statSync(path.join(BACKUP_DIR, b)).mtime - fs.statSync(path.join(BACKUP_DIR, a)).mtime);
+            const toDelete = sorted.slice(10);
+            toDelete.forEach(f => fs.unlinkSync(path.join(BACKUP_DIR, f)));
+            console.error(`--- Pruned ${toDelete.length} old backup files ---`);
+        }
+    } catch (e) {}
+};
+
 const verifySchema = () => {
     try {
         const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'");
-        if (!stmt.get()) {
-            console.error('--- WARNING: Database schema missing! ---');
-        }
-    } catch (error) {
-        console.error('Schema verification error:', error);
-    }
+        if (!stmt.get()) console.error('--- WARNING: Database schema missing! ---');
+    } catch (error) { console.error('Schema verification error:', error); }
 };
 
 const findAccountById = (id, table, ledgerLimit = 15) => {
@@ -76,27 +93,19 @@ const findAccountById = (id, table, ledgerLimit = 15) => {
         const stmt = db.prepare(`SELECT * FROM ${table} WHERE LOWER(id) = LOWER(?)`);
         const account = stmt.get(id);
         if (!account) return null;
-        
         if (table !== 'games') {
-            account.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp DESC LIMIT ?')
-                .all(id, ledgerLimit)
-                .reverse();
+            account.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp DESC LIMIT ?').all(id, ledgerLimit).reverse();
         } else {
             account.isMarketOpen = isGameOpen(account.drawTime);
         }
-
         if (table === 'users' || table === 'dealers' || table === 'admins') {
             account.commissionRate = Number(account.commissionRate) || 0;
             if (account.prizeRates && typeof account.prizeRates === 'string') account.prizeRates = JSON.parse(account.prizeRates);
             if (account.betLimits && typeof account.betLimits === 'string') account.betLimits = JSON.parse(account.betLimits);
         }
-        
         if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
         return account;
-    } catch (e) {
-        console.error(`DB Error findAccountById (${table}):`, e.message);
-        return null;
-    }
+    } catch (e) { return null; }
 };
 
 const findAccountForLogin = (loginId) => {
@@ -108,9 +117,7 @@ const findAccountForLogin = (loginId) => {
             const account = stmt.get(lowerCaseLoginId);
             if (account) return { account, role: tableInfo.role };
         }
-    } catch (e) {
-        console.error("Login lookup error:", e.message);
-    }
+    } catch (e) {}
     return { account: null, role: null };
 };
 
@@ -126,33 +133,23 @@ const updatePassword = (accountId, contact, newPassword) => {
 const getAllFromTable = (table, withLedger = false, ledgerLimit = 5) => {
     try {
         const rows = db.prepare(`SELECT * FROM ${table}`).all();
-        if (rows.length === 0) console.error(`--- Empty data returned for table: ${table} ---`);
-        
         return rows.map(acc => {
             try {
                 if (table === 'users' || table === 'dealers' || table === 'admins') {
                     acc.commissionRate = Number(acc.commissionRate) || 0;
                     if (withLedger && acc.id) {
-                        acc.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp DESC LIMIT ?')
-                            .all(acc.id, ledgerLimit)
-                            .reverse();
+                        acc.ledger = db.prepare('SELECT * FROM ledgers WHERE LOWER(accountId) = LOWER(?) ORDER BY timestamp DESC LIMIT ?').all(acc.id, ledgerLimit).reverse();
                     }
                     if (acc.prizeRates && typeof acc.prizeRates === 'string') acc.prizeRates = JSON.parse(acc.prizeRates);
                     if (acc.betLimits && typeof acc.betLimits === 'string') acc.betLimits = JSON.parse(acc.betLimits);
                 }
-                
-                if (table === 'games' && acc.drawTime) {
-                    acc.isMarketOpen = isGameOpen(acc.drawTime);
-                }
+                if (table === 'games' && acc.drawTime) acc.isMarketOpen = isGameOpen(acc.drawTime);
                 if (table === 'bets' && acc.numbers) acc.numbers = JSON.parse(acc.numbers);
                 if ('isRestricted' in acc) acc.isRestricted = !!acc.isRestricted;
             } catch (e) {}
             return acc;
         });
-    } catch (e) {
-        console.error(`Database fetch error for table ${table}:`, e.message);
-        return [];
-    }
+    } catch (e) { return []; }
 };
 
 const runInTransaction = (fn) => db.transaction(fn)();
@@ -161,11 +158,7 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
     const table = accountType.toLowerCase() + 's';
     const account = db.prepare(`SELECT wallet FROM ${table} WHERE LOWER(id) = LOWER(?)`).get(accountId);
     const lastBalance = account ? account.wallet : 0;
-    
-    if (debit > 0 && accountType !== 'ADMIN' && lastBalance < debit) {
-        throw { status: 400, message: `Insufficient funds.` };
-    }
-    
+    if (debit > 0 && accountType !== 'ADMIN' && lastBalance < debit) throw { status: 400, message: `Insufficient funds.` };
     const newBalance = Math.round((lastBalance - debit + credit) * 100) / 100;
     db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
     db.prepare(`UPDATE ${table} SET wallet = ? WHERE LOWER(id) = LOWER(?)`).run(newBalance, accountId);
@@ -413,34 +406,28 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
         if (!user || user.isRestricted) throw { status: 403, message: 'Restricted or not found.' };
         const dealer = findAccountById(user.dealerId, 'dealers');
         const game = findAccountById(gId, 'games');
-        if (!game || !game.isMarketOpen || (game.winningNumber && !game.winningNumber.endsWith('_'))) {
-            throw { status: 400, message: "Market is currently closed for this game." };
-        }
+        if (!game || !game.isMarketOpen || (game.winningNumber && !game.winningNumber.endsWith('_'))) throw { status: 400, message: "Market is currently closed." };
         const admin = findAccountById('Guru', 'admins');
         const globalLimits = db.prepare('SELECT * FROM number_limits').all();
         const existingBets = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(gId);
         const userExistingTotal = existingBets.filter(b => b.userId === uId).reduce((s, b) => s + b.totalAmount, 0);
         const requestTotal = groups.reduce((s, g) => s + g.numbers.length * g.amountPerNumber, 0);
         const perDrawLimit = user.betLimits?.perDraw || 0;
-        if (perDrawLimit > 0 && (userExistingTotal + requestTotal) > perDrawLimit) throw { status: 400, message: `Limit Reached: Draw total exceeds your PKR ${perDrawLimit} limit.` };
+        if (perDrawLimit > 0 && (userExistingTotal + requestTotal) > perDrawLimit) throw { status: 400, message: `Draw total exceeds PKR ${perDrawLimit} limit.` };
         if (user.wallet < requestTotal) throw { status: 400, message: `Insufficient funds.` };
         const userCommRate = Number(user.commissionRate) || 0;
         const dealerCommRate = Number(dealer.commissionRate) || 0;
         const userComm = Math.round(requestTotal * (userCommRate / 100) * 100) / 100;
         const dComm = Math.round(requestTotal * ((dealerCommRate - userCommRate) / 100) * 100) / 100;
-        addLedgerEntry(user.id, 'USER', `Bet placed on ${game.name}`, requestTotal, 0);
-        if (userComm > 0) addLedgerEntry(user.id, 'USER', `Comm earned: ${game.name} (${userCommRate}%)`, 0, userComm);
+        addLedgerEntry(user.id, 'USER', `Bet on ${game.name}`, requestTotal, 0);
+        if (userComm > 0) addLedgerEntry(user.id, 'USER', `Comm earned: ${game.name}`, 0, userComm);
         addLedgerEntry(admin.id, 'ADMIN', `Stake: ${user.name} @ ${game.name}`, 0, requestTotal);
         if (userComm > 0) addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${user.name}`, userComm, 0);
-        if (dComm > 0) { 
-            addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${dealer.name} (Override)`, dComm, 0); 
-            addLedgerEntry(dealer.id, 'DEALER', `Comm from ${user.name} @ ${game.name}`, 0, dComm); 
-        }
+        if (dComm > 0) { addLedgerEntry(admin.id, 'ADMIN', `Comm: ${dealer.name} (Override)`, dComm, 0); addLedgerEntry(dealer.id, 'DEALER', `Comm from ${user.name}`, 0, dComm); }
         const created = [];
         groups.forEach(g => {
             const b = { id: uuidv4(), userId: uId, dealerId: dealer.id, gameId: game.id, subGameType: g.subGameType, numbers: JSON.stringify(g.numbers), amountPerNumber: g.amountPerNumber, totalAmount: g.numbers.length * g.amountPerNumber, timestamp: new Date().toISOString() };
-            createBet(b); 
-            created.push({ ...b, numbers: g.numbers });
+            createBet(b); created.push({ ...b, numbers: g.numbers });
         });
         result = created;
     });
@@ -468,4 +455,4 @@ function resetAllGames() {
     console.error('--- [DATABASE] Market Reset Successful ---');
 }
 
-module.exports = { connect, verifySchema, findAccountById, findAccountForLogin, updatePassword, getAllFromTable, runInTransaction, addLedgerEntry, createDealer, updateDealer, updateAdmin, findUsersByDealerId, findUserByDealer, findBetsByUserId, createUser, updateUser, updateUserByAdmin, deleteUserByDealer, toggleAccountRestrictionByAdmin, toggleUserRestrictionByDealer, declareWinnerForGame, updateWinningNumber, approvePayoutsForGame, getFinancialSummary, getNumberStakeSummary, placeBulkBets, updateGameDrawTime, resetAllGames, getAllNumberLimits, saveNumberLimit, deleteNumberLimit, findBetsByDealerId, findBetsByGameId };
+module.exports = { connect, verifySchema, findAccountById, findAccountForLogin, updatePassword, getAllFromTable, runInTransaction, addLedgerEntry, createDealer, updateDealer, updateAdmin, findUsersByDealerId, findUserByDealer, findBetsByUserId, createUser, updateUser, updateUserByAdmin, deleteUserByDealer, toggleAccountRestrictionByAdmin, toggleUserRestrictionByDealer, declareWinnerForGame, updateWinningNumber, approvePayoutsForGame, getFinancialSummary, getNumberStakeSummary, placeBulkBets, updateGameDrawTime, resetAllGames, getAllNumberLimits, saveNumberLimit, deleteNumberLimit, findBetsByDealerId, findBetsByGameId, createSafeBackup, pruneOldBackups };
