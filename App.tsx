@@ -76,15 +76,8 @@ const AppContent: React.FC = () => {
     const fetchPublicData = useCallback(async () => {
         try {
             const gamesResponse = await fetch('/api/games');
-            if (gamesResponse.ok) {
-                const data = await gamesResponse.json();
-                setGames(data);
-                return true;
-            }
-            return false;
-        } catch (e) {
-            return false;
-        }
+            if (gamesResponse.ok) setGames(await gamesResponse.json());
+        } catch (e) {}
     }, []);
 
     const fetchPrivateData = useCallback(async () => {
@@ -105,6 +98,7 @@ const AppContent: React.FC = () => {
         }
     }, [role, fetchWithAuth, setAccount]);
 
+    // Handle immediate data from verify response (critical for refreshes)
     useEffect(() => {
         if (!loading && verifyData) {
             const parsed = parseAllDates(verifyData);
@@ -116,31 +110,21 @@ const AppContent: React.FC = () => {
     }, [loading, verifyData]);
 
     useEffect(() => {
-        const initialLoad = async () => {
-            const success = await fetchPublicData();
-            // If failed, try once more after 2 seconds instead of waiting the full 15s
-            if (!success) {
-                setTimeout(fetchPublicData, 2000);
-            }
-        };
-        initialLoad();
-        
-        // PERFORMANCE FIX: Slower public updates (15s instead of 5s)
-        const interval = setInterval(fetchPublicData, 15000);
+        fetchPublicData();
+        const interval = setInterval(fetchPublicData, 5000);
         return () => clearInterval(interval);
     }, [fetchPublicData]);
 
     useEffect(() => {
         if (role) {
             if (!hasInitialFetched) fetchPrivateData();
-            // PERFORMANCE FIX: Slower data updates (10s instead of 3s)
-            const interval = setInterval(fetchPrivateData, 10000);
+            const interval = setInterval(fetchPrivateData, 3000);
             return () => clearInterval(interval);
         } else {
             setHasInitialFetched(false);
             setUsers([]); setBets([]); setDealers([]);
         }
-    }, [role, fetchPrivateData, hasInitialFetched]);
+    }, [role, fetchPrivateData]);
 
     useEffect(() => {
         if (games.length > 0 && lastGamesRef.current.length > 0) {
