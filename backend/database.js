@@ -7,20 +7,18 @@ let db;
 
 // --- CENTRALIZED GAME TIMING LOGIC (PKT TIMEZONE) ---
 function isGameOpen(drawTime) {
-    if (!drawTime) return false;
     const now = new Date();
-    // Pakistan is UTC+5.
+    // Pakistan is UTC+5. Convert current UTC to PKT bias for hour/date extraction.
     const pktBias = new Date(now.getTime() + (5 * 60 * 60 * 1000));
     
-    const timeParts = drawTime.split(':');
-    const drawH = parseInt(timeParts[0], 10);
-    const drawM = parseInt(timeParts[1], 10);
+    const [drawH, drawM] = drawTime.split(':').map(Number);
     const pktH = pktBias.getUTCHours();
 
     // 1. Find the START of the current betting cycle (the most recent 4:00 PM PKT)
     const currentCycleStart = new Date(pktBias);
     currentCycleStart.setUTCHours(16, 0, 0, 0);
     
+    // If we are currently in the morning (before 4 PM), the cycle actually started yesterday at 4 PM
     if (pktH < 16) {
         currentCycleStart.setUTCDate(currentCycleStart.getUTCDate() - 1);
     }
@@ -29,11 +27,15 @@ function isGameOpen(drawTime) {
     const currentCycleEnd = new Date(currentCycleStart);
     currentCycleEnd.setUTCHours(drawH, drawM, 0, 0);
     
+    // If the draw hour is early morning (00:00 to 15:59), it happens on the 
+    // calendar day AFTER the 4:00 PM opening.
     if (drawH < 16) {
         currentCycleEnd.setUTCDate(currentCycleEnd.getUTCDate() + 1);
     }
 
-    return pktBias >= currentCycleStart && pktBias < currentCycleEnd;
+    // Market is open if we are past 4:00 PM (Start) and before the specific Game Draw (End)
+    const isOpen = pktBias >= currentCycleStart && pktBias < currentCycleEnd;
+    return isOpen;
 }
 
 const connect = () => {
@@ -93,6 +95,12 @@ const findAccountById = (id, table) => {
             
             if (!account.betLimits && (table === 'users' || table === 'dealers')) {
                 account.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
+            } else if (account.betLimits) {
+                account.betLimits = {
+                    oneDigit: account.betLimits.oneDigit || 0,
+                    twoDigit: account.betLimits.twoDigit || 0,
+                    perDraw: account.betLimits.perDraw || 0
+                };
             }
         }
         
@@ -103,8 +111,8 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // FIX: Problem 4 - Direct protection against toLowerCase() on non-string/missing values
-    if (!loginId || typeof loginId !== 'string' || loginId.trim() === '') {
+    // CRITICAL: Strict validation to prevent crashes from empty/bad requests
+    if (loginId === undefined || loginId === null || typeof loginId !== 'string' || loginId.trim() === '') {
         return { account: null, role: null };
     }
     
@@ -128,7 +136,6 @@ const findAccountForLogin = (loginId) => {
 };
 
 const updatePassword = (accountId, contact, newPassword) => {
-    if (!accountId || !contact) return false;
     const tables = ['users', 'dealers'];
     for (const table of tables) {
         const result = db.prepare(`UPDATE ${table} SET password = ? WHERE id = ? AND contact = ?`).run(newPassword, accountId, contact);
@@ -152,6 +159,10 @@ const getAllFromTable = (table, withLedger = false) => {
 
                 if (acc.betLimits && typeof acc.betLimits === 'string') {
                     acc.betLimits = JSON.parse(acc.betLimits);
+                }
+                
+                if (!acc.betLimits && (table === 'users' || table === 'dealers')) {
+                    acc.betLimits = { oneDigit: 0, twoDigit: 0, perDraw: 0 };
                 }
             }
             
@@ -177,6 +188,7 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
         throw { status: 400, message: `Insufficient funds.` };
     }
     
+    // Explicit rounding to 2 decimal places
     const newBalance = Math.round((lastBalance - debit + credit) * 100) / 100;
     db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
     db.prepare(`UPDATE ${table} SET wallet = ? WHERE LOWER(id) = LOWER(?)`).run(newBalance, accountId);

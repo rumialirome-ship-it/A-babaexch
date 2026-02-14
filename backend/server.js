@@ -134,9 +134,8 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
         if (isMultiGame && multiGameBets) {
             const results = [];
             database.runInTransaction(() => {
-                for (const gId in multiGameBets) {
-                    const data = multiGameBets[gId];
-                    // Removed all TypeScript syntax (as any) which caused SyntaxError
+                for (const [gId, data] of Object.entries(multiGameBets)) {
+                    // Problem 1 FIX: TypeScript casting strictly removed
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
                     if (processed && Array.isArray(processed)) {
                         results.push(...processed);
@@ -312,9 +311,9 @@ const startServer = () => {
   database.connect();
   database.verifySchema();
   
-  // Problem 5 FIXED: Market reset logic removed from server startup to preserve today's data.
-  // Today's bets and results will NO LONGER BE DELETED when PM2 reloads the process.
-  // Resets happen ONLY at 4:00 PM PKT via scheduler.
+  // Problem 5 ASSURANCE: Forced market reset is NOT called here.
+  // Resets ONLY occur at 4:00 PM PKT via the scheduleNextGameReset function above.
+  // Today's bets and results are safe during PM2 reloads.
   
   scheduleNextGameReset();
   app.listen(3001, () => console.error('>>> [SERVER] A-BABA BACKEND IS LIVE ON PORT 3001 <<<'));
