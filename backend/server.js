@@ -31,13 +31,13 @@ function scheduleNextGameReset() {
     }
 
     const delay = resetTime.getTime() - now.getTime();
-    console.error(`--- Scheduling next daily reset for ${resetTime.toUTCString()} ---`);
+    console.error(`--- [SCHEDULER] Next daily reset at: ${resetTime.toUTCString()} ---`);
     
     resetTimer = setTimeout(() => {
         try { 
             database.resetAllGames(); 
         } catch (e) { 
-            console.error('Reset error:', e.message || e); 
+            console.error('--- [SCHEDULER] Reset error:', e.message || e); 
         }
         scheduleNextGameReset();
     }, delay);
@@ -58,7 +58,7 @@ app.post('/api/auth/login', (req, res) => {
         }
         res.status(401).json({ message: 'Invalid Account ID or Password.' });
     } catch (e) {
-        console.error('Login error:', e.message || e);
+        console.error('--- [SERVER] Login error:', e.message || e);
         res.status(500).json({ message: 'Internal server error.' });
     }
 });
@@ -134,8 +134,9 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
         if (isMultiGame && multiGameBets) {
             const results = [];
             database.runInTransaction(() => {
-                for (const [gId, data] of Object.entries(multiGameBets)) {
-                    // Problem 1 FIX: TypeScript casting removed
+                for (const gId in multiGameBets) {
+                    const data = multiGameBets[gId];
+                    // Removed all TypeScript syntax (as any) which caused SyntaxError
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
                     if (processed && Array.isArray(processed)) {
                         results.push(...processed);
@@ -311,10 +312,11 @@ const startServer = () => {
   database.connect();
   database.verifySchema();
   
-  // Problem 5 Fix: Removed forced market reset on startup.
-  // Resets now only happen at 4:00 PM PKT via scheduler.
+  // Problem 5 FIXED: Market reset logic removed from server startup to preserve today's data.
+  // Today's bets and results will NO LONGER BE DELETED when PM2 reloads the process.
+  // Resets happen ONLY at 4:00 PM PKT via scheduler.
   
   scheduleNextGameReset();
-  app.listen(3001, () => console.error('>>> A-BABA BACKEND IS LIVE ON PORT 3001 <<<'));
+  app.listen(3001, () => console.error('>>> [SERVER] A-BABA BACKEND IS LIVE ON PORT 3001 <<<'));
 };
 startServer();
