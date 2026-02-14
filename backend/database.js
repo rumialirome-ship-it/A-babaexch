@@ -1,4 +1,3 @@
-
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -110,13 +109,18 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // Problem 2 Fix: Safe coding for loginId
-    if (!loginId) {
+    // Problem 2 Fix: Return immediately if loginId is missing to prevent .toLowerCase() crash
+    if (!loginId || typeof loginId !== 'string') {
         return { account: null, role: null };
     }
-    const lowerCaseLoginId = loginId.toLowerCase();
     
-    const tables = [{ name: 'users', role: 'USER' }, { name: 'dealers', role: 'DEALER' }, { name: 'admins', role: 'ADMIN' }];
+    const lowerCaseLoginId = loginId.toLowerCase();
+    const tables = [
+        { name: 'users', role: 'USER' },
+        { name: 'dealers', role: 'DEALER' },
+        { name: 'admins', role: 'ADMIN' }
+    ];
+
     for (const tableInfo of tables) {
         const stmt = db.prepare(`SELECT * FROM ${tableInfo.name} WHERE LOWER(id) = ?`);
         const account = stmt.get(lowerCaseLoginId);

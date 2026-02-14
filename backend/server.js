@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -125,7 +124,7 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             const results = [];
             database.runInTransaction(() => {
                 for (const [gId, data] of Object.entries(multiGameBets)) {
-                    // Fix Problem 1: Removing 'as any' casting to prevent SyntaxError
+                    // Problem 1 Fix: Correct spread logic and removed TypeScript-style casting
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
                     if (processed && Array.isArray(processed)) {
                         results.push(...processed);
