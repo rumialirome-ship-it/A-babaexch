@@ -64,6 +64,7 @@ const verifySchema = () => {
 };
 
 const findAccountById = (id, table) => {
+    if (!id) return null;
     const stmt = db.prepare(`SELECT * FROM ${table} WHERE LOWER(id) = LOWER(?)`);
     const account = stmt.get(id);
     if (!account) return null;
@@ -110,7 +111,7 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // FIX Problem 3: Robust safety check to prevent crash on undefined/empty login ID
+    // FIX Problem 3: Ensure loginId is a valid string before processing
     if (!loginId || typeof loginId !== 'string') {
         return { account: null, role: null };
     }
@@ -128,7 +129,7 @@ const findAccountForLogin = (loginId) => {
             const account = stmt.get(lowerCaseLoginId);
             if (account) return { account, role: tableInfo.role };
         } catch (e) {
-            console.error(`Login lookup error in ${tableInfo.name}:`, e.message || e);
+            console.error(`Lookup error in ${tableInfo.name}:`, e.message || e);
         }
     }
     return { account: null, role: null };
@@ -187,7 +188,6 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
         throw { status: 400, message: `Insufficient funds.` };
     }
     
-    // Explicit rounding to 2 decimal places
     const newBalance = Math.round((lastBalance - debit + credit) * 100) / 100;
     db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
     db.prepare(`UPDATE ${table} SET wallet = ? WHERE LOWER(id) = LOWER(?)`).run(newBalance, accountId);
@@ -501,28 +501,20 @@ const placeBulkBets = (uId, gId, groups, placedBy = 'USER') => {
 
         if (user.wallet < requestTotal) throw { status: 400, message: `Insufficient funds.` };
         
-        // CRITICAL: Rounding to prevent floating point drifts
         const userCommRate = Number(user.commissionRate) || 0;
         const dealerCommRate = Number(dealer.commissionRate) || 0;
         
         const userComm = Math.round(requestTotal * (userCommRate / 100) * 100) / 100;
         const dComm = Math.round(requestTotal * ((dealerCommRate - userCommRate) / 100) * 100) / 100;
         
-        // Step 1: User Stake Payment
         addLedgerEntry(user.id, 'USER', `Bet placed on ${game.name}`, requestTotal, 0);
-        
-        // Step 2: User Commission Addition (Instant)
         if (userComm > 0) {
             addLedgerEntry(user.id, 'USER', `Comm earned: ${game.name} (${userCommRate}%)`, 0, userComm);
         }
-        
-        // Step 3: Admin Updates
         addLedgerEntry(admin.id, 'ADMIN', `Stake: ${user.name} @ ${game.name}`, 0, requestTotal);
         if (userComm > 0) {
             addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${user.name}`, userComm, 0);
         }
-        
-        // Step 4: Dealer Override Commission
         if (dComm > 0) { 
             addLedgerEntry(admin.id, 'ADMIN', `Comm payout: ${dealer.name} (Override)`, dComm, 0); 
             addLedgerEntry(dealer.id, 'DEALER', `Comm from ${user.name} @ ${game.name}`, 0, dComm); 
