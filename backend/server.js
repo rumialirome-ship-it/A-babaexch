@@ -125,8 +125,11 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             const results = [];
             database.runInTransaction(() => {
                 for (const [gId, data] of Object.entries(multiGameBets)) {
+                    // Fix Problem 1: Removing 'as any' casting to prevent SyntaxError
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
-                    if (processed) results.push(...processed);
+                    if (processed && Array.isArray(processed)) {
+                        results.push(...processed);
+                    }
                 }
             });
             res.status(201).json(results);
