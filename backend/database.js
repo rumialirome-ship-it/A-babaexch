@@ -109,7 +109,7 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // FIX: Ensure loginId is not null or undefined before using it
+    // FIX Problem 3: Safety check to prevent toLowerCase() error on undefined input
     if (!loginId || typeof loginId !== 'string') {
         return { account: null, role: null };
     }

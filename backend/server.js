@@ -129,7 +129,7 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             const results = [];
             database.runInTransaction(() => {
                 for (const [gId, data] of Object.entries(multiGameBets)) {
-                    // FIXED: Removing 'as any' syntax error
+                    // Problem 1 FIX: Removing 'as any' SyntaxError
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
                     if (processed && Array.isArray(processed)) {
                         results.push(...processed);
@@ -141,38 +141,38 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             res.status(201).json(database.placeBulkBets(req.user.id, gameId, betGroups, 'USER'));
         }
     } catch (e) {
-        res.status(e.status || 400).json({ message: e.message });
+        res.status(e.status || 400).json({ message: e.message || 'Error placing bets' });
     }
 });
 
 app.post('/api/dealer/bets/bulk', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try { res.status(201).json(database.placeBulkBets(req.body.userId, req.body.gameId, req.body.betGroups, 'DEALER')); }
-    catch (e) { res.status(e.status || 400).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 400).json({ message: e.message || 'Error placing bets' }); }
 });
 
 app.post('/api/dealer/users', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try { res.status(201).json(database.createUser(req.body.userData, req.user.id, req.body.initialDeposit)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error creating user' }); }
 });
 
 app.put('/api/dealer/users/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try { res.json(database.updateUser(req.body, req.params.id, req.user.id)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error updating user' }); }
 });
 
 app.put('/api/admin/users/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.updateUserByAdmin(req.body, req.params.id)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error updating user' }); }
 });
 
 app.delete('/api/dealer/users/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try { database.deleteUserByDealer(req.params.id, req.user.id); res.sendStatus(204); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error deleting user' }); }
 });
 
 app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
@@ -186,7 +186,7 @@ app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
             database.addLedgerEntry(user.id, 'USER', `Top-up from Dealer`, 0, req.body.amount);
         });
         res.json({ message: "Success" });
-    } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    } catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error topping up user' }); }
 });
 
 app.post('/api/dealer/withdraw/user', authMiddleware, (req, res) => {
@@ -200,13 +200,13 @@ app.post('/api/dealer/withdraw/user', authMiddleware, (req, res) => {
             database.addLedgerEntry(dealer.id, 'DEALER', `Withdrawn from ${user.name}`, 0, req.body.amount);
         });
         res.json({ message: "Success" });
-    } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    } catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error withdrawing from user' }); }
 });
 
 app.put('/api/dealer/users/:id/toggle-restriction', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try { res.json(database.toggleUserRestrictionByDealer(req.params.id, req.user.id)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error toggling restriction' }); }
 });
 
 app.get('/api/admin/summary', authMiddleware, (req, res) => {
@@ -222,19 +222,19 @@ app.get('/api/admin/number-summary', authMiddleware, (req, res) => {
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.status(201).json(database.createDealer(req.body)); }
-    catch (e) { res.status(500).json({ message: e.message }); }
+    catch (e) { res.status(500).json({ message: e.message || 'Error creating dealer' }); }
 });
 
 app.put('/api/admin/dealers/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.updateDealer(req.body, req.params.id)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(500).json({ message: e.message || 'Error updating dealer' }); }
 });
 
 app.put('/api/admin/profile', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.updateAdmin(req.body, req.user.id)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(500).json({ message: e.message || 'Error updating profile' }); }
 });
 
 app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
@@ -248,7 +248,7 @@ app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
             database.addLedgerEntry(dealer.id, 'DEALER', 'Top-up from Admin', 0, req.body.amount);
         });
         res.json({ message: "Success" });
-    } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    } catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error topping up dealer' }); }
 });
 
 app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
@@ -261,13 +261,13 @@ app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
             database.addLedgerEntry('Guru', 'ADMIN', `Withdrawn from ${dealer.name}`, 0, req.body.amount);
         });
         res.json({ message: "Success" });
-    } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    } catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error withdrawing from dealer' }); }
 });
 
 app.put('/api/admin/accounts/:type/:id/toggle-restriction', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.toggleAccountRestrictionByAdmin(req.params.id, req.params.type)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error toggling restriction' }); }
 });
 
 app.post('/api/admin/games/:id/declare-winner', authMiddleware, (req, res) => {
@@ -278,19 +278,19 @@ app.post('/api/admin/games/:id/declare-winner', authMiddleware, (req, res) => {
 app.put('/api/admin/games/:id/update-winner', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.updateWinningNumber(req.params.id, req.body.newWinningNumber)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error updating winner' }); }
 });
 
 app.put('/api/admin/games/:id/draw-time', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.updateGameDrawTime(req.params.id, req.body.newDrawTime)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error updating draw time' }); }
 });
 
 app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.approvePayoutsForGame(req.params.id)); }
-    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message || 'Error approving payouts' }); }
 });
 
 app.get('/api/admin/number-limits', authMiddleware, (req, res) => res.json(database.getAllNumberLimits()));
@@ -301,9 +301,9 @@ const startServer = () => {
   database.connect();
   database.verifySchema();
   
-  // LOGIC FIX: Removed immediate database.resetAllGames() from startup.
-  // Resets now only occur via the scheduleNextGameReset() timer at 4:00 PM PKT.
-  // This prevents losing current bets/winners whenever the server restarts.
+  // LOGIC FIX Problem 5: Removed database.resetAllGames() from startup.
+  // The daily 4:00 PM PKT scheduler now handles all resets.
+  // This prevents losing bets and results whenever the VPS or PM2 restarts.
   
   scheduleNextGameReset();
   app.listen(3001, () => console.error('>>> A-BABA BACKEND IS LIVE ON PORT 3001 <<<'));
