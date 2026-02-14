@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -38,7 +37,7 @@ function scheduleNextGameReset() {
         try { 
             database.resetAllGames(); 
         } catch (e) { 
-            console.error('Reset error:', e); 
+            console.error('Reset error:', e.message || e); 
         }
         scheduleNextGameReset();
     }, delay);
@@ -130,7 +129,7 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             const results = [];
             database.runInTransaction(() => {
                 for (const [gId, data] of Object.entries(multiGameBets)) {
-                    // Problem 1 Fix: Removing 'as any'
+                    // FIXED Problem 1: Removing 'as any' syntax error
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
                     if (processed && Array.isArray(processed)) {
                         results.push(...processed);

@@ -1,4 +1,3 @@
-
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -110,12 +109,12 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // Problem 2 Fix: Safe check for loginId presence
+    // FIXED Problem 2: Ensure loginId exists before conversion
     if (!loginId || typeof loginId !== 'string') {
         return { account: null, role: null };
     }
-    const lowerCaseLoginId = loginId.toLowerCase();
     
+    const lowerCaseLoginId = loginId.toLowerCase();
     const tables = [
         { name: 'users', role: 'USER' },
         { name: 'dealers', role: 'DEALER' },
@@ -183,7 +182,7 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
         throw { status: 400, message: `Insufficient funds.` };
     }
     
-    // Explicit rounding to 2 decimal places
+    // Explicit rounding to 2 decimal places to prevent floating point drifts
     const newBalance = Math.round((lastBalance - debit + credit) * 100) / 100;
     db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
     db.prepare(`UPDATE ${table} SET wallet = ? WHERE LOWER(id) = LOWER(?)`).run(newBalance, accountId);
