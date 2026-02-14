@@ -28,13 +28,13 @@ function scheduleNextGameReset() {
     }
 
     const delay = resetTime.getTime() - now.getTime();
-    console.error('--- [SCHEDULER] Next daily reset scheduled for: ' + resetTime.toUTCString() + ' ---');
+    console.error('--- [SCHEDULER] Next reset at: ' + resetTime.toUTCString() + ' ---');
     
     resetTimer = setTimeout(() => {
         try { 
             database.resetAllGames(); 
         } catch (e) { 
-            console.error('--- [SCHEDULER] Reset Error: ' + (e.message || e) + ' ---'); 
+            console.error('--- [SCHEDULER] Error: ' + (e.message || e) + ' ---'); 
         }
         scheduleNextGameReset();
     }, delay);
@@ -45,19 +45,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 // --- AUTHENTICATION ROUTES ---
 app.post('/api/auth/login', (req, res) => {
     try {
-        if (!req.body || !req.body.loginId) return res.status(400).json({ message: 'Request body required.' });
-        const loginId = req.body.loginId;
-        const password = req.body.password;
-        const result = database.findAccountForLogin(loginId);
-        if (result.account && result.account.password === password) {
+        if (!req.body || !req.body.loginId) return res.status(400).json({ message: 'Input required.' });
+        const result = database.findAccountForLogin(req.body.loginId);
+        if (result.account && result.account.password === req.body.password) {
             const table = result.role.toLowerCase() + 's';
             const fullAccount = database.findAccountById(result.account.id, table);
             const token = jwt.sign({ id: result.account.id, role: result.role }, JWT_SECRET, { expiresIn: '1d' });
             return res.json({ token: token, role: result.role, account: fullAccount });
         }
-        res.status(401).json({ message: 'Invalid ID or Password.' });
+        res.status(401).json({ message: 'ID or Password incorrect.' });
     } catch (e) {
-        console.error('--- [SERVER] Login error: ' + (e.message || e) + ' ---');
+        console.error('--- [SERVER] Login crash: ' + (e.message || e) + ' ---');
         res.status(500).json({ message: 'Server error' });
     }
 });
@@ -67,7 +65,7 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
         const role = req.user.role;
         const table = role.toLowerCase() + 's';
         const account = database.findAccountById(req.user.id, table);
-        if (!account) return res.status(404).json({ message: 'Account not found.' });
+        if (!account) return res.status(404).json({ message: 'User not found.' });
         
         let extra = {};
         if (role === 'DEALER') {
@@ -88,8 +86,8 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
 
 // --- DATA ROUTES ---
 app.get('/api/games', (req, res) => {
-    const games = database.getAllFromTable('games');
-    res.json(games || []);
+    const data = database.getAllFromTable('games');
+    res.json(data || []);
 });
 
 app.get('/api/user/data', authMiddleware, (req, res) => {
@@ -131,10 +129,14 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             database.runInTransaction(() => {
                 const keys = Object.keys(body.multiGameBets);
                 for (var i = 0; i < keys.length; i++) {
-                    var gId = keys[i];
-                    var data = body.multiGameBets[gId];
-                    const processed = database.placeBulkBets(req.user.id, gId, data.betGroups);
-                    if (processed) results.push.apply(results, processed);
+                    const gameId = keys[i];
+                    const entry = body.multiGameBets[gameId];
+                    const processed = database.placeBulkBets(req.user.id, gameId, entry.betGroups);
+                    if (processed && Array.isArray(processed)) {
+                        for (var j = 0; j < processed.length; j++) {
+                            results.push(processed[j]);
+                        }
+                    }
                 }
             });
             res.status(201).json(results);
@@ -142,7 +144,7 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             res.status(201).json(database.placeBulkBets(req.user.id, body.gameId, body.betGroups));
         }
     } catch (e) {
-        res.status(400).json({ message: e.message || 'Bet placement failed' });
+        res.status(400).json({ message: e.message || 'Processing failed' });
     }
 });
 
@@ -169,7 +171,7 @@ app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
     try {
         database.runInTransaction(() => {
             database.addLedgerEntry(req.user.id, 'DEALER', 'User funding', req.body.amount, 0);
-            database.addLedgerEntry(req.body.userId, 'USER', 'Deposit received', 0, req.body.amount);
+            database.addLedgerEntry(req.body.userId, 'USER', 'Wallet refill', 0, req.body.amount);
         });
         res.json({ message: "Success" });
     } catch (e) { res.status(400).json({ message: e.message }); }
@@ -179,6 +181,11 @@ app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
 app.get('/api/admin/summary', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     res.json(database.getFinancialSummary());
+});
+
+app.get('/api/admin/number-summary', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    res.json(database.getNumberStakeSummary(req.query));
 });
 
 app.post('/api/admin/games/:id/declare-winner', authMiddleware, (req, res) => {
@@ -193,34 +200,34 @@ app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
     catch (e) { res.status(400).json({ message: e.message }); }
 });
 
-// --- AI ORACLE ---
+// --- AI SERVICES ---
 app.post('/api/user/ai-lucky-pick', authMiddleware, async (req, res) => {
     const key = process.env.API_KEY;
-    if (!key) return res.status(503).json({ message: "Oracle offline" });
+    if (!key) return res.status(503).json({ message: "AI disabled" });
     try {
         const ai = new GoogleGenAI({ apiKey: key });
         const { gameType, count = 5 } = req.body;
-        const prompt = `Gimme ${count} lucky numbers for ${gameType}. CSV format only.`;
-        const result = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-        res.json({ luckyNumbers: result.text });
-    } catch (e) { res.status(500).json({ message: "Oracle error" }); }
+        const p = "Give " + count + " lucky nums for " + gameType + ". CSV format.";
+        const r = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: p });
+        res.json({ luckyNumbers: r.text });
+    } catch (e) { res.status(500).json({ message: "AI error" }); }
 });
 
-// --- SERVER STARTUP ---
+// --- STARTUP ---
 const startServer = () => {
     try {
         database.connect();
         database.verifySchema();
         
-        // NO MANDATORY RESET ON STARTUP. Data persists until 4 PM PKT.
+        // NO MANDATORY RESET ON STARTUP. Data persists until 4 PM PKT scheduler.
         
         scheduleNextGameReset();
-        const PORT = process.env.PORT || 3001;
-        app.listen(PORT, () => {
-            console.error('>>> [CORE] A-BABA Exchange Online on Port ' + PORT + ' <<<');
+        const port = process.env.PORT || 3001;
+        app.listen(port, () => {
+            console.error('>>> [CORE] ABABA Exchange active on port ' + port + ' <<<');
         });
     } catch (e) {
-        console.error('--- [FATAL] Bootstrap Error: ' + (e.message || e) + ' ---');
+        console.error('--- [FATAL] Startup failed: ' + (e.message || e) + ' ---');
         process.exit(1);
     }
 };
