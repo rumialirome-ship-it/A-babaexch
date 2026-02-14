@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -129,7 +130,7 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             const results = [];
             database.runInTransaction(() => {
                 for (const [gId, data] of Object.entries(multiGameBets)) {
-                    // FIX PROBLEM 1: Removed TypeScript-style casting "as any"
+                    // Problem 1 Fix: Removing 'as any'
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
                     if (processed && Array.isArray(processed)) {
                         results.push(...processed);
@@ -257,7 +258,7 @@ app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
         const dealer = database.findAccountById(req.body.dealerId, 'dealers');
         if (!dealer || dealer.wallet < req.body.amount) throw { status: 400, message: "Invalid request" };
         database.runInTransaction(() => {
-            database.addLedgerEntry(dealer.id, 'DEALER', `Withdrawal by Admin`, req.body.amount, 0);
+            database.addLedgerEntry(dealer.id, 'DEALER', 'Withdrawal by Admin', req.body.amount, 0);
             database.addLedgerEntry('Guru', 'ADMIN', `Withdrawn from ${dealer.name}`, 0, req.body.amount);
         });
         res.json({ message: "Success" });
@@ -301,11 +302,9 @@ const startServer = () => {
   database.connect();
   database.verifySchema();
   
-  // MANUAL RESET TRIGGER:
-  // Executing the reset logic immediately upon server start.
-  // This will clear all current bets and reset game winners to start a fresh cycle.
-  console.error('--- [ACTION] TRIGGERING MANUAL MARKET RESET ON STARTUP ---');
-  database.resetAllGames();
+  // LOGIC FIX: Removed immediate database.resetAllGames() from startup.
+  // Resets now only occur via the scheduleNextGameReset() timer at 4:00 PM PKT.
+  // This prevents losing current bets/winners whenever the server restarts.
   
   scheduleNextGameReset();
   app.listen(3001, () => console.error('>>> A-BABA BACKEND IS LIVE ON PORT 3001 <<<'));

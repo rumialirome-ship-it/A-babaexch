@@ -1,3 +1,4 @@
+
 const path = require('path');
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
@@ -109,12 +110,12 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // FIX PROBLEM 2: Safety check for loginId
+    // Problem 2 Fix: Safe check for loginId presence
     if (!loginId || typeof loginId !== 'string') {
         return { account: null, role: null };
     }
-    
     const lowerCaseLoginId = loginId.toLowerCase();
+    
     const tables = [
         { name: 'users', role: 'USER' },
         { name: 'dealers', role: 'DEALER' },
