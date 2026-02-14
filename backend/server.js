@@ -15,10 +15,15 @@ app.use(express.json());
 const PKT_OFFSET_HOURS = 5;
 const RESET_HOUR_PKT = 16; // 4:00 PM PKT
 
+let resetTimer = null;
+
 function scheduleNextGameReset() {
+    if (resetTimer) clearTimeout(resetTimer);
+    
     const now = new Date();
     const resetHourUTC = RESET_HOUR_PKT - PKT_OFFSET_HOURS;
 
+    // Boundary check for PKT 4 PM
     let resetTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), resetHourUTC, 0, 5, 0));
 
     if (now >= resetTime) {
@@ -28,7 +33,7 @@ function scheduleNextGameReset() {
     const delay = resetTime.getTime() - now.getTime();
     console.error(`--- Scheduling next daily reset for ${resetTime.toUTCString()} ---`);
     
-    setTimeout(() => {
+    resetTimer = setTimeout(() => {
         try { 
             database.resetAllGames(); 
         } catch (e) { 
@@ -124,7 +129,7 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             const results = [];
             database.runInTransaction(() => {
                 for (const [gId, data] of Object.entries(multiGameBets)) {
-                    // Problem 1 Fix: Correct spread logic and removed TypeScript-style casting
+                    // FIX PROBLEM 1: Removed TypeScript-style casting "as any"
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
                     if (processed && Array.isArray(processed)) {
                         results.push(...processed);
@@ -252,7 +257,7 @@ app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
         const dealer = database.findAccountById(req.body.dealerId, 'dealers');
         if (!dealer || dealer.wallet < req.body.amount) throw { status: 400, message: "Invalid request" };
         database.runInTransaction(() => {
-            database.addLedgerEntry(dealer.id, 'DEALER', 'Withdrawal by Admin', req.body.amount, 0);
+            database.addLedgerEntry(dealer.id, 'DEALER', `Withdrawal by Admin`, req.body.amount, 0);
             database.addLedgerEntry('Guru', 'ADMIN', `Withdrawn from ${dealer.name}`, 0, req.body.amount);
         });
         res.json({ message: "Success" });
@@ -297,8 +302,8 @@ const startServer = () => {
   database.verifySchema();
   
   // MANUAL RESET TRIGGER:
-  // Executing the reset logic immediately upon server start as requested.
-  // This will clear all current bets and reset game winners.
+  // Executing the reset logic immediately upon server start.
+  // This will clear all current bets and reset game winners to start a fresh cycle.
   console.error('--- [ACTION] TRIGGERING MANUAL MARKET RESET ON STARTUP ---');
   database.resetAllGames();
   

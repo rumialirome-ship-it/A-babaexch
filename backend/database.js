@@ -109,7 +109,7 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // Problem 2 Fix: Return immediately if loginId is missing to prevent .toLowerCase() crash
+    // FIX PROBLEM 2: Safety check for loginId
     if (!loginId || typeof loginId !== 'string') {
         return { account: null, role: null };
     }
