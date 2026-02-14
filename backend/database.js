@@ -45,7 +45,7 @@ const connect = () => {
         db.pragma('foreign_keys = ON');
         console.error('Database connected successfully.');
     } catch (error) {
-        console.error('Failed to connect to database:', error);
+        console.error('Failed to connect to database:', error.message || error);
         process.exit(1);
     }
 };
@@ -58,6 +58,7 @@ const verifySchema = () => {
             process.exit(1);
         }
     } catch (error) {
+        console.error('Schema verification error:', error.message || error);
         process.exit(1);
     }
 };
@@ -74,7 +75,7 @@ const findAccountById = (id, table) => {
             account.isMarketOpen = isGameOpen(account.drawTime);
         }
     } catch (e) {
-        console.error(`Error processing related data for ${table}:`, e);
+        console.error(`Error processing related data for ${table}:`, e.message || e);
     }
 
     try {
@@ -109,12 +110,12 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // FIX Problem 3: Safety check to prevent toLowerCase() error on undefined input
+    // FIX Problem 3: Robust safety check to prevent crash on undefined/empty login ID
     if (!loginId || typeof loginId !== 'string') {
         return { account: null, role: null };
     }
     
-    const lowerCaseLoginId = loginId.toLowerCase();
+    const lowerCaseLoginId = loginId.trim().toLowerCase();
     const tables = [
         { name: 'users', role: 'USER' },
         { name: 'dealers', role: 'DEALER' },
@@ -122,9 +123,13 @@ const findAccountForLogin = (loginId) => {
     ];
 
     for (const tableInfo of tables) {
-        const stmt = db.prepare(`SELECT * FROM ${tableInfo.name} WHERE LOWER(id) = ?`);
-        const account = stmt.get(lowerCaseLoginId);
-        if (account) return { account, role: tableInfo.role };
+        try {
+            const stmt = db.prepare(`SELECT * FROM ${tableInfo.name} WHERE LOWER(id) = ?`);
+            const account = stmt.get(lowerCaseLoginId);
+            if (account) return { account, role: tableInfo.role };
+        } catch (e) {
+            console.error(`Login lookup error in ${tableInfo.name}:`, e.message || e);
+        }
     }
     return { account: null, role: null };
 };

@@ -47,14 +47,19 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 // --- AUTHENTICATION ROUTES ---
 app.post('/api/auth/login', (req, res) => {
-    const { loginId, password } = req.body;
-    const { account, role } = database.findAccountForLogin(loginId);
-    if (account && account.password === password) {
-        const fullAccount = database.findAccountById(account.id, role.toLowerCase() + 's');
-        const token = jwt.sign({ id: account.id, role }, JWT_SECRET, { expiresIn: '1d' });
-        return res.json({ token, role, account: fullAccount });
+    try {
+        const { loginId, password } = req.body;
+        const { account, role } = database.findAccountForLogin(loginId);
+        if (account && account.password === password) {
+            const fullAccount = database.findAccountById(account.id, role.toLowerCase() + 's');
+            const token = jwt.sign({ id: account.id, role }, JWT_SECRET, { expiresIn: '1d' });
+            return res.json({ token, role, account: fullAccount });
+        }
+        res.status(401).json({ message: 'Invalid Account ID or Password.' });
+    } catch (e) {
+        console.error('Login processing error:', e.message || e);
+        res.status(500).json({ message: 'Internal server error during login.' });
     }
-    res.status(401).json({ message: 'Invalid Account ID or Password.' });
 });
 
 app.get('/api/auth/verify', authMiddleware, (req, res) => {
@@ -129,7 +134,7 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             const results = [];
             database.runInTransaction(() => {
                 for (const [gId, data] of Object.entries(multiGameBets)) {
-                    // Problem 1 FIX: Removing 'as any' SyntaxError
+                    // FIX Problem 1: Removed TypeScript-style casting (as any)
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
                     if (processed && Array.isArray(processed)) {
                         results.push(...processed);
@@ -272,7 +277,11 @@ app.put('/api/admin/accounts/:type/:id/toggle-restriction', authMiddleware, (req
 
 app.post('/api/admin/games/:id/declare-winner', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
-    res.json(database.declareWinnerForGame(req.params.id, req.body.winningNumber));
+    try {
+        res.json(database.declareWinnerForGame(req.params.id, req.body.winningNumber));
+    } catch (e) {
+        res.status(400).json({ message: e.message || 'Declaration failed' });
+    }
 });
 
 app.put('/api/admin/games/:id/update-winner', authMiddleware, (req, res) => {
@@ -301,7 +310,7 @@ const startServer = () => {
   database.connect();
   database.verifySchema();
   
-  // LOGIC FIX Problem 5: Removed database.resetAllGames() from startup.
+  // FIX Problem 5: Removed forced database.resetAllGames() from startup.
   // The daily 4:00 PM PKT scheduler now handles all resets.
   // This prevents losing bets and results whenever the VPS or PM2 restarts.
   
