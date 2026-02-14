@@ -129,7 +129,7 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
             const results = [];
             database.runInTransaction(() => {
                 for (const [gId, data] of Object.entries(multiGameBets)) {
-                    // FIXED Problem 1: Removing 'as any' syntax error
+                    // FIXED: Removing 'as any' syntax error
                     const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
                     if (processed && Array.isArray(processed)) {
                         results.push(...processed);
@@ -257,7 +257,7 @@ app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
         const dealer = database.findAccountById(req.body.dealerId, 'dealers');
         if (!dealer || dealer.wallet < req.body.amount) throw { status: 400, message: "Invalid request" };
         database.runInTransaction(() => {
-            database.addLedgerEntry(dealer.id, 'DEALER', 'Withdrawal by Admin', req.body.amount, 0);
+            database.addLedgerEntry(dealer.id, 'DEALER', `Withdrawal by Admin`, req.body.amount, 0);
             database.addLedgerEntry('Guru', 'ADMIN', `Withdrawn from ${dealer.name}`, 0, req.body.amount);
         });
         res.json({ message: "Success" });

@@ -109,7 +109,7 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // FIXED Problem 2: Ensure loginId exists before conversion
+    // FIX: Ensure loginId is not null or undefined before using it
     if (!loginId || typeof loginId !== 'string') {
         return { account: null, role: null };
     }
@@ -182,7 +182,7 @@ const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
         throw { status: 400, message: `Insufficient funds.` };
     }
     
-    // Explicit rounding to 2 decimal places to prevent floating point drifts
+    // Explicit rounding to 2 decimal places
     const newBalance = Math.round((lastBalance - debit + credit) * 100) / 100;
     db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
     db.prepare(`UPDATE ${table} SET wallet = ? WHERE LOWER(id) = LOWER(?)`).run(newBalance, accountId);
