@@ -11,23 +11,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- UTILITIES ---
-const logError = (context, error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`>>> [${context}] ERROR: ${message} <<<`);
-};
-
 // --- AUTOMATIC GAME RESET SCHEDULER ---
 const PKT_OFFSET_HOURS = 5;
 const RESET_HOUR_PKT = 16; // 4:00 PM PKT
+
 let resetTimer = null;
 
 function scheduleNextGameReset() {
-    // Definitive Guard: Clean up any existing timer before starting a new one
     if (resetTimer) clearTimeout(resetTimer);
     
     const now = new Date();
     const resetHourUTC = RESET_HOUR_PKT - PKT_OFFSET_HOURS;
+
+    // Boundary check for PKT 4 PM
     let resetTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), resetHourUTC, 0, 5, 0));
 
     if (now >= resetTime) {
@@ -35,66 +31,57 @@ function scheduleNextGameReset() {
     }
 
     const delay = resetTime.getTime() - now.getTime();
-    console.error(`--- [SCHEDULER] Next automatic daily reset scheduled for: ${resetTime.toUTCString()} ---`);
+    console.error(`--- [SCHEDULER] Next daily reset at: ${resetTime.toUTCString()} ---`);
     
     resetTimer = setTimeout(() => {
         try { 
             database.resetAllGames(); 
         } catch (e) { 
-            logError('SCHEDULER_EXECUTION', e); 
+            console.error('--- [SCHEDULER] Reset error:', e.message || e); 
         }
-        // Recurse to schedule the next day
         scheduleNextGameReset();
     }, delay);
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_not_for_prod';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // --- AUTHENTICATION ROUTES ---
 app.post('/api/auth/login', (req, res) => {
     try {
-        if (!req.body || !req.body.loginId) {
-            return res.status(400).json({ message: 'Login credentials required.' });
-        }
+        if (!req.body) return res.status(400).json({ message: 'Request body required.' });
         const { loginId, password } = req.body;
         const { account, role } = database.findAccountForLogin(loginId);
-        
         if (account && account.password === password) {
-            const table = role.toLowerCase() + 's';
-            const fullAccount = database.findAccountById(account.id, table);
+            const fullAccount = database.findAccountById(account.id, role.toLowerCase() + 's');
             const token = jwt.sign({ id: account.id, role }, JWT_SECRET, { expiresIn: '1d' });
             return res.json({ token, role, account: fullAccount });
         }
-        res.status(401).json({ message: 'Invalid ID or Password.' });
+        res.status(401).json({ message: 'Invalid Account ID or Password.' });
     } catch (e) {
-        logError('ROUTE_LOGIN', e);
-        res.status(500).json({ message: 'Internal Server Error' });
+        console.error('--- [SERVER] Login error:', e.message || e);
+        res.status(500).json({ message: 'Internal server error.' });
     }
 });
 
 app.get('/api/auth/verify', authMiddleware, (req, res) => {
-    try {
-        const role = req.user.role;
-        const table = role.toLowerCase() + 's';
-        const account = database.findAccountById(req.user.id, table);
-        if (!account) return res.status(404).json({ message: 'Session invalid' });
-        
-        let extra = {};
-        if (role === 'DEALER') {
-            extra.users = database.findUsersByDealerId(req.user.id);
-            extra.bets = database.findBetsByDealerId(req.user.id);
-        } else if (role === 'USER') {
-            extra.bets = database.findBetsByUserId(req.user.id);
-        } else if (role === 'ADMIN') {
-            extra.dealers = database.getAllFromTable('dealers', true);
-            extra.users = database.getAllFromTable('users', true);
-            extra.bets = database.getAllFromTable('bets');
-        }
-        res.json({ account, role, ...extra });
-    } catch (e) {
-        logError('ROUTE_VERIFY', e);
-        res.sendStatus(500);
+    const role = req.user.role;
+    const table = role.toLowerCase() + 's';
+    const account = database.findAccountById(req.user.id, table);
+    if (!account) return res.status(404).json({ message: 'Account not found.' });
+    
+    let extra = {};
+    if (role === 'DEALER') {
+        extra.users = database.findUsersByDealerId(req.user.id);
+        extra.bets = database.findBetsByDealerId(req.user.id);
+    } else if (role === 'USER') {
+        extra.bets = database.findBetsByUserId(req.user.id);
+    } else if (role === 'ADMIN') {
+        extra.dealers = database.getAllFromTable('dealers', true);
+        extra.users = database.getAllFromTable('users', true);
+        extra.bets = database.getAllFromTable('bets');
     }
+    
+    res.json({ account, role, ...extra });
 });
 
 app.post('/api/auth/reset-password', (req, res) => {
@@ -103,9 +90,27 @@ app.post('/api/auth/reset-password', (req, res) => {
     else res.status(404).json({ message: 'Invalid credentials' });
 });
 
-// --- DATA ROUTES ---
-app.get('/api/games', (req, res) => res.json(database.getAllFromTable('games')));
+// --- PUBLIC DATA ---
+app.get('/api/games', (req, res) => {
+    res.json(database.getAllFromTable('games'));
+});
 
+// --- AI LUCKY PICK ---
+app.post('/api/user/ai-lucky-pick', authMiddleware, async (req, res) => {
+    const { gameType, count = 5 } = req.body;
+    const API_KEY = process.env.API_KEY;
+    if (!API_KEY) return res.status(503).json({ message: "AI services unavailable." });
+    try {
+        const ai = new GoogleGenAI({ apiKey: API_KEY });
+        const prompt = `Generate ${count} unique lucky numbers for a "${gameType}" game. Return ONLY numbers separated by commas.`;
+        const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
+        res.json({ luckyNumbers: response.text.replace(/\s+/g, '') });
+    } catch (error) {
+        res.status(500).json({ message: "Oracle unavailable." });
+    }
+});
+
+// --- DATA ROUTES ---
 app.get('/api/user/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
     res.json({ account: database.findAccountById(req.user.id, 'users'), games: database.getAllFromTable('games'), bets: database.findBetsByUserId(req.user.id) });
@@ -121,7 +126,7 @@ app.get('/api/admin/data', authMiddleware, (req, res) => {
     res.json({ account: database.findAccountById(req.user.id, 'admins'), dealers: database.getAllFromTable('dealers', true), users: database.getAllFromTable('users', true), games: database.getAllFromTable('games'), bets: database.getAllFromTable('bets') });
 });
 
-// --- CORE ACTION ROUTES ---
+// --- ACTION ROUTES ---
 app.post('/api/user/bets', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
     const { isMultiGame, multiGameBets, gameId, betGroups } = req.body;
@@ -129,137 +134,189 @@ app.post('/api/user/bets', authMiddleware, (req, res) => {
         if (isMultiGame && multiGameBets) {
             const results = [];
             database.runInTransaction(() => {
-                // Definitive Fix: Removed TS 'as any' and used Object.entries for safety
-                Object.entries(multiGameBets).forEach(([gId, gameData]) => {
-                    const processed = database.placeBulkBets(req.user.id, gId, gameData.betGroups);
-                    if (Array.isArray(processed)) results.push(...processed);
-                });
+                for (const gId in multiGameBets) {
+                    const data = multiGameBets[gId];
+                    // Removed all TypeScript syntax (as any) which caused SyntaxError
+                    const processed = database.placeBulkBets(req.user.id, gId, data.betGroups, 'USER');
+                    if (processed && Array.isArray(processed)) {
+                        results.push(...processed);
+                    }
+                }
             });
             res.status(201).json(results);
         } else {
-            res.status(201).json(database.placeBulkBets(req.user.id, gameId, betGroups));
+            res.status(201).json(database.placeBulkBets(req.user.id, gameId, betGroups, 'USER'));
         }
     } catch (e) {
-        res.status(400).json({ message: e.message });
+        res.status(e.status || 400).json({ message: e.message || 'Error processing request' });
     }
 });
 
 app.post('/api/dealer/bets/bulk', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    try { res.status(201).json(database.placeBulkBets(req.body.userId, req.body.gameId, req.body.betGroups)); }
-    catch (e) { res.status(400).json({ message: e.message }); }
+    try { res.status(201).json(database.placeBulkBets(req.body.userId, req.body.gameId, req.body.betGroups, 'DEALER')); }
+    catch (e) { res.status(e.status || 400).json({ message: e.message }); }
 });
 
 app.post('/api/dealer/users', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try { res.status(201).json(database.createUser(req.body.userData, req.user.id, req.body.initialDeposit)); }
-    catch (e) { res.status(500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
 app.put('/api/dealer/users/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try { res.json(database.updateUser(req.body, req.params.id, req.user.id)); }
-    catch (e) { res.status(500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+});
+
+app.put('/api/admin/users/:id', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateUserByAdmin(req.body, req.params.id)); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
 app.delete('/api/dealer/users/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try { database.deleteUserByDealer(req.params.id, req.user.id); res.sendStatus(204); }
-    catch (e) { res.status(500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
 app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try {
-        const { userId, amount } = req.body;
+        const dealer = database.findAccountById(req.user.id, 'dealers');
+        const user = database.findUserByDealer(req.body.userId, req.user.id);
+        if (!user || dealer.wallet < req.body.amount) throw { status: 400, message: "Invalid request" };
         database.runInTransaction(() => {
-            database.addLedgerEntry(req.user.id, 'DEALER', `Top-up user`, amount, 0);
-            database.addLedgerEntry(userId, 'USER', `Funded by Dealer`, 0, amount);
+            database.addLedgerEntry(dealer.id, 'DEALER', `Top-Up for ${user.name}`, req.body.amount, 0);
+            database.addLedgerEntry(user.id, 'USER', `Top-up from Dealer`, 0, req.body.amount);
         });
         res.json({ message: "Success" });
-    } catch (e) { res.status(400).json({ message: e.message }); }
+    } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
 app.post('/api/dealer/withdraw/user', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try {
-        const { userId, amount } = req.body;
+        const dealer = database.findAccountById(req.user.id, 'dealers');
+        const user = database.findUserByDealer(req.body.userId, req.user.id);
+        if (!user || user.wallet < req.body.amount) throw { status: 400, message: "Invalid request" };
         database.runInTransaction(() => {
-            database.addLedgerEntry(userId, 'USER', `Withdrawal`, amount, 0);
-            database.addLedgerEntry(req.user.id, 'DEALER', `User Payout`, 0, amount);
+            database.addLedgerEntry(user.id, 'USER', `Withdrawal by Dealer`, req.body.amount, 0);
+            database.addLedgerEntry(dealer.id, 'DEALER', `Withdrawn from ${user.name}`, 0, req.body.amount);
         });
         res.json({ message: "Success" });
-    } catch (e) { res.status(400).json({ message: e.message }); }
+    } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
 app.put('/api/dealer/users/:id/toggle-restriction', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try { res.json(database.toggleUserRestrictionByDealer(req.params.id, req.user.id)); }
-    catch (e) { res.status(500).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
-// --- ADMIN CONTROL ROUTES ---
 app.get('/api/admin/summary', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     res.json(database.getFinancialSummary());
 });
 
+app.get('/api/admin/number-summary', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    res.json(database.getNumberStakeSummary(req.query));
+});
+
 app.post('/api/admin/dealers', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.status(201).json(database.createDealer(req.body)); }
-    catch (e) { res.status(400).json({ message: e.message }); }
+    catch (e) { res.status(500).json({ message: e.message }); }
 });
 
 app.put('/api/admin/dealers/:id', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.updateDealer(req.body, req.params.id)); }
-    catch (e) { res.status(400).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+});
+
+app.put('/api/admin/profile', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateAdmin(req.body, req.user.id)); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+});
+
+app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try {
+        const dealer = database.findAccountById(req.body.dealerId, 'dealers');
+        const admin = database.findAccountById('Guru', 'admins');
+        if (!dealer || admin.wallet < req.body.amount) throw { status: 400, message: "Invalid request" };
+        database.runInTransaction(() => {
+            database.addLedgerEntry('Guru', 'ADMIN', `Top-up for ${dealer.name}`, req.body.amount, 0);
+            database.addLedgerEntry(dealer.id, 'DEALER', 'Top-up from Admin', 0, req.body.amount);
+        });
+        res.json({ message: "Success" });
+    } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+});
+
+app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try {
+        const dealer = database.findAccountById(req.body.dealerId, 'dealers');
+        if (!dealer || dealer.wallet < req.body.amount) throw { status: 400, message: "Invalid request" };
+        database.runInTransaction(() => {
+            database.addLedgerEntry(dealer.id, 'DEALER', `Withdrawal by Admin`, req.body.amount, 0);
+            database.addLedgerEntry('Guru', 'ADMIN', `Withdrawn from ${dealer.name}`, 0, req.body.amount);
+        });
+        res.json({ message: "Success" });
+    } catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+});
+
+app.put('/api/admin/accounts/:type/:id/toggle-restriction', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.toggleAccountRestrictionByAdmin(req.params.id, req.params.type)); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
 app.post('/api/admin/games/:id/declare-winner', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
-    try { res.json(database.declareWinnerForGame(req.params.id, req.body.winningNumber)); }
-    catch (e) { res.status(400).json({ message: e.message }); }
+    try {
+        res.json(database.declareWinnerForGame(req.params.id, req.body.winningNumber));
+    } catch (e) {
+        res.status(400).json({ message: e.message || 'Declaration failed' });
+    }
+});
+
+app.put('/api/admin/games/:id/update-winner', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateWinningNumber(req.params.id, req.body.newWinningNumber)); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
+});
+
+app.put('/api/admin/games/:id/draw-time', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateGameDrawTime(req.params.id, req.body.newDrawTime)); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
 app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.approvePayoutsForGame(req.params.id)); }
-    catch (e) { res.status(400).json({ message: e.message }); }
+    catch (e) { res.status(e.status || 500).json({ message: e.message }); }
 });
 
-// --- AI ORACLE ---
-app.post('/api/user/ai-lucky-pick', authMiddleware, async (req, res) => {
-    const API_KEY = process.env.API_KEY;
-    if (!API_KEY) return res.status(503).json({ message: "Oracle Offline" });
-    try {
-        const ai = new GoogleGenAI({ apiKey: API_KEY });
-        const { gameType, count = 5 } = req.body;
-        const prompt = `Lucky numbers for ${gameType} (${count} items). CSV only.`;
-        const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-        res.json({ luckyNumbers: response.text });
-    } catch (e) { res.status(500).json({ message: "Oracle failed" }); }
-});
+app.get('/api/admin/number-limits', authMiddleware, (req, res) => res.json(database.getAllNumberLimits()));
+app.post('/api/admin/number-limits', authMiddleware, (req, res) => res.json(database.saveNumberLimit(req.body)));
+app.delete('/api/admin/number-limits/:id', authMiddleware, (req, res) => { database.deleteNumberLimit(req.params.id); res.sendStatus(204); });
 
-// --- SERVER STARTUP ---
 const startServer = () => {
-    try {
-        database.connect();
-        database.verifySchema();
-        
-        // Safety Guarantee: No database reset is ever called here.
-        // Today's data persists until the scheduled 4 PM PKT reset.
-        
-        scheduleNextGameReset();
-        
-        const PORT = process.env.PORT || 3001;
-        app.listen(PORT, () => {
-            console.error(`--- [SERVER] A-BABA Exchange Core Online on Port ${PORT} ---`);
-        });
-    } catch (e) {
-        logError('BOOTSTRAP', e);
-        process.exit(1);
-    }
+  database.connect();
+  database.verifySchema();
+  
+  // Problem 5 FIXED: Market reset logic removed from server startup to preserve today's data.
+  // Today's bets and results will NO LONGER BE DELETED when PM2 reloads the process.
+  // Resets happen ONLY at 4:00 PM PKT via scheduler.
+  
+  scheduleNextGameReset();
+  app.listen(3001, () => console.error('>>> [SERVER] A-BABA BACKEND IS LIVE ON PORT 3001 <<<'));
 };
-
 startServer();
