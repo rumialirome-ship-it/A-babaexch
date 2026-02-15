@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Game } from '../types';
 import { useCountdown } from '../hooks/useCountdown';
@@ -24,7 +23,7 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
     return (
         <button
             onClick={onClick}
-            className={`relative group bg-slate-800/50 p-6 flex flex-col items-center justify-between text-center transition-all duration-300 ease-in-out border border-slate-700 w-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-${themeColor}-500`}
+            className={`relative group bg-slate-800/50 p-6 flex flex-col items-center justify-between text-center transition-all duration-300 ease-in-out border border-slate-700 w-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-${themeColor}-500 shadow-md hover:shadow-xl`}
             style={{
                 clipPath: 'polygon(0 15px, 15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%)',
             }}
@@ -77,6 +76,7 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
     const [password, setPassword] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isAuthenticating, setIsAuthenticating] = useState(false);
 
     const roles: { name: LoginRole; theme: { text: string; ring: string; button: string; buttonHover: string; } }[] = [
         { name: 'User', theme: { text: 'text-cyan-400', ring: 'focus:ring-cyan-500', button: 'from-cyan-500 to-blue-500', buttonHover: 'hover:from-cyan-400 hover:to-blue-400' } },
@@ -94,10 +94,12 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
         e.preventDefault();
         if (!loginId.trim() || !password.trim()) { setError("Account ID and Password are required."); return; }
         setError(null);
+        setIsAuthenticating(true);
         try { 
             await login(loginId, password); 
         } catch (err) { 
             setError(err instanceof Error ? err.message : "An unknown login error occurred."); 
+            setIsAuthenticating(false);
         }
     };
 
@@ -129,8 +131,12 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
                         </div>
                     </div>
                     {error && <p id="error-message" role="alert" className="text-sm text-red-300 bg-red-500/20 p-3 rounded-md border border-red-500/30">{error}</p>}
-                    <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/20 bg-gradient-to-r ${activeRole.theme.button} ${activeRole.theme.buttonHover}`}>
-                        LOGIN
+                    <button 
+                        type="submit" 
+                        disabled={isAuthenticating}
+                        className={`w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 active:scale-95 hover:shadow-lg hover:shadow-cyan-500/20 bg-gradient-to-r ${activeRole.theme.button} ${activeRole.theme.buttonHover} flex items-center justify-center gap-2`}
+                    >
+                        {isAuthenticating ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : 'LOGIN'}
                     </button>
                 </form>
             </div>
@@ -153,6 +159,7 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
     const [password, setPassword] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isAuthenticating, setIsAuthenticating] = useState(false);
 
     const theme = { text: 'text-red-400', ring: 'focus:ring-red-500', button: 'from-red-600 to-rose-600', buttonHover: 'hover:from-red-500 hover:to-rose-500' };
 
@@ -160,10 +167,12 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
         e.preventDefault();
         if (!loginId.trim() || !password.trim()) { setError("Admin ID and Password are required."); return; }
         setError(null);
+        setIsAuthenticating(true);
         try { 
             await login(loginId, password);
         } catch (err) { 
             setError(err instanceof Error ? err.message : "An unknown login error occurred."); 
+            setIsAuthenticating(false);
         }
     };
     
@@ -193,8 +202,8 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
                             </div>
                         </div>
                         {error && <p className="text-sm text-red-300 bg-red-500/20 p-3 rounded-md border border-red-500/30">{error}</p>}
-                        <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 bg-gradient-to-r ${theme.button} ${theme.buttonHover}`}>
-                            Authenticate
+                        <button type="submit" disabled={isAuthenticating} className={`w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform active:scale-95 bg-gradient-to-r ${theme.button} ${theme.buttonHover} flex items-center justify-center gap-2`}>
+                            {isAuthenticating ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : 'Authenticate'}
                         </button>
                     </form>
                 </div>
@@ -240,23 +249,23 @@ const ResetPasswordModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
                     {success ? (
                         <div className="text-center">
                             <p className="text-green-300 bg-green-500/20 p-4 rounded-md mb-4 border border-green-500/30">{success}</p>
-                            <button onClick={onClose} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-md">CLOSE</button>
+                            <button onClick={onClose} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-md active:translate-y-0.5">CLOSE</button>
                         </div>
                     ) : (
                         <form onSubmit={handleResetSubmit} className="space-y-4">
                             <p className="text-sm text-slate-400 mb-2">Enter your Account ID and registered Contact to proceed.</p>
                              <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1">Account ID</label>
-                                <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 text-white" />
+                                <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full bg-slate-800/50 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 text-white" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1">Contact Number</label>
-                                <input type="text" value={contact} onChange={(e) => setContact(e.target.value)} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 text-white" placeholder="e.g. 03323022123" />
+                                <input type="text" value={contact} onChange={(e) => setContact(e.target.value)} className="w-full bg-slate-800/50 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 text-white" placeholder="e.g. 03323022123" />
                             </div>
                              <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1">New Password</label>
                                 <div className="relative">
-                                    <input type={isNewPasswordVisible ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 pr-10 text-white" />
+                                    <input type={isNewPasswordVisible ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-slate-800/50 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 pr-10 text-white" />
                                     <button type="button" onClick={() => setIsNewPasswordVisible(!isNewPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">
                                         {isNewPasswordVisible ? Icons.eyeOff : Icons.eye}
                                     </button>
@@ -265,7 +274,7 @@ const ResetPasswordModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
                             <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1">Confirm New Password</label>
                                 <div className="relative">
-                                    <input type={isConfirmPasswordVisible ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 pr-10 text-white" />
+                                    <input type={isConfirmPasswordVisible ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full bg-slate-800/50 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 pr-10 text-white" />
                                      <button type="button" onClick={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">
                                         {isConfirmPasswordVisible ? Icons.eyeOff : Icons.eye}
                                     </button>
@@ -273,7 +282,7 @@ const ResetPasswordModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
                             </div>
                             {error && <p className="text-sm text-red-300 bg-red-500/20 p-3 rounded-md border border-red-500/30">{error}</p>}
                             <div className="pt-4">
-                                <button type="submit" disabled={isLoading} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-md disabled:bg-slate-600 disabled:cursor-wait">
+                                <button type="submit" disabled={isLoading} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-md disabled:bg-slate-600 disabled:cursor-wait active:translate-y-0.5">
                                     {isLoading ? 'PROCESSING...' : 'RESET PASSWORD'}
                                 </button>
                             </div>
@@ -296,7 +305,7 @@ const AdminResetInfoModal: React.FC<{ isOpen: boolean; onClose: () => void; }> =
                 <div className="p-8">
                     <p className="text-slate-300 text-center">For security, administrator password cannot be reset automatically. Please contact system support at <strong className="text-cyan-400">support@ababa.exchange</strong> to initiate recovery.</p>
                     <div className="mt-6">
-                        <button onClick={onClose} className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-md">CLOSE</button>
+                        <button onClick={onClose} className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-md active:translate-y-0.5">CLOSE</button>
                     </div>
                 </div>
             </div>
@@ -342,7 +351,7 @@ const LandingPage: React.FC<{ games: Game[] }> = ({ games }) => {
                 <section id="login" className="max-w-md mx-auto scroll-mt-20">
                     <LoginPanel onForgotPassword={() => setIsResetModalOpen(true)} />
                      <div className="mt-6">
-                        <button onClick={() => setIsAdminModalOpen(true)} className="w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500">
+                        <button onClick={() => setIsAdminModalOpen(true)} className="w-full text-white font-bold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 active:scale-95 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-lg">
                             ADMINISTRATOR ACCESS
                         </button>
                     </div>
