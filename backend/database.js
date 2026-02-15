@@ -99,7 +99,6 @@ const findAccountById = (id, table) => {
 };
 
 const findAccountForLogin = (loginId) => {
-    // FIX: Problem 4 - Direct protection against toLowerCase() crash
     if (!loginId || typeof loginId !== 'string' || loginId.trim().length === 0) {
         return { account: null, role: null };
     }
@@ -164,16 +163,27 @@ const getAllFromTable = (table, withLedger = false) => {
 const runInTransaction = (fn) => db.transaction(fn)();
 
 const addLedgerEntry = (accountId, accountType, description, debit, credit) => {
+    if (!accountId) throw new Error('Account ID is required for ledger entry.');
+    
     const table = accountType.toLowerCase() + 's';
     const account = db.prepare('SELECT wallet FROM ' + table + ' WHERE LOWER(id) = LOWER(?)').get(accountId);
-    const lastBalance = account ? account.wallet : 0;
     
-    if (debit > 0 && accountType !== 'ADMIN' && lastBalance < debit) {
-        throw new Error('Insufficient funds.');
+    if (!account) {
+        throw new Error('Account [' + accountId + '] not found in ' + table);
     }
     
-    const newBalance = Math.round((lastBalance - debit + credit) * 100) / 100;
-    db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debit, credit, newBalance);
+    const lastBalance = Number(account.wallet) || 0;
+    const debitVal = Number(debit) || 0;
+    const creditVal = Number(credit) || 0;
+    
+    if (debitVal > 0 && accountType !== 'ADMIN' && lastBalance < debitVal) {
+        throw new Error('Insufficient funds in account: ' + accountId);
+    }
+    
+    const newBalance = Math.round((lastBalance - debitVal + creditVal) * 100) / 100;
+    
+    db.prepare('INSERT INTO ledgers (id, accountId, accountType, timestamp, description, debit, credit, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(uuidv4(), accountId, accountType, new Date().toISOString(), description, debitVal, creditVal, newBalance);
+    
     db.prepare('UPDATE ' + table + ' SET wallet = ? WHERE LOWER(id) = LOWER(?)').run(newBalance, accountId);
 };
 

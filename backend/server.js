@@ -166,15 +166,48 @@ app.put('/api/dealer/users/:id', authMiddleware, (req, res) => {
     catch (e) { res.status(500).json({ message: e.message }); }
 });
 
+app.delete('/api/dealer/users/:id', authMiddleware, (req, res) => {
+    if (req.user.role !== 'DEALER') return res.sendStatus(403);
+    try { database.deleteUserByDealer(req.params.id, req.user.id); res.sendStatus(204); }
+    catch (e) { res.status(500).json({ message: e.message }); }
+});
+
 app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try {
+        const { userId, amount } = req.body;
+        // Verify user belongs to this dealer
+        const user = database.findUserByDealer(userId, req.user.id);
+        if (!user) throw new Error('User not found in your network.');
+
         database.runInTransaction(() => {
-            database.addLedgerEntry(req.user.id, 'DEALER', 'User funding', req.body.amount, 0);
-            database.addLedgerEntry(req.body.userId, 'USER', 'Wallet refill', 0, req.body.amount);
+            database.addLedgerEntry(req.user.id, 'DEALER', 'User funding: ' + userId, amount, 0);
+            database.addLedgerEntry(userId, 'USER', 'Wallet refill', 0, amount);
         });
         res.json({ message: "Success" });
     } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.post('/api/dealer/withdraw/user', authMiddleware, (req, res) => {
+    if (req.user.role !== 'DEALER') return res.sendStatus(403);
+    try {
+        const { userId, amount } = req.body;
+        // Verify user belongs to this dealer
+        const user = database.findUserByDealer(userId, req.user.id);
+        if (!user) throw new Error('User not found in your network.');
+        
+        database.runInTransaction(() => {
+            database.addLedgerEntry(userId, 'USER', 'Withdrawal by Dealer', amount, 0);
+            database.addLedgerEntry(req.user.id, 'DEALER', 'User withdrawal credit: ' + userId, 0, amount);
+        });
+        res.json({ message: "Success" });
+    } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.put('/api/dealer/users/:id/toggle-restriction', authMiddleware, (req, res) => {
+    if (req.user.role !== 'DEALER') return res.sendStatus(403);
+    try { res.json(database.toggleUserRestrictionByDealer(req.params.id, req.user.id)); }
+    catch (e) { res.status(500).json({ message: e.message }); }
 });
 
 // --- ADMIN ROUTES ---
@@ -188,15 +221,105 @@ app.get('/api/admin/number-summary', authMiddleware, (req, res) => {
     res.json(database.getNumberStakeSummary(req.query));
 });
 
+app.post('/api/admin/dealers', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.status(201).json(database.createDealer(req.body)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.put('/api/admin/dealers/:id', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateDealer(req.body, req.params.id)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.put('/api/admin/users/:id', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateUserByAdmin(req.body, req.params.id)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.put('/api/admin/profile', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateAdmin(req.body, req.user.id)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.post('/api/admin/topup/dealer', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try {
+        const { dealerId, amount } = req.body;
+        database.runInTransaction(() => {
+            database.addLedgerEntry(req.user.id, 'ADMIN', `Funding Dealer ${dealerId}`, amount, 0);
+            database.addLedgerEntry(dealerId, 'DEALER', 'Deposit from Admin', 0, amount);
+        });
+        res.json({ message: "Success" });
+    } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.post('/api/admin/withdraw/dealer', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try {
+        const { dealerId, amount } = req.body;
+        database.runInTransaction(() => {
+            database.addLedgerEntry(dealerId, 'DEALER', 'Withdrawal by Admin', amount, 0);
+            database.addLedgerEntry(req.user.id, 'ADMIN', `Withdrawal from ${dealerId}`, 0, amount);
+        });
+        res.json({ message: "Success" });
+    } catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.put('/api/admin/accounts/:type/:id/toggle-restriction', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.toggleAccountRestrictionByAdmin(req.params.id, req.params.type)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.post('/api/admin/bulk-bet', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.status(201).json(database.placeBulkBets(req.body.userId, req.body.gameId, req.body.betGroups)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
 app.post('/api/admin/games/:id/declare-winner', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.declareWinnerForGame(req.params.id, req.body.winningNumber)); }
     catch (e) { res.status(400).json({ message: e.message }); }
 });
 
+app.put('/api/admin/games/:id/update-winner', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateWinningNumber(req.params.id, req.body.newWinningNumber)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
 app.post('/api/admin/games/:id/approve-payouts', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
     try { res.json(database.approvePayoutsForGame(req.params.id)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.put('/api/admin/games/:id/draw-time', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.updateGameDrawTime(req.params.id, req.body.newDrawTime)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+// --- NUMBER LIMITS ---
+app.get('/api/admin/number-limits', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    res.json(database.getAllNumberLimits());
+});
+
+app.post('/api/admin/number-limits', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { res.json(database.saveNumberLimit(req.body)); }
+    catch (e) { res.status(400).json({ message: e.message }); }
+});
+
+app.delete('/api/admin/number-limits/:id', authMiddleware, (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.sendStatus(403);
+    try { database.deleteNumberLimit(req.params.id); res.sendStatus(204); }
     catch (e) { res.status(400).json({ message: e.message }); }
 });
 
