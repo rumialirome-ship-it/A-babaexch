@@ -416,7 +416,11 @@ const toggleUserRestrictionByDealer = (uId, dId) => {
     return findAccountById(uId, 'users');
 };
 
-const getNumberStakeSummary = (params) => {
+/**
+ * FORMAL FUNCTION DECLARATION FOR NUMBER STAKE SUMMARY
+ * This ensures the function is properly defined in the scope before export.
+ */
+function getNumberStakeSummary(params) {
     try {
         let query = 'SELECT gameId, subGameType, numbers, amountPerNumber, totalAmount FROM bets';
         const vals = [], conds = [];
@@ -451,7 +455,7 @@ const getNumberStakeSummary = (params) => {
         logError('NUMBER_SUMMARY', e);
         return { twoDigit: [], oneDigitOpen: [], oneDigitClose: [], gameBreakdown: [] };
     }
-};
+}
 
 const placeBulkBets = (uId, gId, groups) => {
     let result = null;
