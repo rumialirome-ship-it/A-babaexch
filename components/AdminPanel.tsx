@@ -7,25 +7,25 @@ import { UserForm } from './DealerPanel'; // Import UserForm to reuse it
 
 // --- TYPE DEFINITIONS ---
 interface GameSummary {
-  gameName: string;
-  winningNumber: string;
-  totalStake: number;
-  totalPayouts: number;
-  totalDealerProfit: number;
-  totalCommissions: number;
-  netProfit: number;
-}
-
-interface FinancialSummary {
-  games: GameSummary[];
-  totals: {
+    gameName: string;
+    winningNumber: string;
     totalStake: number;
     totalPayouts: number;
     totalDealerProfit: number;
     totalCommissions: number;
     netProfit: number;
-  };
-  totalBets: number;
+}
+
+interface FinancialSummary {
+    games: GameSummary[];
+    totals: {
+        totalStake: number;
+        totalPayouts: number;
+        totalDealerProfit: number;
+        totalCommissions: number;
+        netProfit: number;
+    };
+    totalBets: number;
 }
 
 type SortKey = 'name' | 'wallet' | 'status';
@@ -128,7 +128,7 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
                             <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
                         </tr>
                     ))}
-                     {(!Array.isArray(entries) || entries.length === 0) && (
+                    {(!Array.isArray(entries) || entries.length === 0) && (
                         <tr>
                             <td colSpan={5} className="p-8 text-center text-slate-500">
                                 No ledger entries found.
@@ -220,7 +220,7 @@ const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers
         return records.filter(r => {
             const dateStr = r.timestamp.toISOString().split('T')[0];
             const matchesDate = (!startDate || dateStr >= startDate) && (!endDate || dateStr <= endDate);
-            const matchesSearch = !searchTerm.trim() || 
+            const matchesSearch = !searchTerm.trim() ||
                 r.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 r.gameName.toLowerCase().includes(searchTerm.toLowerCase());
             return matchesDate && matchesSearch;
@@ -338,7 +338,7 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
             wallet: '0'
         };
     });
-    
+
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -348,17 +348,17 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
         const { name, value, type, checked } = e.target;
         if (name.includes('.')) {
             const [parent, child] = name.split('.');
-            setFormData(prev => ({ 
-                ...prev, 
-                [parent]: { 
-                    ...(prev[parent as keyof typeof prev] as object), 
-                    [child]: value 
-                } 
+            setFormData(prev => ({
+                ...prev,
+                [parent]: {
+                    ...(prev[parent as keyof typeof prev] as object),
+                    [child]: value
+                }
             }));
         } else {
-            setFormData(prev => ({ 
-                ...prev, 
-                [name]: type === 'checkbox' ? (checked as any) : value 
+            setFormData(prev => ({
+                ...prev,
+                [name]: type === 'checkbox' ? (checked as any) : value
             }));
         }
     };
@@ -368,7 +368,7 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
         const newPassword = dealer ? password : formData.password;
         if (newPassword && newPassword !== confirmPassword) { alert("New passwords do not match."); return; }
         if (!dealer && !newPassword) { alert("Password is required for new dealers."); return; }
-        
+
         const formId = (formData.id as string).toLowerCase();
         if (!dealer && dealers.some(d => d.id.toLowerCase() === formId)) {
             alert("This Dealer Login ID is already taken. Please choose another one.");
@@ -411,7 +411,7 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
                 <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">{isPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
             </div>
             {displayPassword && (
-                 <div className="relative">
+                <div className="relative">
                     <input type={isConfirmPasswordVisible ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm New Password" className={inputClass + " pr-10"} required />
                     <button type="button" onClick={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">{isConfirmPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
                 </div>
@@ -419,18 +419,18 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
             <input type="url" name="avatarUrl" value={formData.avatarUrl || ''} onChange={handleChange} placeholder="Avatar URL (optional)" className={inputClass} />
             <input type="text" name="area" value={formData.area} onChange={handleChange} placeholder="Area / Region" className={inputClass} />
             <input type="text" name="contact" value={formData.contact} onChange={handleChange} placeholder="Contact Number" className={inputClass} />
-             {!dealer && (
+            {!dealer && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Initial Wallet Amount (PKR)</label>
-                  <input type="text" name="wallet" value={formData.wallet} onChange={handleChange} placeholder="e.g. 10000" className={inputClass} />
+                    <label className="block text-sm font-medium text-slate-400 mb-1">Initial Wallet Amount (PKR)</label>
+                    <input type="text" name="wallet" value={formData.wallet} onChange={handleChange} placeholder="e.g. 10000" className={inputClass} />
                 </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Dealer Commission Rate (%)</label>
-              <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} placeholder="e.g. 5" className={inputClass} />
-              <p className="text-[10px] text-slate-500 mt-1 italic">Sets how much this dealer earns from their system stake.</p>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Dealer Commission Rate (%)</label>
+                <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} placeholder="e.g. 5" className={inputClass} />
+                <p className="text-[10px] text-slate-500 mt-1 italic">Sets how much this dealer earns from their system stake.</p>
             </div>
-            
+
             <fieldset className="border border-slate-600 p-4 rounded-md">
                 <legend className="px-2 text-sm font-medium text-slate-400">Prize Rates</legend>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -463,12 +463,12 @@ const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Pro
         const { name, value } = e.target;
         if (name.includes('.')) {
             const [parent, child] = name.split('.');
-            setFormData(prev => ({ 
-                ...prev, 
-                [parent]: { 
-                    ...(prev[parent as keyof typeof prev] as object), 
-                    [child]: value 
-                } 
+            setFormData(prev => ({
+                ...prev,
+                [parent]: {
+                    ...(prev[parent as keyof typeof prev] as object),
+                    [child]: value
+                }
             }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
@@ -508,7 +508,7 @@ const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Pro
                         <input type="url" name="avatarUrl" value={formData.avatarUrl} onChange={handleChange} className={inputClass} />
                     </div>
                 </div>
-                
+
                 <fieldset className="border border-slate-600 p-5 rounded-lg bg-slate-900/30">
                     <legend className="px-2 text-sm font-bold text-cyan-400 uppercase tracking-tighter">Master Prize Ceilings (Multipliers)</legend>
                     <p className="text-xs text-slate-500 mb-4 italic">Note: These values set the absolute maximum prize potential for the entire system.</p>
@@ -538,19 +538,19 @@ const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Pro
     );
 };
 
-const DealerTransactionForm: React.FC<{ 
-    dealers: Dealer[]; 
-    onTransaction: (dealerId: string, amount: number) => void; 
+const DealerTransactionForm: React.FC<{
+    dealers: Dealer[];
+    onTransaction: (dealerId: string, amount: number) => void;
     onCancel: () => void;
     type: 'Top-Up' | 'Withdrawal';
 }> = ({ dealers, onTransaction, onCancel, type }) => {
     const [selectedDealerId, setSelectedDealerId] = useState<string>('');
     const [amount, setAmount] = useState<number | ''>('');
     const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
-    
+
     const inputClass = `w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-${themeColor}-500 focus:outline-none text-white`;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedDealerId || !amount || amount <= 0) {
             alert(`Please select a dealer and enter a valid positive amount.`);
@@ -559,10 +559,13 @@ const DealerTransactionForm: React.FC<{
         const dealerName = dealers.find(d => d.id === selectedDealerId)?.name || 'the selected dealer';
         const confirmationAction = type === 'Top-Up' ? 'to' : 'from';
         if (window.confirm(`Are you sure you want to ${type.toLowerCase()} PKR ${amount} ${confirmationAction} ${dealerName}'s wallet?`)) {
-            onTransaction(selectedDealerId, Number(amount));
+            try {
+                await onTransaction(selectedDealerId, Number(amount));
+            } catch (e: any) {
+                alert(e.message || 'Transaction failed.');
+            }
         }
     };
-
     return (
         <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
             <div>
@@ -597,7 +600,7 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
             <p className={`text-3xl font-bold font-mono ${color}`}>{value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
     );
-    
+
     return (
         <div>
             <h3 className="text-xl font-semibold text-white mb-4">Financial Dashboard</h3>
@@ -665,23 +668,22 @@ const NumberLimitsView: React.FC = () => {
         setIsLoading(true);
         try {
             const response = await fetchWithAuth('/api/admin/number-limits');
+            if (!response.ok) throw new Error('Failed to fetch');
             const data = await response.json();
             setLimits(data);
         } catch (error) {
             console.error("Failed to fetch number limits:", error);
-            alert("Failed to fetch number limits.");
         } finally {
             setIsLoading(false);
         }
     };
-
     useEffect(() => {
         fetchLimits();
     }, []);
-    
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        
+
         let processedValue = value;
         if (name === 'numberValue') {
             processedValue = value.replace(/\D/g, ''); // Digits only
@@ -707,31 +709,31 @@ const NumberLimitsView: React.FC = () => {
 
         const maxLength = formState.gameType === '2-digit' ? 2 : 1;
         if (numberValue.length !== maxLength) {
-             alert(`Number must be ${maxLength} digit(s) long for this game type.`);
+            alert(`Number must be ${maxLength} digit(s) long for this game type.`);
             return;
         }
 
         try {
-            await fetchWithAuth('/api/admin/number-limits', {
+            const response = await fetchWithAuth('/api/admin/number-limits', {
                 method: 'POST',
                 body: JSON.stringify(formState)
             });
+            if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.message || 'Save failed'); }
             setFormState({ gameType: '2-digit', numberValue: '', limitAmount: 0 });
             await fetchLimits();
-        } catch (error) {
-            console.error("Failed to save limit:", error);
-            alert("Failed to save limit.");
+        } catch (error: any) {
+            alert(error.message || "Failed to save limit.");
         }
     };
-    
+
     const handleDelete = async (limitId: number) => {
         if (window.confirm("Are you sure you want to delete this limit?")) {
             try {
-                await fetchWithAuth(`/api/admin/number-limits/${limitId}`, { method: 'DELETE' });
+                const response = await fetchWithAuth(`/api/admin/number-limits/${limitId}`, { method: 'DELETE' });
+                if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.message || 'Delete failed'); }
                 await fetchLimits();
-            } catch (error) {
-                console.error("Failed to delete limit:", error);
-                alert("Failed to delete limit.");
+            } catch (error: any) {
+                alert(error.message || "Failed to delete limit.");
             }
         }
     };
@@ -767,37 +769,37 @@ const NumberLimitsView: React.FC = () => {
                     <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Set Limit</button>
                 </form>
             </div>
-             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                 <div className="overflow-x-auto mobile-scroll-x">
-                     <table className="w-full text-left min-w-[600px]">
-                         <thead className="bg-slate-800/50">
-                             <tr>
-                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game Type</th>
-                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Number</th>
-                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Limit Amount (PKR)</th>
-                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
-                             </tr>
-                         </thead>
-                         <tbody className="divide-y divide-slate-800">
+            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                <div className="overflow-x-auto mobile-scroll-x">
+                    <table className="w-full text-left min-w-[600px]">
+                        <thead className="bg-slate-800/50">
+                            <tr>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game Type</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Number</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Limit Amount (PKR)</th>
+                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
                             {isLoading ? (
                                 <tr><td colSpan={4} className="p-8 text-center text-slate-400">Loading limits...</td></tr>
                             ) : limits.length === 0 ? (
                                 <tr><td colSpan={4} className="p-8 text-center text-slate-500">No limits set.</td></tr>
                             ) : (
                                 limits.map(limit => (
-                                     <tr key={limit.id} className="hover:bg-cyan-500/10 transition-colors">
-                                         <td className="p-4 text-white">{gameTypeLabels[limit.gameType]}</td>
-                                         <td className="p-4 font-mono text-cyan-300 text-lg">{limit.numberValue}</td>
-                                         <td className="p-4 font-mono text-white">{limit.limitAmount.toLocaleString()}</td>
-                                         <td className="p-4">
-                                             <button onClick={() => handleDelete(limit.id)} className="bg-red-500/20 hover:bg-red-500/40 text-red-300 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Delete</button>
-                                         </td>
-                                     </tr>
+                                    <tr key={limit.id} className="hover:bg-cyan-500/10 transition-colors">
+                                        <td className="p-4 text-white">{gameTypeLabels[limit.gameType]}</td>
+                                        <td className="p-4 font-mono text-cyan-300 text-lg">{limit.numberValue}</td>
+                                        <td className="p-4 font-mono text-white">{limit.limitAmount.toLocaleString()}</td>
+                                        <td className="p-4">
+                                            <button onClick={() => handleDelete(limit.id)} className="bg-red-500/20 hover:bg-red-500/40 text-red-300 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Delete</button>
+                                        </td>
+                                    </tr>
                                 ))
                             )}
-                         </tbody>
-                     </table>
-                 </div>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -814,7 +816,7 @@ interface BookingData {
 
 const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[], bets: Bet[] }> = ({ games, users, dealers, bets }) => {
     const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
-    
+
     const ongoingGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
 
     const bookingData = useMemo(() => {
@@ -863,7 +865,7 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
             userData
         } as BookingData;
     }, [selectedGameId, bets, users, dealers]);
-    
+
     const BreakdownCard: React.FC<{ title: string; data: { name: string; amount: number }[] | { type: string; amount: number }[]; total: number; children?: React.ReactNode }> = ({ title, data, total }) => (
         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 h-full flex flex-col">
             <h4 className="text-lg font-semibold text-white mb-3">{title}</h4>
@@ -876,7 +878,7 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
                         <div key={index} className="text-sm">
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-slate-300 truncate pr-2">{name}</span>
-                                <span className="font-mono text-white font-semibold">{amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                                <span className="font-mono text-white font-semibold">{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
                             <div className="w-full bg-slate-700 rounded-full h-1.5">
                                 <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${percentage}%` }}></div>
@@ -917,9 +919,9 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
                             <p className="text-sm text-slate-400 uppercase tracking-wider">Total Bets</p>
                             <p className="text-4xl font-bold font-mono text-white">{bookingData.totalBets.toLocaleString()}</p>
                         </div>
-                         <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+                        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
                             <p className="text-sm text-slate-400 uppercase tracking-wider">Total Stake</p>
-                            <p className="text-4xl font-bold font-mono text-cyan-400">{bookingData.totalStake.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                            <p className="text-4xl font-bold font-mono text-cyan-400">{bookingData.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                         </div>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -929,7 +931,7 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
                     </div>
                 </div>
             ) : (
-                 <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 text-slate-500">No betting data available for this game yet.</div>
+                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 text-slate-500">No betting data available for this game yet.</div>
             )}
         </div>
     );
@@ -946,19 +948,19 @@ const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: nu
         const copyText = data
             .map(item => `${item.number}, rs ${item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}`)
             .join('\n');
-            
+
         navigator.clipboard.writeText(copyText).then(() => {
             setCopyStatus('Copied!');
             setTimeout(() => setCopyStatus('Copy'), 2000);
         }).catch(err => {
             console.error('Failed to copy text: ', err);
             setCopyStatus('Failed!');
-             setTimeout(() => setCopyStatus('Copy'), 2000);
+            setTimeout(() => setCopyStatus('Copy'), 2000);
         });
     };
 
     const getButtonContent = () => {
-        switch(copyStatus) {
+        switch (copyStatus) {
             case 'Copied!':
                 return (
                     <>
@@ -967,7 +969,7 @@ const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: nu
                     </>
                 );
             case 'Failed!':
-                 return (
+                return (
                     <>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         {copyStatus}
@@ -1025,7 +1027,7 @@ const NumberSummaryView: React.FC<{
     const [summary, setSummary] = useState<{ twoDigit: any[], oneDigitOpen: any[], oneDigitClose: any[], gameBreakdown?: { gameId: string, stake: number }[] } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const { fetchWithAuth } = useAuth();
-    
+
     const fetchSummary = async () => {
         if (!filters.date) {
             setSummary(null);
@@ -1049,7 +1051,7 @@ const NumberSummaryView: React.FC<{
             setIsLoading(false);
         }
     };
-    
+
     useEffect(() => {
         let intervalId: ReturnType<typeof setInterval>;
         fetchSummary();
@@ -1060,12 +1062,12 @@ const NumberSummaryView: React.FC<{
     const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
         setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
-    
+
     const clearFilters = () => {
         setFilters({ gameId: '', dealerId: '', date: getTodayDateString() });
         setNumberFilter('');
     };
-    
+
     const filteredSummary = useMemo(() => {
         if (!summary) return null;
         if (!numberFilter.trim()) return summary;
@@ -1078,7 +1080,7 @@ const NumberSummaryView: React.FC<{
             if (filterValue.endsWith('$')) return numStr.endsWith(cleanFilter);
             return numStr.includes(cleanFilter);
         };
-        
+
         return {
             ...summary,
             twoDigit: summary.twoDigit.filter(item => filterLogic(item.number)),
@@ -1107,7 +1109,7 @@ const NumberSummaryView: React.FC<{
                         <label className="block text-sm font-medium text-slate-400 mb-1">Date</label>
                         <input type="date" name="date" value={filters.date} onChange={handleFilterChange} className={`${inputClass} font-sans`} />
                     </div>
-                     <div>
+                    <div>
                         <label className="block text-sm font-medium text-slate-400 mb-1">Game</label>
                         <select name="gameId" value={filters.gameId} onChange={handleFilterChange} className={inputClass}>
                             <option value="">All Games</option>
@@ -1159,151 +1161,154 @@ const NumberSummaryView: React.FC<{
 };
 
 interface AdminPanelProps {
-  admin: Admin; 
-  dealers: Dealer[]; 
-  onSaveDealer: (dealer: Dealer, originalId?: string) => Promise<void>;
-  onUpdateAdmin: (admin: Admin) => Promise<void>;
-  users: User[]; 
-  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
-  games: Game[]; 
-  bets: Bet[]; 
-  declareWinner: (gameId: string, winningNumber: string) => void;
-  updateWinner: (gameId: string, newWinningNumber: string) => void;
-  approvePayouts: (gameId: string) => void;
-  topUpDealerWallet: (dealerId: string, amount: number) => void;
-  withdrawFromDealerWallet: (dealerId: string, amount: number) => void;
-  toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
-  onPlaceAdminBets: (details: {
-    userId: string;
-    gameId: string;
-    betGroups: any[];
-  }) => Promise<void>;
-  updateGameDrawTime: (gameId: string, newDrawTime: string) => Promise<void>;
-  onRefreshData?: () => Promise<void>;
+    admin: Admin;
+    dealers: Dealer[];
+    onSaveDealer: (dealer: Dealer, originalId?: string) => Promise<void>;
+    onUpdateAdmin: (admin: Admin) => Promise<void>;
+    users: User[];
+    setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+    games: Game[];
+    bets: Bet[];
+    declareWinner: (gameId: string, winningNumber: string) => void;
+    updateWinner: (gameId: string, newWinningNumber: string) => void;
+    approvePayouts: (gameId: string) => void;
+    topUpDealerWallet: (dealerId: string, amount: number) => void;
+    withdrawFromDealerWallet: (dealerId: string, amount: number) => void;
+    toggleAccountRestriction: (accountId: string, accountType: 'user' | 'dealer') => void;
+    onPlaceAdminBets: (details: {
+        userId: string;
+        gameId: string;
+        betGroups: any[];
+    }) => Promise<void>;
+    updateGameDrawTime: (gameId: string, newDrawTime: string) => Promise<void>;
+    onRefreshData?: () => Promise<void>;
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData }) => {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
-  const [winningNumbers, setWinningNumbers] = useState<{[key: string]: string}>({});
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Ledger state by ID/Type to ensure stability across polling updates
-  const [viewingLedgerId, setViewingLedgerId] = useState<string | null>(null);
-  const [viewingLedgerType, setViewingLedgerType] = useState<'dealer' | 'admin' | 'user' | null>(null);
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
+    const [winningNumbers, setWinningNumbers] = useState<{ [key: string]: string }>({});
+    const [searchQuery, setSearchQuery] = useState('');
 
-  const [betSearchQuery, setBetSearchQuery] = useState('');
-  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
-  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
-  const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
-  const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
-  const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
-  const { fetchWithAuth } = useAuth();
-  const [isRefreshingManual, setIsRefreshingManual] = useState(false);
+    // Ledger state by ID/Type to ensure stability across polling updates
+    const [viewingLedgerId, setViewingLedgerId] = useState<string | null>(null);
+    const [viewingLedgerType, setViewingLedgerType] = useState<'dealer' | 'admin' | 'user' | null>(null);
 
-  // User management modal state
-  const [isUserEditModalOpen, setIsUserEditModalOpen] = useState(false);
-  const [selectedUserToEdit, setSelectedUserToEdit] = useState<User | undefined>(undefined);
+    const [betSearchQuery, setBetSearchQuery] = useState('');
+    const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+    const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+    const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
+    const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
+    const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
+    const { fetchWithAuth } = useAuth();
+    const [isRefreshingManual, setIsRefreshingManual] = useState(false);
 
-  // State for Dealers tab
-  const [dealerSortKey, setDealerSortKey] = useState<SortKey>('name');
-  const [dealerSortDirection, setDealerSortDirection] = useState<SortDirection>('asc');
+    // User management modal state
+    const [isUserEditModalOpen, setIsUserEditModalOpen] = useState(false);
+    const [selectedUserToEdit, setSelectedUserToEdit] = useState<User | undefined>(undefined);
 
-  // State for Users tab
-  const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [userSortKey, setUserSortKey] = useState<SortKey>('name');
-  const [userSortDirection, setUserSortDirection] = useState<SortDirection>('asc');
+    // State for Dealers tab
+    const [dealerSortKey, setDealerSortKey] = useState<SortKey>('name');
+    const [dealerSortDirection, setDealerSortDirection] = useState<SortDirection>('asc');
 
-  // Derived account for the ledger modal - ensures the ledger is always fresh from props
-  const activeLedgerAccount = useMemo(() => {
-    if (!viewingLedgerId || !viewingLedgerType) return null;
-    if (viewingLedgerType === 'admin') return admin;
-    if (viewingLedgerType === 'dealer') return dealers.find(d => d.id === viewingLedgerId);
-    if (viewingLedgerType === 'user') return users.find(u => u.id === viewingLedgerId);
-    return null;
-  }, [viewingLedgerId, viewingLedgerType, admin, dealers, users]);
+    // State for Users tab
+    const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [userSortKey, setUserSortKey] = useState<SortKey>('name');
+    const [userSortDirection, setUserSortDirection] = useState<SortDirection>('asc');
 
-  useEffect(() => {
-    const fetchSummary = async () => {
-      try {
-        const response = await fetchWithAuth('/api/admin/summary');
-        if (!response.ok) throw new Error('Failed to fetch summary');
-        const data = await response.json();
-        setSummaryData(data);
-      } catch (error) {
-        console.error("Error fetching financial summary:", error);
-      }
+    // Derived account for the ledger modal - ensures the ledger is always fresh from props
+    const activeLedgerAccount = useMemo(() => {
+        if (!viewingLedgerId || !viewingLedgerType) return null;
+        if (viewingLedgerType === 'admin') return admin;
+        if (viewingLedgerType === 'dealer') return dealers.find(d => d.id === viewingLedgerId);
+        if (viewingLedgerType === 'user') return users.find(u => u.id === viewingLedgerId);
+        return null;
+    }, [viewingLedgerId, viewingLedgerType, admin, dealers, users]);
+
+    useEffect(() => {
+        const fetchSummary = async () => {
+            try {
+                const response = await fetchWithAuth('/api/admin/summary');
+                if (!response.ok) throw new Error('Failed to fetch summary');
+                const data = await response.json();
+                setSummaryData(data);
+            } catch (error) {
+                console.error("Error fetching financial summary:", error);
+            }
+        };
+
+        if (activeTab === 'dashboard') {
+            fetchSummary();
+        }
+    }, [activeTab, fetchWithAuth]);
+
+
+    const handleSaveDealer = async (dealerData: Dealer, originalId?: string) => {
+        try {
+            if (originalId) { // This is an update
+                const idChanged = dealerData.id !== originalId;
+                if (idChanged) {
+                    const idTaken = dealers.some(d => d.id.toLowerCase() === dealerData.id.toLowerCase() && d.id !== originalId);
+                    if (idTaken) {
+                        alert('This Dealer Login ID is already taken. Please choose another one.');
+                        return;
+                    }
+                    setUsers(prev => prev.map(u => u.dealerId === originalId ? { ...u, dealerId: dealerData.id } : u));
+                }
+            }
+
+            await onSaveDealer(dealerData, originalId);
+
+            setIsModalOpen(false);
+            setSelectedDealer(undefined);
+        } catch (error: any) {
+            alert(error.message || 'Failed to save dealer.');
+        }
     };
 
-    if (activeTab === 'dashboard') {
-      fetchSummary();
-    }
-  }, [activeTab, fetchWithAuth]);
-
-
-  const handleSaveDealer = async (dealerData: Dealer, originalId?: string) => {
-      try {
-          if (originalId) { // This is an update
-              const idChanged = dealerData.id !== originalId;
-              if (idChanged) {
-                  const idTaken = dealers.some(d => d.id.toLowerCase() === dealerData.id.toLowerCase() && d.id !== originalId);
-                  if (idTaken) {
-                      alert('This Dealer Login ID is already taken. Please choose another one.');
-                      return;
-                  }
-                  setUsers(prev => prev.map(u => u.dealerId === originalId ? { ...u, dealerId: dealerData.id } : u));
-              }
-          }
-
-          await onSaveDealer(dealerData, originalId);
-
-          setIsModalOpen(false);
-          setSelectedDealer(undefined);
-      } catch (error) {
-          console.error("Failed to save dealer:", error);
-      }
-  };
-
-  const handleDeclareWinner = (gameId: string, gameName: string) => {
-    const num = winningNumbers[gameId];
-    const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
-    const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
-
-    if (isValid) {
-        declareWinner(gameId, num);
-        setWinningNumbers(prev => ({...prev, [gameId]: ''}));
-    } else {
-        alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
-    }
-  };
-
-  const handleUpdateWinner = (gameId: string, gameName: string) => {
-    const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
-    if (editingGame) {
-        const num = editingGame.number;
+    const handleDeclareWinner = async (gameId: string, gameName: string) => {
+        const num = winningNumbers[gameId];
+        const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
         const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
 
         if (isValid) {
-            updateWinner(gameId, num);
-            setEditingGame(null);
+            try {
+                await declareWinner(gameId, num);
+                setWinningNumbers(prev => ({ ...prev, [gameId]: '' }));
+            } catch (e: any) { alert(e.message || 'Failed to declare winner.'); }
         } else {
             alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
         }
-    }
-  };
+    };
 
-  const handleManualRefresh = async () => {
-      if (!onRefreshData) return;
-      setIsRefreshingManual(true);
-      try {
-          await onRefreshData();
-      } finally {
-          setTimeout(() => setIsRefreshingManual(false), 500);
-      }
-  };
+    const handleUpdateWinner = async (gameId: string, gameName: string) => {
+        const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
+        if (editingGame) {
+            const num = editingGame.number;
+            const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
 
-  const handleDealerSort = (key: SortKey) => {
+            if (isValid) {
+                try {
+                    await updateWinner(gameId, num);
+                    setEditingGame(null);
+                } catch (e: any) { alert(e.message || 'Failed to update result.'); }
+            } else {
+                alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
+            }
+        }
+    };
+    const handleManualRefresh = async () => {
+        if (!onRefreshData) return;
+        setIsRefreshingManual(true);
+        try {
+            await onRefreshData();
+        } finally {
+            setTimeout(() => setIsRefreshingManual(false), 500);
+        }
+    };
+
+    const handleDealerSort = (key: SortKey) => {
         if (dealerSortKey === key) {
             setDealerSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
         } else {
@@ -1313,12 +1318,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
     };
 
     const sortedDealers = useMemo(() => {
-        const filtered = dealers.filter(d => 
-            d.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-            (d.area || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+        const filtered = dealers.filter(d =>
+            d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (d.area || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             d.id.toLowerCase().includes(searchQuery.toLowerCase())
         );
-        
+
         return [...filtered].sort((a, b) => {
             const dir = dealerSortDirection === 'asc' ? 1 : -1;
             switch (dealerSortKey) {
@@ -1341,7 +1346,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
 
     const sortedUsers = useMemo(() => {
         const lowerQuery = userSearchQuery.toLowerCase();
-        const filtered = userSearchQuery.trim() === '' ? users : users.filter(u => 
+        const filtered = userSearchQuery.trim() === '' ? users : users.filter(u =>
             u.name.toLowerCase().includes(lowerQuery) ||
             u.id.toLowerCase().includes(lowerQuery) ||
             (u.area || '').toLowerCase().includes(lowerQuery) ||
@@ -1359,7 +1364,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
         });
     }, [users, dealers, userSearchQuery, userSortKey, userSortDirection]);
 
-  const flatBets = useMemo(() => bets.flatMap(bet => {
+    const flatBets = useMemo(() => bets.flatMap(bet => {
         const user = users.find(u => u.id === bet.userId);
         const dealer = dealers.find(d => d.id === bet.dealerId);
         const game = games.find(g => g.id === bet.gameId);
@@ -1370,10 +1375,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
         }));
     }), [bets, users, dealers, games]);
 
-  const filteredBets = useMemo(() => !betSearchQuery.trim() ? [] : flatBets.filter(bet => bet.number === betSearchQuery.trim()), [flatBets, betSearchQuery]);
-  const searchSummary = useMemo(() => !betSearchQuery.trim() || filteredBets.length === 0 ? null : { number: betSearchQuery.trim(), count: filteredBets.length, totalStake: filteredBets.reduce((s, b) => s + b.amount, 0) }, [filteredBets, betSearchQuery]);
+    const filteredBets = useMemo(() => !betSearchQuery.trim() ? [] : flatBets.filter(bet => bet.number === betSearchQuery.trim()), [flatBets, betSearchQuery]);
+    const searchSummary = useMemo(() => !betSearchQuery.trim() || filteredBets.length === 0 ? null : { number: betSearchQuery.trim(), count: filteredBets.length, totalStake: filteredBets.reduce((s, b) => s + b.amount, 0) }, [filteredBets, betSearchQuery]);
 
-  const handleAdminUserUpdate = async (userData: User) => {
+    const handleAdminUserUpdate = async (userData: User) => {
         try {
             // CRITICAL: Strip ledger here too for admin updates
             const payload = { ...userData, ledger: [] };
@@ -1385,433 +1390,444 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                 alert('User updated successfully.');
                 setIsUserEditModalOpen(false);
                 if (onRefreshData) await onRefreshData();
+            } else {
+                const e = await response.json().catch(() => ({}));
+                alert(e.message || 'Failed to update user.');
             }
-        } catch (error) {
-            console.error('Error updating user as admin:', error);
+        } catch (error: any) {
             alert('Failed to update user.');
         }
-  };
+    };
 
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
-    { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
-    { id: 'users', label: 'Users', icon: Icons.clipboardList },
-    { id: 'games', label: 'Games', icon: Icons.gamepad },
-    { id: 'winners', label: 'Winners', icon: Icons.star },
-    { id: 'liveBooking', label: 'Live Booking', icon: Icons.sparkles },
-    { id: 'numberSummary', label: 'Number Summary', icon: Icons.chartBar },
-    { id: 'limits', label: 'Limits', icon: Icons.clipboardList }, 
-    { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search }, 
-    { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
-    { id: 'settings', label: 'Settings', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
-  ];
+    const tabs = [
+        { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
+        { id: 'dealers', label: 'Dealers', icon: Icons.userGroup },
+        { id: 'users', label: 'Users', icon: Icons.clipboardList },
+        { id: 'games', label: 'Games', icon: Icons.gamepad },
+        { id: 'winners', label: 'Winners', icon: Icons.star },
+        { id: 'liveBooking', label: 'Live Booking', icon: Icons.sparkles },
+        { id: 'numberSummary', label: 'Number Summary', icon: Icons.chartBar },
+        { id: 'limits', label: 'Limits', icon: Icons.clipboardList },
+        { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search },
+        { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
+        { id: 'settings', label: 'Settings', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
+    ];
 
-  return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
-      <h2 className="text-3xl font-bold text-red-400 mb-6 uppercase tracking-widest">Admin Console</h2>
-      <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
-            {tab.icon} <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
-      
-      {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
-      {activeTab === 'winners' && <WinnersView bets={bets} games={games} users={users} dealers={dealers} />}
-      {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} bets={bets} />}
-      {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
-      {activeTab === 'limits' && <NumberLimitsView />}
-      {activeTab === 'settings' && <SystemSettingsForm admin={admin} onSave={onUpdateAdmin} />}
-
-      {activeTab === 'dealers' && (
-        <div>
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-            <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">Dealers ({sortedDealers.length})</h3>
-            <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
-                 <div className="relative w-full sm:w-64">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
-                    <input type="text" placeholder="Search by name, area, ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full"/>
-                </div>
-                <button onClick={() => { setSelectedDealer(undefined); setIsModalOpen(true); }} className="flex items-center justify-center bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
-                  {Icons.plus} Create Dealer
-                </button>
+    return (
+        <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+            <h2 className="text-3xl font-bold text-red-400 mb-6 uppercase tracking-widest">Admin Console</h2>
+            <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
+                {tabs.map(tab => (
+                    <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
+                        {tab.icon} <span>{tab.label}</span>
+                    </button>
+                ))}
             </div>
-          </div>
-          <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-             <div className="overflow-x-auto mobile-scroll-x">
-                 <table className="w-full text-left min-w-[800px]">
-                     <thead className="bg-slate-800/50">
-                         <tr>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID / Area</th>
-                              <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Comm %</th>
-                             <SortableHeader label="Status" sortKey="status" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
-                         </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-800">
-                         {sortedDealers.map(dealer => (
-                             <tr key={dealer.id} className="hover:bg-cyan-500/10 transition-colors">
-                                 <td className="p-4 font-medium"><div className="flex items-center gap-3">
-                                     {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
-                                     <span className="font-semibold text-white">{dealer.name}</span>
-                                 </div></td>
-                                 <td className="p-4 text-slate-400"><div className="font-mono">{dealer.id}</div><div className="text-xs">{dealer.area}</div></td>
-                                 <td className="p-4 font-mono text-white">{dealer.wallet.toLocaleString()}</td>
-                                 <td className="p-4 text-center font-bold text-white">{dealer.commissionRate}%</td>
-                                 <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${dealer.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{dealer.isRestricted ? 'Restricted' : 'Active'}</span></td>
-                                 <td className="p-4">
-                                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                        <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
-                                        <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
-                                        <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${dealer.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
-                                            {dealer.isRestricted ? 'Unrestrict' : 'Restrict'}
-                                        </button>
-                                      </div>
-                                 </td>
-                             </tr>
-                         ))}
-                     </tbody>
-                 </table>
-             </div>
-          </div>
-        </div>
-      )}
 
-      {activeTab === 'games' && (
-        <div>
-            <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-3">
-                    <h3 className="text-xl font-semibold text-white">Declare Winning Numbers</h3>
-                    <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded text-[10px] text-emerald-400 font-bold uppercase tracking-widest animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                        Live Sync
-                    </div>
-                </div>
-                <button 
-                    onClick={handleManualRefresh}
-                    disabled={isRefreshingManual}
-                    className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 px-4 py-2 rounded-md transition-all text-xs font-bold uppercase tracking-widest disabled:opacity-50"
-                >
-                    <svg className={`w-4 h-4 ${isRefreshingManual ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    {isRefreshingManual ? 'Syncing...' : 'Refresh Data'}
-                </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {games.map(game => {
-                    const isAK = game.name === 'AK';
-                    const isAKC = game.name === 'AKC';
-                    const isSingleDigitGame = isAK || isAKC;
-                    const isAKPending = isAK && game.winningNumber && game.winningNumber.endsWith('_');
+            {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
+            {activeTab === 'winners' && <WinnersView bets={bets} games={games} users={users} dealers={dealers} />}
+            {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} bets={bets} />}
+            {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
+            {activeTab === 'limits' && <NumberLimitsView />}
+            {activeTab === 'settings' && <SystemSettingsForm admin={admin} onSave={onUpdateAdmin} />}
 
-                    return (
-                    <div key={game.id} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                        <h4 className="font-bold text-lg text-white">{game.name}</h4>
-                        {game.winningNumber ? (
-                            game.payoutsApproved ? (
-                                <div className="flex items-center justify-between my-2">
-                                    <div>
-                                        <p className="text-sm text-slate-400">Winner Declared</p>
-                                        <p className="text-2xl font-bold text-emerald-400">{game.winningNumber}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-slate-700/50 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                                        <span>Approved</span>
-                                    </div>
-                                </div>
-                            ) : editingGame?.id === game.id ? (
-                                <div className="my-2">
-                                    <p className="text-sm text-slate-400">Editing Number...</p>
-                                    <div className="flex items-center space-x-2 mt-1">
-                                        <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-900 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
-                                        <button onClick={() => handleUpdateWinner(game.id, game.name)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Save</button>
-                                        <button onClick={() => setEditingGame(null)} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Cancel</button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between my-2 gap-2">
-                                    {isAKPending ? (
-                                        <>
-                                            <div>
-                                                <p className="text-sm text-slate-400">Open Declared</p>
-                                                <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-sm text-slate-400">Waiting for AKC</p>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div>
-                                            <p className="text-sm text-slate-400">Pending Approval</p>
-                                            <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
-                                        </div>
-                                    )}
-                                    <div className='flex flex-col sm:flex-row gap-2 self-end sm:self-center'>
-                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="bg-slate-700 hover:bg-slate-600 text-amber-400 font-semibold py-2 px-3 rounded-md text-sm transition-colors">
-                                            Edit
-                                        </button>
-                                        {!isAKPending && (
-                                            <button 
-                                                onClick={() => { if (window.confirm(`Are you sure you want to approve payouts for ${game.name}? This action cannot be undone.`)) { approvePayouts(game.id); } }} 
-                                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors animate-pulse whitespace-nowrap"
-                                            >
-                                                Approve Payouts
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            )
-                        ) : (
-                            <div className="flex items-center space-x-2 my-2">
-                                <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-800 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
-                                <button onClick={() => handleDeclareWinner(game.id, game.name)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Declare</button>
+            {activeTab === 'dealers' && (
+                <div>
+                    <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+                        <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">Dealers ({sortedDealers.length})</h3>
+                        <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
+                            <div className="relative w-full sm:w-64">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                                <input type="text" placeholder="Search by name, area, ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full" />
                             </div>
-                        )}
-                        <div className="text-sm text-slate-400 flex items-center gap-2">
-                          <span>Draw Time:</span>
-                          {editingDrawTime?.gameId === game.id ? (
-                              <>
-                                  <input 
-                                      type="time" 
-                                      value={editingDrawTime.time}
-                                      onChange={(e) => setEditingDrawTime({ ...editingDrawTime, time: e.target.value })}
-                                      className="bg-slate-900 p-1 rounded-md border border-slate-600 focus:ring-1 focus:ring-cyan-500 text-sm text-white"
-                                  />
-                                  <button 
-                                      onClick={async () => {
-                                          try {
-                                              await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time);
-                                              setEditingDrawTime(null);
-                                          } catch (error: any) {
-                                              alert(`Failed to update time: ${error.message}`);
-                                          }
-                                      }}
-                                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
-                                      Save
-                                  </button>
-                                  <button 
-                                      onClick={() => setEditingDrawTime(null)}
-                                      className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
-                                      Cancel
-                                  </button>
-                              </>
-                          ) : (
-                              <>
-                                  <span className="font-semibold text-slate-300">{game.drawTime}</span>
-                                  <button 
-                                      onClick={() => setEditingDrawTime({ gameId: game.id, time: game.drawTime })}
-                                      className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-2 rounded-md text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                      disabled={!!game.winningNumber}
-                                  >
-                                      Edit
-                                  </button>
-                              </>
-                          )}
+                            <button onClick={() => { setSelectedDealer(undefined); setIsModalOpen(true); }} className="flex items-center justify-center bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
+                                {Icons.plus} Create Dealer
+                            </button>
                         </div>
-                        {(isAK || isAKC) && (
-                            <p className="text-xs text-slate-500 mt-2">
-                                Note: The AKC result provides the 'close' digit for the AK game.
-                            </p>
-                        )}
                     </div>
-                )})}
-            </div>
-        </div>
-      )}
-
-      {activeTab === 'bettingSheet' && (
-        <div>
-            <h3 className="text-xl font-semibold text-white mb-4">Comprehensive Betting Sheet</h3>
-            <div className="flex items-center gap-4 mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <label htmlFor="bet-search" className="font-semibold text-slate-300 whitespace-nowrap">Search by Number:</label>
-                <div className="relative flex-grow max-w-xs">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
-                    <input id="bet-search" type="text" placeholder="e.g. 42" value={betSearchQuery} onChange={(e) => setBetSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full" />
-                </div>
-            </div>
-
-            {searchSummary && (
-                <div className="mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                    <div><p className="text-sm text-slate-400 uppercase">Number</p><p className="text-2xl font-bold text-cyan-400">{searchSummary.number}</p></div>
-                    <div><p className="text-sm text-slate-400 uppercase">Total Bets</p><p className="text-2xl font-bold text-white">{searchSummary.count}</p></div>
-                    <div><p className="text-sm text-slate-400 uppercase">Total Stake</p><p className="text-2xl font-bold text-emerald-400">PKR {searchSummary.totalStake.toLocaleString()}</p></div>
+                    <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                        <div className="overflow-x-auto mobile-scroll-x">
+                            <table className="w-full text-left min-w-[800px]">
+                                <thead className="bg-slate-800/50">
+                                    <tr>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID / Area</th>
+                                        <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Comm %</th>
+                                        <SortableHeader label="Status" sortKey="status" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {sortedDealers.map(dealer => (
+                                        <tr key={dealer.id} className="hover:bg-cyan-500/10 transition-colors">
+                                            <td className="p-4 font-medium"><div className="flex items-center gap-3">
+                                                {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
+                                                <span className="font-semibold text-white">{dealer.name}</span>
+                                            </div></td>
+                                            <td className="p-4 text-slate-400"><div className="font-mono">{dealer.id}</div><div className="text-xs">{dealer.area}</div></td>
+                                            <td className="p-4 font-mono text-white">{dealer.wallet.toLocaleString()}</td>
+                                            <td className="p-4 text-center font-bold text-white">{dealer.commissionRate}%</td>
+                                            <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${dealer.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{dealer.isRestricted ? 'Restricted' : 'Active'}</span></td>
+                                            <td className="p-4">
+                                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
+                                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
+                                                    <button onClick={async () => {
+                                                        try { await toggleAccountRestriction(dealer.id, 'dealer'); }
+                                                        catch (e: any) { alert(e.message || 'Toggle failed.'); }
+                                                    }} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${dealer.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                                        {dealer.isRestricted ? 'Unrestrict' : 'Restrict'}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             )}
 
-            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto max-h-[60vh] mobile-scroll-x">
-                    <table className="w-full text-left min-w-[700px]">
-                        <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
-                            <tr>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Timestamp</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Number</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake (PKR)</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {filteredBets.length > 0 ? (
-                                filteredBets.map(bet => (
-                                    <tr key={`${bet.betId}-${bet.number}`} className="hover:bg-cyan-500/10 transition-colors">
-                                        <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{bet.timestamp.toLocaleString()}</td>
-                                        <td className="p-4 font-semibold text-white">{bet.userName}</td>
-                                        <td className="p-4 text-slate-400">{bet.dealerName}</td>
-                                        <td className="p-4 text-slate-300">{bet.gameName}</td>
-                                        <td className="p-4 text-right font-mono text-cyan-300 text-lg">{bet.number}</td>
-                                        <td className="p-4 text-right font-mono text-white">{bet.amount.toLocaleString()}</td>
+            {activeTab === 'games' && (
+                <div>
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-3">
+                            <h3 className="text-xl font-semibold text-white">Declare Winning Numbers</h3>
+                            <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded text-[10px] text-emerald-400 font-bold uppercase tracking-widest animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                Live Sync
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleManualRefresh}
+                            disabled={isRefreshingManual}
+                            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 px-4 py-2 rounded-md transition-all text-xs font-bold uppercase tracking-widest disabled:opacity-50"
+                        >
+                            <svg className={`w-4 h-4 ${isRefreshingManual ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            {isRefreshingManual ? 'Syncing...' : 'Refresh Data'}
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {games.map(game => {
+                            const isAK = game.name === 'AK';
+                            const isAKC = game.name === 'AKC';
+                            const isSingleDigitGame = isAK || isAKC;
+                            const isAKPending = isAK && game.winningNumber && game.winningNumber.endsWith('_');
+
+                            return (
+                                <div key={game.id} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                                    <h4 className="font-bold text-lg text-white">{game.name}</h4>
+                                    {game.winningNumber ? (
+                                        game.payoutsApproved ? (
+                                            <div className="flex items-center justify-between my-2">
+                                                <div>
+                                                    <p className="text-sm text-slate-400">Winner Declared</p>
+                                                    <p className="text-2xl font-bold text-emerald-400">{game.winningNumber}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 bg-slate-700/50 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                                                    <span>Approved</span>
+                                                </div>
+                                            </div>
+                                        ) : editingGame?.id === game.id ? (
+                                            <div className="my-2">
+                                                <p className="text-sm text-slate-400">Editing Number...</p>
+                                                <div className="flex items-center space-x-2 mt-1">
+                                                    <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({ ...editingGame, number: e.target.value.replace(/\D/g, '') })} className="w-20 bg-slate-900 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
+                                                    <button onClick={() => handleUpdateWinner(game.id, game.name)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Save</button>
+                                                    <button onClick={() => setEditingGame(null)} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Cancel</button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between my-2 gap-2">
+                                                {isAKPending ? (
+                                                    <>
+                                                        <div>
+                                                            <p className="text-sm text-slate-400">Open Declared</p>
+                                                            <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-sm text-slate-400">Waiting for AKC</p>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div>
+                                                        <p className="text-sm text-slate-400">Pending Approval</p>
+                                                        <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
+                                                    </div>
+                                                )}
+                                                <div className='flex flex-col sm:flex-row gap-2 self-end sm:self-center'>
+                                                    <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="bg-slate-700 hover:bg-slate-600 text-amber-400 font-semibold py-2 px-3 rounded-md text-sm transition-colors">
+                                                        Edit
+                                                    </button>
+                                                    {!isAKPending && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (window.confirm(`Are you sure you want to approve payouts for ${game.name}? This action cannot be undone.`)) {
+                                                                    try { await approvePayouts(game.id); }
+                                                                    catch (e: any) { alert(e.message || 'Failed to approve payouts.'); }
+                                                                }
+                                                            }}
+                                                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors animate-pulse whitespace-nowrap"
+                                                        >
+                                                            Approve Payouts
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    ) : (
+                                        <div className="flex items-center space-x-2 my-2">
+                                            <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({ ...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '') })} className="w-20 bg-slate-800 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
+                                            <button onClick={() => handleDeclareWinner(game.id, game.name)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Declare</button>
+                                        </div>
+                                    )}
+                                    <div className="text-sm text-slate-400 flex items-center gap-2">
+                                        <span>Draw Time:</span>
+                                        {editingDrawTime?.gameId === game.id ? (
+                                            <>
+                                                <input
+                                                    type="time"
+                                                    value={editingDrawTime.time}
+                                                    onChange={(e) => setEditingDrawTime({ ...editingDrawTime, time: e.target.value })}
+                                                    className="bg-slate-900 p-1 rounded-md border border-slate-600 focus:ring-1 focus:ring-cyan-500 text-sm text-white"
+                                                />
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time);
+                                                            setEditingDrawTime(null);
+                                                        } catch (error: any) {
+                                                            alert(`Failed to update time: ${error.message}`);
+                                                        }
+                                                    }}
+                                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
+                                                    Save
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingDrawTime(null)}
+                                                    className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
+                                                    Cancel
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="font-semibold text-slate-300">{game.drawTime}</span>
+                                                <button
+                                                    onClick={() => setEditingDrawTime({ gameId: game.id, time: game.drawTime })}
+                                                    className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-2 rounded-md text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    disabled={!!game.winningNumber}
+                                                >
+                                                    Edit
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                    {(isAK || isAKC) && (
+                                        <p className="text-xs text-slate-500 mt-2">
+                                            Note: The AKC result provides the 'close' digit for the AK game.
+                                        </p>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'bettingSheet' && (
+                <div>
+                    <h3 className="text-xl font-semibold text-white mb-4">Comprehensive Betting Sheet</h3>
+                    <div className="flex items-center gap-4 mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                        <label htmlFor="bet-search" className="font-semibold text-slate-300 whitespace-nowrap">Search by Number:</label>
+                        <div className="relative flex-grow max-w-xs">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                            <input id="bet-search" type="text" placeholder="e.g. 42" value={betSearchQuery} onChange={(e) => setBetSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full" />
+                        </div>
+                    </div>
+
+                    {searchSummary && (
+                        <div className="mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                            <div><p className="text-sm text-slate-400 uppercase">Number</p><p className="text-2xl font-bold text-cyan-400">{searchSummary.number}</p></div>
+                            <div><p className="text-sm text-slate-400 uppercase">Total Bets</p><p className="text-2xl font-bold text-white">{searchSummary.count}</p></div>
+                            <div><p className="text-sm text-slate-400 uppercase">Total Stake</p><p className="text-2xl font-bold text-emerald-400">PKR {searchSummary.totalStake.toLocaleString()}</p></div>
+                        </div>
+                    )}
+
+                    <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                        <div className="overflow-x-auto max-h-[60vh] mobile-scroll-x">
+                            <table className="w-full text-left min-w-[700px]">
+                                <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
+                                    <tr>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Timestamp</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Number</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake (PKR)</th>
                                     </tr>
-                                ))
-                            ) : (
-                                <tr><td colSpan={6} className="text-center p-8 text-slate-500">{betSearchQuery ? 'No bets found.' : 'Enter a number to search.'}</td></tr>
-                            )}
-                        </tbody>
-                    </table>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {filteredBets.length > 0 ? (
+                                        filteredBets.map(bet => (
+                                            <tr key={`${bet.betId}-${bet.number}`} className="hover:bg-cyan-500/10 transition-colors">
+                                                <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{bet.timestamp.toLocaleString()}</td>
+                                                <td className="p-4 font-semibold text-white">{bet.userName}</td>
+                                                <td className="p-4 text-slate-400">{bet.dealerName}</td>
+                                                <td className="p-4 text-slate-300">{bet.gameName}</td>
+                                                <td className="p-4 text-right font-mono text-cyan-300 text-lg">{bet.number}</td>
+                                                <td className="p-4 text-right font-mono text-white">{bet.amount.toLocaleString()}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr><td colSpan={6} className="text-center p-8 text-slate-500">{betSearchQuery ? 'No bets found.' : 'Enter a number to search.'}</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-      )}
+            )}
 
-       {activeTab === 'users' && (
-        <div>
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-            <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">All Users ({sortedUsers.length})</h3>
-             <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
-                 <div className="relative w-full sm:w-64">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
-                    <input type="text" placeholder="Search by name, ID, area, dealer..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full"/>
+            {activeTab === 'users' && (
+                <div>
+                    <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+                        <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">All Users ({sortedUsers.length})</h3>
+                        <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
+                            <div className="relative w-full sm:w-64">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                                <input type="text" placeholder="Search by name, ID, area, dealer..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full" />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                        <div className="overflow-x-auto mobile-scroll-x">
+                            <table className="w-full text-left min-w-[800px]">
+                                <thead className="bg-slate-800/50">
+                                    <tr>
+                                        <SortableHeader label="Name" sortKey="name" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
+                                        <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Comm %</th>
+                                        <SortableHeader label="Status" sortKey="status" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {sortedUsers.map(user => (
+                                        <tr key={user.id} className="hover:bg-cyan-500/10 transition-colors">
+                                            <td className="p-4 font-medium"><div className="flex items-center gap-3">
+                                                {user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
+                                                <div>
+                                                    <div className="font-semibold text-white">{user.name}</div>
+                                                    <div className="text-xs text-slate-400 font-mono">{user.id}</div>
+                                                </div>
+                                            </div></td>
+                                            <td className="p-4 text-slate-400">{dealers.find(d => d.id === user.dealerId)?.name || 'N/A'}</td>
+                                            <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
+                                            <td className="p-4 text-center font-bold text-white">{user.commissionRate}%</td>
+                                            <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
+                                            <td className="p-4 text-center">
+                                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
+                                                    <button onClick={() => { setSelectedUserToEdit(user); setIsUserEditModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-sky-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">Edit</button>
+                                                    <button onClick={() => { setViewingLedgerId(user.id); setViewingLedgerType('user'); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">Ledger</button>
+                                                    <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
+                                                        {user.isRestricted ? 'Unrestrict' : 'Restrict'}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-            </div>
-          </div>
-           <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-               <div className="overflow-x-auto mobile-scroll-x">
-                   <table className="w-full text-left min-w-[800px]">
-                       <thead className="bg-slate-800/50">
-                           <tr>
-                               <SortableHeader label="Name" sortKey="name" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
-                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                               <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
-                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Comm %</th>
-                               <SortableHeader label="Status" sortKey="status" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
-                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
-                           </tr>
-                       </thead>
-                       <tbody className="divide-y divide-slate-800">
-                           {sortedUsers.map(user => (
-                               <tr key={user.id} className="hover:bg-cyan-500/10 transition-colors">
-                                   <td className="p-4 font-medium"><div className="flex items-center gap-3">
-                                     {user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
-                                     <div>
-                                        <div className="font-semibold text-white">{user.name}</div>
-                                        <div className="text-xs text-slate-400 font-mono">{user.id}</div>
-                                     </div>
-                                   </div></td>
-                                   <td className="p-4 text-slate-400">{dealers.find(d => d.id === user.dealerId)?.name || 'N/A'}</td>
-                                   <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
-                                   <td className="p-4 text-center font-bold text-white">{user.commissionRate}%</td>
-                                   <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
-                                   <td className="p-4 text-center">
-                                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
-                                            <button onClick={() => { setSelectedUserToEdit(user); setIsUserEditModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-sky-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">Edit</button>
-                                            <button onClick={() => { setViewingLedgerId(user.id); setViewingLedgerType('user'); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">Ledger</button>
-                                            <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
-                                                {user.isRestricted ? 'Unrestrict' : 'Restrict'}
-                                            </button>
-                                       </div>
-                                   </td>
-                               </tr>
-                           ))}
-                       </tbody>
-                   </table>
-               </div>
-           </div>
+            )}
+
+            {activeTab === 'history' && (
+                <div>
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                        <h3 className="text-xl font-semibold text-white">Dealer Transaction Ledgers</h3>
+                        <div className="flex flex-wrap gap-2">
+                            <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                                {Icons.plus} Wallet Top-Up
+                            </button>
+                            <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                                {Icons.minus} Withdraw Funds
+                            </button>
+                            <button onClick={() => { setViewingLedgerId(admin.id); setViewingLedgerType('admin'); }} className="flex items-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
+                                {Icons.eye} View Admin Ledger
+                            </button>
+                        </div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
+                        <div className="overflow-x-auto mobile-scroll-x">
+                            <table className="w-full text-left min-w-[600px]">
+                                <thead className="bg-slate-800/50">
+                                    <tr>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Area</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Current Balance (PKR)</th>
+                                        <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {dealers.map(dealer => (
+                                        <tr key={dealer.id} className="hover:bg-cyan-500/10 transition-colors">
+                                            <td className="p-4 font-medium"><div className="flex items-center gap-3">
+                                                {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
+                                                <span className="font-semibold text-white">{dealer.name}</span>
+                                            </div></td>
+                                            <td className="p-4 text-slate-400">{dealer.area}</td>
+                                            <td className="p-4 font-mono text-white text-right">{dealer.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                            <td className="p-4 text-center"><button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">View Ledger</button></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedDealer ? "Edit Dealer" : "Create Dealer"}>
+                <DealerForm dealer={selectedDealer} dealers={dealers} onSave={handleSaveDealer} onCancel={() => setIsModalOpen(false)} adminPrizeRates={admin.prizeRates} />
+            </Modal>
+
+            {/* Admin User Edit Modal */}
+            <Modal isOpen={isUserEditModalOpen} onClose={() => setIsUserEditModalOpen(false)} title="Edit User Account" themeColor="sky">
+                {selectedUserToEdit && (
+                    <UserForm
+                        user={selectedUserToEdit}
+                        users={users}
+                        onSave={handleAdminUserUpdate}
+                        onCancel={() => setIsUserEditModalOpen(false)}
+                        dealerPrizeRates={dealers.find(d => d.id === selectedUserToEdit.dealerId)?.prizeRates || admin.prizeRates}
+                        dealerId={selectedUserToEdit.dealerId}
+                        showToast={(m) => alert(m)}
+                    />
+                )}
+            </Modal>
+
+            <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up Dealer Wallet" themeColor="emerald">
+                <DealerTransactionForm type="Top-Up" dealers={dealers} onTransaction={(dealerId, amount) => { topUpDealerWallet(dealerId, amount); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
+            </Modal>
+
+            <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Withdraw from Dealer Wallet" themeColor="amber">
+                <DealerTransactionForm type="Withdrawal" dealers={dealers} onTransaction={(dealerId, amount) => { withdrawFromDealerWallet(dealerId, amount); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
+            </Modal>
+
+            {activeLedgerAccount && (
+                <Modal isOpen={!!activeLedgerAccount} onClose={() => { setViewingLedgerId(null); setViewingLedgerType(null); }} title={`Ledger for ${activeLedgerAccount.name}`} size="xl">
+                    <StatefulLedgerTableWrapper entries={activeLedgerAccount.ledger} />
+                </Modal>
+            )}
+
         </div>
-      )}
-      
-      {activeTab === 'history' && (
-        <div>
-          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-            <h3 className="text-xl font-semibold text-white">Dealer Transaction Ledgers</h3>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
-                {Icons.plus} Wallet Top-Up
-              </button>
-              <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
-                {Icons.minus} Withdraw Funds
-              </button>
-               <button onClick={() => { setViewingLedgerId(admin.id); setViewingLedgerType('admin'); }} className="flex items-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
-                {Icons.eye} View Admin Ledger
-              </button>
-            </div>
-          </div>
-          <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-            <div className="overflow-x-auto mobile-scroll-x">
-              <table className="w-full text-left min-w-[600px]">
-                <thead className="bg-slate-800/50">
-                  <tr>
-                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Area</th>
-                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Current Balance (PKR)</th>
-                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {dealers.map(dealer => (
-                    <tr key={dealer.id} className="hover:bg-cyan-500/10 transition-colors">
-                      <td className="p-4 font-medium"><div className="flex items-center gap-3">
-                        {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
-                        <span className="font-semibold text-white">{dealer.name}</span>
-                      </div></td>
-                      <td className="p-4 text-slate-400">{dealer.area}</td>
-                      <td className="p-4 font-mono text-white text-right">{dealer.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="p-4 text-center"><button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">View Ledger</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedDealer ? "Edit Dealer" : "Create Dealer"}>
-          <DealerForm dealer={selectedDealer} dealers={dealers} onSave={handleSaveDealer} onCancel={() => setIsModalOpen(false)} adminPrizeRates={admin.prizeRates} />
-      </Modal>
-
-      {/* Admin User Edit Modal */}
-      <Modal isOpen={isUserEditModalOpen} onClose={() => setIsUserEditModalOpen(false)} title="Edit User Account" themeColor="sky">
-          {selectedUserToEdit && (
-              <UserForm 
-                  user={selectedUserToEdit} 
-                  users={users} 
-                  onSave={handleAdminUserUpdate} 
-                  onCancel={() => setIsUserEditModalOpen(false)} 
-                  dealerPrizeRates={dealers.find(d => d.id === selectedUserToEdit.dealerId)?.prizeRates || admin.prizeRates} 
-                  dealerId={selectedUserToEdit.dealerId} 
-                  showToast={(m) => alert(m)} 
-              />
-          )}
-      </Modal>
-
-      <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up Dealer Wallet" themeColor="emerald">
-          <DealerTransactionForm type="Top-Up" dealers={dealers} onTransaction={(dealerId, amount) => { topUpDealerWallet(dealerId, amount); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
-      </Modal>
-
-      <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Withdraw from Dealer Wallet" themeColor="amber">
-          <DealerTransactionForm type="Withdrawal" dealers={dealers} onTransaction={(dealerId, amount) => { withdrawFromDealerWallet(dealerId, amount); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
-      </Modal>
-
-      {activeLedgerAccount && (
-        <Modal isOpen={!!activeLedgerAccount} onClose={() => { setViewingLedgerId(null); setViewingLedgerType(null); }} title={`Ledger for ${activeLedgerAccount.name}`} size="xl">
-            <StatefulLedgerTableWrapper entries={activeLedgerAccount.ledger} />
-        </Modal>
-      )}
-
-    </div>
-  );
+    );
 };
 
 export default AdminPanel;

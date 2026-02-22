@@ -29,9 +29,8 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
     }, [onClose]);
 
     return (
-        <div className={`fixed top-4 right-4 z-[100] p-4 rounded-lg shadow-2xl border flex items-center gap-3 animate-slide-in max-w-[90vw] sm:max-w-md ${
-            type === 'success' ? 'bg-emerald-900 border-emerald-500 text-emerald-50' : 'bg-red-900 border-red-500 text-red-50'
-        }`}>
+        <div className={`fixed top-4 right-4 z-[100] p-4 rounded-lg shadow-2xl border flex items-center gap-3 animate-slide-in max-w-[90vw] sm:max-w-md ${type === 'success' ? 'bg-emerald-900 border-emerald-500 text-emerald-50' : 'bg-red-900 border-red-500 text-red-50'
+            }`}>
             <span className="text-xl shrink-0">{type === 'success' ? '✅' : '⚠️'}</span>
             <span className="font-semibold text-sm">{message}</span>
             <button onClick={onClose} className="ml-auto opacity-50 hover:opacity-100 p-1">{Icons.close}</button>
@@ -104,14 +103,14 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
     </div>
 );
 
-export const UserForm: React.FC<{ 
-    user?: User; 
-    users: User[]; 
-    onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>; 
-    onCancel: () => void; 
-    dealerPrizeRates: PrizeRates, 
+export const UserForm: React.FC<{
+    user?: User;
+    users: User[];
+    onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>;
+    onCancel: () => void;
+    dealerPrizeRates: PrizeRates,
     dealerId: string;
-    showToast: (msg: string, type: 'success' | 'error') => void 
+    showToast: (msg: string, type: 'success' | 'error') => void
 }> = ({ user, users, onSave, onCancel, dealerId, showToast }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -142,9 +141,9 @@ export const UserForm: React.FC<{
             };
         }
         return {
-            id: '', name: '', area: '', contact: '', 
-            commissionRate: '0', 
-            prizeRates: { oneDigitOpen: '9.50', oneDigitClose: '9.50', twoDigit: '85.00' }, 
+            id: '', name: '', area: '', contact: '',
+            commissionRate: '0',
+            prizeRates: { oneDigitOpen: '9.50', oneDigitClose: '9.50', twoDigit: '85.00' },
             avatarUrl: '', wallet: '0',
             betLimits: { oneDigit: '1000', twoDigit: '5000', perDraw: '20000' }
         };
@@ -154,25 +153,25 @@ export const UserForm: React.FC<{
         const { name, value } = e.target;
         if (name.includes('.')) {
             const [parent, child] = name.split('.');
-            setFormData(prev => ({ 
-                ...prev, 
-                [parent]: { 
-                    ...(prev[parent as keyof typeof prev] as object), 
-                    [child]: value 
-                } 
+            setFormData(prev => ({
+                ...prev,
+                [parent]: {
+                    ...(prev[parent as keyof typeof prev] as object),
+                    [child]: value
+                }
             }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
     };
-    
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const activePass = user ? (password || user.password) : password;
-        
+
         if (!user && !password) { showToast("⚠️ Password is required.", "error"); return; }
         if (password && password !== confirmPassword) { showToast("⚠️ Passwords do not match.", "error"); return; }
-        
+
         const isIdTaken = !user && users.some(u => u.id.toLowerCase() === formData.id.toLowerCase());
         if (isIdTaken) { showToast("⚠️ Username already exists.", "error"); return; }
 
@@ -188,7 +187,7 @@ export const UserForm: React.FC<{
                 wallet: Number(formData.wallet) || 0,
                 commissionRate: Number(formData.commissionRate) || 0,
                 isRestricted: user?.isRestricted ?? false,
-                ledger: [], 
+                ledger: [],
                 avatarUrl: formData.avatarUrl,
                 betLimits: {
                     oneDigit: Number(formData.betLimits.oneDigit) || 0,
@@ -208,7 +207,7 @@ export const UserForm: React.FC<{
         } catch (err: any) {
             showToast(`⚠️ ${err.message || 'Error processing user'}`, 'error');
         } finally {
-            setIsLoading(false); 
+            setIsLoading(false);
         }
     };
 
@@ -234,7 +233,7 @@ export const UserForm: React.FC<{
                     <label className={labelClass}>City / Area</label>
                     <input type="text" name="area" value={formData.area} onChange={handleChange} className={inputClass} required placeholder="e.g. Karachi" />
                 </div>
-                
+
                 <div className="sm:col-span-1 relative">
                     <label className={labelClass}>{user ? "Change Password (optional)" : "Password"}</label>
                     <input type={isPasswordVisible ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className={inputClass} required={!user} />
@@ -297,11 +296,11 @@ export const UserForm: React.FC<{
     );
 };
 
-const MoreOptionsDropdown: React.FC<{ 
-    user: User; 
-    onEdit: () => void; 
-    onLedger: () => void; 
-    onToggleStatus: () => void; 
+const MoreOptionsDropdown: React.FC<{
+    user: User;
+    onEdit: () => void;
+    onLedger: () => void;
+    onToggleStatus: () => void;
     onDelete: () => void;
 }> = ({ user, onEdit, onLedger, onToggleStatus, onDelete }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -327,7 +326,7 @@ const MoreOptionsDropdown: React.FC<{
                     <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className={`${btnClass} ${user.isRestricted ? 'text-green-400' : 'text-amber-400'}`}>
                         {user.isRestricted ? 'Unblock Access' : 'Restrict Access'}
                     </button>
-                    <button onClick={() => { if(window.confirm(`Permanently delete ${user.name}? This cannot be undone.`)) onDelete(); setIsOpen(false); }} className={`${btnClass} text-red-500 hover:bg-red-950/30`}>Delete Account</button>
+                    <button onClick={() => { if (window.confirm(`Permanently delete ${user.name}? This cannot be undone.`)) onDelete(); setIsOpen(false); }} className={`${btnClass} text-red-500 hover:bg-red-950/30`}>Delete Account</button>
                 </div>
             )}
         </div>
@@ -335,177 +334,188 @@ const MoreOptionsDropdown: React.FC<{
 };
 
 interface DealerPanelProps {
-  dealer: Dealer;
-  users: User[];
-  onSaveUser: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>;
-  onDeleteUser: (uId: string) => Promise<void>;
-  topUpUserWallet: (userId: string, amount: number) => Promise<void>;
-  withdrawFromUserWallet: (userId: string, amount: number) => Promise<void>;
-  toggleAccountRestriction: (userId: string, userType: 'user') => void;
-  bets: Bet[];
-  games: Game[];
-  placeBetAsDealer: (details: { userId: string; gameId: string; betGroups: any[] }) => Promise<void>;
-  isLoaded?: boolean;
+    dealer: Dealer;
+    users: User[];
+    onSaveUser: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>;
+    onDeleteUser: (uId: string) => Promise<void>;
+    topUpUserWallet: (userId: string, amount: number) => Promise<void>;
+    withdrawFromUserWallet: (userId: string, amount: number) => Promise<void>;
+    toggleAccountRestriction: (userId: string, userType: 'user') => void;
+    bets: Bet[];
+    games: Game[];
+    placeBetAsDealer: (details: { userId: string; gameId: string; betGroups: any[] }) => Promise<void>;
+    isLoaded?: boolean;
 }
 
 const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, onDeleteUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer, isLoaded = false }) => {
-  const [activeTab, setActiveTab] = useState('users');
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
-  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
-  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
-  const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+    const [activeTab, setActiveTab] = useState('users');
+    const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
+    const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+    const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+    const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-  const safeUsers = useMemo(() => Array.isArray(users) ? users : [], [users]);
-  const safeDealer = dealer || { id: '', name: '', prizeRates: {}, ledger: [], commissionRate: 0 };
+    const safeUsers = useMemo(() => Array.isArray(users) ? users : [], [users]);
+    const safeDealer = dealer || { id: '', name: '', prizeRates: {}, ledger: [], commissionRate: 0 };
 
-  const showToast = (msg: string, type: 'success' | 'error') => setToast({ msg, type });
+    const showToast = (msg: string, type: 'success' | 'error') => setToast({ msg, type });
 
-  const dealerUsers = useMemo(() => {
+    const dealerUsers = useMemo(() => {
         return safeUsers
             .filter(user => {
                 if (!user) return false;
                 const query = searchQuery.toLowerCase();
                 return (user.name || '').toLowerCase().includes(query) || (user.id || '').toLowerCase().includes(query) || (user.area || '').toLowerCase().includes(query);
             });
-  }, [safeUsers, searchQuery]);
+    }, [safeUsers, searchQuery]);
 
-  const tabs = [
-    { id: 'users', label: 'Users', icon: Icons.userGroup },
-    { id: 'terminal', label: 'Terminal', icon: Icons.clipboardList },
-    { id: 'wallet', label: 'Wallet', icon: Icons.wallet },
-    { id: 'history', label: 'History', icon: Icons.bookOpen },
-  ];
+    const tabs = [
+        { id: 'users', label: 'Users', icon: Icons.userGroup },
+        { id: 'terminal', label: 'Terminal', icon: Icons.clipboardList },
+        { id: 'wallet', label: 'Wallet', icon: Icons.wallet },
+        { id: 'history', label: 'History', icon: Icons.bookOpen },
+    ];
 
-  if (!dealer) return <div className="p-8 text-center text-slate-400">Loading dealer profile...</div>;
+    if (!dealer) return <div className="p-8 text-center text-slate-400">Loading dealer profile...</div>;
 
-  return (
-    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto min-h-[85vh]">
-      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-8 gap-4">
-          <div className="flex flex-col">
-            <h2 className="text-2xl sm:text-3xl font-black text-emerald-400 uppercase tracking-tighter">Dealer Panel</h2>
-            <div className="flex items-center gap-2 mt-1">
-                <span className="bg-emerald-500/10 text-emerald-500 text-[10px] px-2 py-0.5 rounded border border-emerald-500/20 font-black uppercase tracking-widest">
-                    My Commission: {safeDealer.commissionRate}%
-                </span>
-            </div>
-          </div>
-          <div className="bg-slate-800/50 p-1 rounded-lg flex items-center space-x-1 border border-slate-700 w-full md:w-auto overflow-x-auto no-scrollbar">
-            {tabs.map(tab => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`shrink-0 flex items-center space-x-2 py-2 px-3 sm:px-4 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-md transition-all ${activeTab === tab.id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700 hover:text-white'}`}>
-                    {tab.icon} <span>{tab.label}</span>
-                </button>
-            ))}
-          </div>
-      </div>
-      
-      {activeTab === 'users' && (
-        <div className="animate-fade-in">
-           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-4 gap-3">
-            <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">Managed Users <span className="bg-slate-800 px-2 py-0.5 rounded text-xs text-emerald-400 font-mono">{dealerUsers.length}</span></h3>
-            <div className="flex gap-2">
-                <div className="relative flex-grow sm:w-64">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
-                    <input type="text" placeholder="Search accounts..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-lg border border-slate-700 text-white w-full text-xs focus:ring-1 focus:ring-emerald-500" />
+    return (
+        <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto min-h-[85vh]">
+            {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-8 gap-4">
+                <div className="flex flex-col">
+                    <h2 className="text-2xl sm:text-3xl font-black text-emerald-400 uppercase tracking-tighter">Dealer Panel</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="bg-emerald-500/10 text-emerald-500 text-[10px] px-2 py-0.5 rounded border border-emerald-500/20 font-black uppercase tracking-widest">
+                            My Commission: {safeDealer.commissionRate}%
+                        </span>
+                    </div>
                 </div>
-                <button onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-lg font-black px-4 sm:px-6 transition-all shadow-xl shadow-emerald-900/20 whitespace-nowrap text-xs uppercase tracking-widest">New User</button>
+                <div className="bg-slate-800/50 p-1 rounded-lg flex items-center space-x-1 border border-slate-700 w-full md:w-auto overflow-x-auto no-scrollbar">
+                    {tabs.map(tab => (
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`shrink-0 flex items-center space-x-2 py-2 px-3 sm:px-4 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-md transition-all ${activeTab === tab.id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700 hover:text-white'}`}>
+                            {tab.icon} <span>{tab.label}</span>
+                        </button>
+                    ))}
+                </div>
             </div>
-          </div>
 
-          <div className="bg-slate-800/40 rounded-xl overflow-hidden border border-slate-700 backdrop-blur-sm shadow-2xl">
-            <div className="overflow-x-auto mobile-scroll-x">
-                <table className="w-full text-left min-w-[900px]">
-                    <thead className="bg-slate-800/80 border-b border-slate-700">
-                        <tr>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Account Info</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Location</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Balance (PKR)</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Comm %</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Status</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                        {!isLoaded ? (
-                            <tr><td colSpan={6} className="p-12 text-center text-slate-500 font-bold animate-pulse text-xs uppercase tracking-widest">Synchronizing Encrypted Data...</td></tr>
-                        ) : dealerUsers.length === 0 ? (
-                            <tr><td colSpan={6} className="p-12 text-center text-slate-500 font-bold text-xs uppercase tracking-widest">No users found in your network.</td></tr>
-                        ) : dealerUsers.map(user => (
-                            <tr key={user.id} className="hover:bg-slate-700/20 transition-all">
-                                <td className="p-4">
-                                    <div className="font-bold text-white text-sm">{user.name}</div>
-                                    <div className="text-[10px] text-slate-500 font-mono tracking-tighter uppercase">{user.id}</div>
-                                </td>
-                                <td className="p-4">
-                                    <div className="text-xs text-slate-300 font-semibold">{user.area || '-'}</div>
-                                    <div className="text-[10px] text-slate-500 font-mono">{user.contact || '-'}</div>
-                                </td>
-                                <td className="p-4 text-right">
-                                    <div className="font-mono text-emerald-400 font-bold text-sm">{user.wallet.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                                    <div className="text-[9px] text-slate-500 uppercase tracking-tighter">Current Funds</div>
-                                </td>
-                                <td className="p-4 text-center">
-                                    <div className="font-bold text-white text-xs">{user.commissionRate}%</div>
-                                </td>
-                                <td className="p-4 text-center">
-                                    {user.isRestricted ? 
-                                        <span className="bg-red-500/10 text-red-500 text-[9px] px-2 py-0.5 rounded-full border border-red-500/20 font-black uppercase tracking-tighter">Locked</span> : 
-                                        <span className="bg-green-500/10 text-green-500 text-[9px] px-2 py-0.5 rounded-full border border-green-500/20 font-black uppercase tracking-tighter">Active</span>
-                                    }
-                                </td>
-                                <td className="p-4 text-right">
-                                    <MoreOptionsDropdown 
-                                        user={user} 
-                                        onEdit={() => { setSelectedUser(user); setIsUserModalOpen(true); }} 
-                                        onLedger={() => setViewingUserLedgerFor(user)} 
-                                        onToggleStatus={() => { toggleAccountRestriction(user.id, 'user'); showToast("Status updated.", "success"); }} 
-                                        onDelete={async () => { try { await onDeleteUser(user.id); showToast("Account deleted successfully.", "success"); } catch(e) { showToast("Error deleting account.", "error"); } }}
-                                    />
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-          </div>
-          <div className="mt-6 flex flex-wrap justify-end gap-3">
-                <button onClick={() => setIsTopUpModalOpen(true)} className="flex-1 sm:flex-none bg-slate-800 hover:bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 p-3 px-6 rounded-xl font-black transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
-                    {Icons.plus} Deposit
-                </button>
-                <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex-1 sm:flex-none bg-slate-800 hover:bg-amber-900/30 text-amber-400 border border-amber-500/30 p-3 px-6 rounded-xl font-black transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
-                    {Icons.minus} Withdraw
-                </button>
-          </div>
+            {activeTab === 'users' && (
+                <div className="animate-fade-in">
+                    <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-4 gap-3">
+                        <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">Managed Users <span className="bg-slate-800 px-2 py-0.5 rounded text-xs text-emerald-400 font-mono">{dealerUsers.length}</span></h3>
+                        <div className="flex gap-2">
+                            <div className="relative flex-grow sm:w-64">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
+                                <input type="text" placeholder="Search accounts..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-lg border border-slate-700 text-white w-full text-xs focus:ring-1 focus:ring-emerald-500" />
+                            </div>
+                            <button onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-lg font-black px-4 sm:px-6 transition-all shadow-xl shadow-emerald-900/20 whitespace-nowrap text-xs uppercase tracking-widest">New User</button>
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-800/40 rounded-xl overflow-hidden border border-slate-700 backdrop-blur-sm shadow-2xl">
+                        <div className="overflow-x-auto mobile-scroll-x">
+                            <table className="w-full text-left min-w-[900px]">
+                                <thead className="bg-slate-800/80 border-b border-slate-700">
+                                    <tr>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Account Info</th>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Location</th>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Balance (PKR)</th>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Comm %</th>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Status</th>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    {!isLoaded ? (
+                                        <tr><td colSpan={6} className="p-12 text-center text-slate-500 font-bold animate-pulse text-xs uppercase tracking-widest">Synchronizing Encrypted Data...</td></tr>
+                                    ) : dealerUsers.length === 0 ? (
+                                        <tr><td colSpan={6} className="p-12 text-center text-slate-500 font-bold text-xs uppercase tracking-widest">No users found in your network.</td></tr>
+                                    ) : dealerUsers.map(user => (
+                                        <tr key={user.id} className="hover:bg-slate-700/20 transition-all">
+                                            <td className="p-4">
+                                                <div className="font-bold text-white text-sm">{user.name}</div>
+                                                <div className="text-[10px] text-slate-500 font-mono tracking-tighter uppercase">{user.id}</div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="text-xs text-slate-300 font-semibold">{user.area || '-'}</div>
+                                                <div className="text-[10px] text-slate-500 font-mono">{user.contact || '-'}</div>
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <div className="font-mono text-emerald-400 font-bold text-sm">{user.wallet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                                                <div className="text-[9px] text-slate-500 uppercase tracking-tighter">Current Funds</div>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <div className="font-bold text-white text-xs">{user.commissionRate}%</div>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                {user.isRestricted ?
+                                                    <span className="bg-red-500/10 text-red-500 text-[9px] px-2 py-0.5 rounded-full border border-red-500/20 font-black uppercase tracking-tighter">Locked</span> :
+                                                    <span className="bg-green-500/10 text-green-500 text-[9px] px-2 py-0.5 rounded-full border border-green-500/20 font-black uppercase tracking-tighter">Active</span>
+                                                }
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <MoreOptionsDropdown
+                                                    user={user}
+                                                    onEdit={() => { setSelectedUser(user); setIsUserModalOpen(true); }}
+                                                    onLedger={() => setViewingUserLedgerFor(user)}
+                                                    onToggleStatus={async () => {
+                                                        try {
+                                                            await toggleAccountRestriction(user.id, 'user');
+                                                            showToast("Status updated.", "success");
+                                                        } catch (e: any) { showToast(e.message || "Status update failed.", "error"); }
+                                                    }}
+                                                    onDelete={async () => { try { await onDeleteUser(user.id); showToast("Account deleted successfully.", "success"); } catch (e) { showToast("Error deleting account.", "error"); } }}
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div className="mt-6 flex flex-wrap justify-end gap-3">
+                        <button onClick={() => setIsTopUpModalOpen(true)} className="flex-1 sm:flex-none bg-slate-800 hover:bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 p-3 px-6 rounded-xl font-black transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                            {Icons.plus} Deposit
+                        </button>
+                        <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex-1 sm:flex-none bg-slate-800 hover:bg-amber-900/30 text-amber-400 border border-amber-500/30 p-3 px-6 rounded-xl font-black transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
+                            {Icons.minus} Withdraw
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'terminal' && <div className="animate-fade-in"><BettingTerminalView users={safeUsers} games={games} placeBetAsDealer={placeBetAsDealer} /></div>}
+            {activeTab === 'wallet' && <div className="animate-fade-in"><WalletView dealer={safeDealer as Dealer} /></div>}
+            {activeTab === 'history' && <div className="animate-fade-in"><BetHistoryView bets={bets} games={games} users={safeUsers} /></div>}
+
+            <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Update Profile" : "Onboard New User"} themeColor="emerald">
+                <UserForm user={selectedUser} users={safeUsers} onSave={onSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={safeDealer.prizeRates as PrizeRates} dealerId={safeDealer.id} showToast={showToast} />
+            </Modal>
+
+            <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Fund User Account" themeColor="emerald">
+                <UserTransactionForm type="Top-Up" users={dealerUsers} onTransaction={async (userId, amount) => {
+                    try { await topUpUserWallet(userId, amount); showToast("✅ Funding completed!", "success"); setIsTopUpModalOpen(false); }
+                    catch (e: any) { showToast(e.message || "Top-up failed.", "error"); }
+                }} onCancel={() => setIsTopUpModalOpen(false)} />
+            </Modal>
+
+            <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Cash Out User Funds" themeColor="amber">
+                <UserTransactionForm type="Withdrawal" users={dealerUsers} onTransaction={async (userId, amount) => {
+                    try { await withdrawFromUserWallet(userId, amount); showToast("✅ Payout completed!", "success"); setIsWithdrawalModalOpen(false); }
+                    catch (e: any) { showToast(e.message || "Withdrawal failed.", "error"); }
+                }} onCancel={() => setIsWithdrawalModalOpen(false)} />
+            </Modal>
+
+            {viewingUserLedgerFor && (
+                <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger: ${viewingUserLedgerFor.name}`} size="xl" themeColor="cyan">
+                    <LedgerTable entries={viewingUserLedgerFor.ledger} />
+                </Modal>
+            )}
         </div>
-      )}
-
-      {activeTab === 'terminal' && <div className="animate-fade-in"><BettingTerminalView users={safeUsers} games={games} placeBetAsDealer={placeBetAsDealer} /></div>}
-      {activeTab === 'wallet' && <div className="animate-fade-in"><WalletView dealer={safeDealer as Dealer} /></div>}
-      {activeTab === 'history' && <div className="animate-fade-in"><BetHistoryView bets={bets} games={games} users={safeUsers} /></div>}
-
-      <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Update Profile" : "Onboard New User"} themeColor="emerald">
-          <UserForm user={selectedUser} users={safeUsers} onSave={onSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={safeDealer.prizeRates as PrizeRates} dealerId={safeDealer.id} showToast={showToast} />
-      </Modal>
-
-      <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Fund User Account" themeColor="emerald">
-          <UserTransactionForm type="Top-Up" users={dealerUsers} onTransaction={async (userId, amount) => { await topUpUserWallet(userId, amount); showToast("✅ Funding completed!", "success"); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
-      </Modal>
-
-      <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Cash Out User Funds" themeColor="amber">
-          <UserTransactionForm type="Withdrawal" users={dealerUsers} onTransaction={async (userId, amount) => { await withdrawFromUserWallet(userId, amount); showToast("✅ Payout completed!", "success"); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
-      </Modal>
-
-      {viewingUserLedgerFor && (
-        <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger: ${viewingUserLedgerFor.name}`} size="xl" themeColor="cyan">
-            <LedgerTable entries={viewingUserLedgerFor.ledger} />
-        </Modal>
-      )}
-    </div>
-  );
+    );
 };
 
 const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
@@ -515,7 +525,7 @@ const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 flex flex-col items-center justify-center text-center">
                     <p className="text-slate-500 uppercase text-[10px] font-black tracking-widest mb-1">Available Pool</p>
-                    <p className="text-3xl font-black text-emerald-400 font-mono">PKR {dealer.wallet.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                    <p className="text-3xl font-black text-emerald-400 font-mono">PKR {dealer.wallet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                 </div>
                 <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 flex flex-col items-center justify-center text-center">
                     <p className="text-slate-500 uppercase text-[10px] font-black tracking-widest mb-1">Log Count</p>
@@ -601,7 +611,7 @@ const UserTransactionForm: React.FC<{ users: User[]; onTransaction: (userId: str
                 <option value="">-- Choose User --</option>
                 {Array.isArray(users) && users.map(u => (
                     <option key={u.id} value={u.id}>
-                        {u.name} ({u.id}) — Balance: PKR {u.wallet.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                        {u.name} ({u.id}) — Balance: PKR {u.wallet.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </option>
                 ))}
             </select>
@@ -618,7 +628,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
-    
+
     const filteredBets = useMemo(() => {
         if (!Array.isArray(bets)) return [];
         return bets.filter(bet => {
@@ -640,7 +650,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
                 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest w-full" />
                 <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest w-full" />
                 <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Filter History..." className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest w-full" />
-                <button onClick={() => {setStartDate(''); setEndDate(''); setSearchTerm('');}} className="bg-slate-700 text-white p-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-600 transition-all w-full">Clear Filters</button>
+                <button onClick={() => { setStartDate(''); setEndDate(''); setSearchTerm(''); }} className="bg-slate-700 text-white p-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-600 transition-all w-full">Clear Filters</button>
             </div>
 
             {/* Mobile Card View */}
@@ -687,7 +697,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
                                         <div className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">{bet.subGameType}</div>
                                         <div className="text-[10px] text-slate-500 font-mono">{bet.numbers.join(', ')}</div>
                                     </td>
-                                    <td className="p-4 text-right font-mono text-white text-xs font-bold">{bet.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                    <td className="p-4 text-right font-mono text-white text-xs font-bold">{bet.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                 </tr>
                             ))}
                         </tbody>

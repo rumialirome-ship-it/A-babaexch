@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const { JWT_SECRET } = require('./config'); // FIX: shared secret with authMiddleware
 const authMiddleware = require('./authMiddleware');
 const { GoogleGenAI } = require('@google/genai');
 const database = require('./database');
@@ -18,7 +19,7 @@ let resetTimer = null;
 
 function scheduleNextGameReset() {
     if (resetTimer) clearTimeout(resetTimer);
-    
+
     const now = new Date();
     const resetHourUTC = RESET_HOUR_PKT - PKT_OFFSET_HOURS;
     let resetTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), resetHourUTC, 0, 5, 0));
@@ -28,28 +29,29 @@ function scheduleNextGameReset() {
     }
 
     const delay = resetTime.getTime() - now.getTime();
-    console.error('--- [SCHEDULER] Next reset at: ' + resetTime.toUTCString() + ' ---');
-    
+    // FIX: use console.log for informational messages, not console.error
+    console.log('--- [SCHEDULER] Next reset at: ' + resetTime.toUTCString() + ' ---');
+
     resetTimer = setTimeout(() => {
-        try { 
-            database.resetAllGames(); 
-        } catch (e) { 
-            console.error('--- [SCHEDULER] Error: ' + (e.message || e) + ' ---'); 
+        try {
+            database.resetAllGames();
+        } catch (e) {
+            console.error('--- [SCHEDULER] Error: ' + (e.message || e) + ' ---');
         }
         scheduleNextGameReset();
     }, delay);
 }
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 // --- AUTHENTICATION ROUTES ---
 app.post('/api/auth/login', (req, res) => {
     try {
         if (!req.body || !req.body.loginId) return res.status(400).json({ message: 'Input required.' });
         const result = database.findAccountForLogin(req.body.loginId);
-        if (result.account && result.account.password === req.body.password) {
+        // FIX: Use bcrypt-aware verifyPassword instead of plaintext comparison
+        if (result.account && database.verifyPassword(req.body.password, result.account.password)) {
             const table = result.role.toLowerCase() + 's';
             const fullAccount = database.findAccountById(result.account.id, table);
+            // FIX: sign with shared JWT_SECRET from config.js
             const token = jwt.sign({ id: result.account.id, role: result.role }, JWT_SECRET, { expiresIn: '1d' });
             return res.json({ token: token, role: result.role, account: fullAccount });
         }
@@ -66,7 +68,7 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
         const table = role.toLowerCase() + 's';
         const account = database.findAccountById(req.user.id, table);
         if (!account) return res.status(404).json({ message: 'User not found.' });
-        
+
         let extra = {};
         if (role === 'DEALER') {
             extra.users = database.findUsersByDealerId(req.user.id);
@@ -84,6 +86,19 @@ app.get('/api/auth/verify', authMiddleware, (req, res) => {
     }
 });
 
+// FIX: Wired up resetPassword route (was a stub in the frontend)
+app.post('/api/auth/reset-password', (req, res) => {
+    try {
+        const { loginId, contact, newPassword } = req.body;
+        if (!loginId || !contact || !newPassword) return res.status(400).json({ message: 'All fields required.' });
+        const success = database.updatePassword(loginId, contact, newPassword);
+        if (!success) return res.status(404).json({ message: 'Account not found or contact does not match.' });
+        res.json({ message: 'Password updated successfully.' });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+});
+
 // --- DATA ROUTES ---
 app.get('/api/games', (req, res) => {
     const data = database.getAllFromTable('games');
@@ -92,30 +107,30 @@ app.get('/api/games', (req, res) => {
 
 app.get('/api/user/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'USER') return res.sendStatus(403);
-    res.json({ 
-        account: database.findAccountById(req.user.id, 'users'), 
-        games: database.getAllFromTable('games'), 
-        bets: database.findBetsByUserId(req.user.id) 
+    res.json({
+        account: database.findAccountById(req.user.id, 'users'),
+        games: database.getAllFromTable('games'),
+        bets: database.findBetsByUserId(req.user.id)
     });
 });
 
 app.get('/api/dealer/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
-    res.json({ 
-        account: database.findAccountById(req.user.id, 'dealers'), 
-        users: database.findUsersByDealerId(req.user.id), 
-        bets: database.findBetsByDealerId(req.user.id) 
+    res.json({
+        account: database.findAccountById(req.user.id, 'dealers'),
+        users: database.findUsersByDealerId(req.user.id),
+        bets: database.findBetsByDealerId(req.user.id)
     });
 });
 
 app.get('/api/admin/data', authMiddleware, (req, res) => {
     if (req.user.role !== 'ADMIN') return res.sendStatus(403);
-    res.json({ 
-        account: database.findAccountById(req.user.id, 'admins'), 
-        dealers: database.getAllFromTable('dealers', true), 
-        users: database.getAllFromTable('users', true), 
-        games: database.getAllFromTable('games'), 
-        bets: database.getAllFromTable('bets') 
+    res.json({
+        account: database.findAccountById(req.user.id, 'admins'),
+        dealers: database.getAllFromTable('dealers', true),
+        users: database.getAllFromTable('users', true),
+        games: database.getAllFromTable('games'),
+        bets: database.getAllFromTable('bets')
     });
 });
 
@@ -176,10 +191,8 @@ app.post('/api/dealer/topup/user', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try {
         const { userId, amount } = req.body;
-        // Verify user belongs to this dealer
         const user = database.findUserByDealer(userId, req.user.id);
         if (!user) throw new Error('User not found in your network.');
-
         database.runInTransaction(() => {
             database.addLedgerEntry(req.user.id, 'DEALER', 'User funding: ' + userId, amount, 0);
             database.addLedgerEntry(userId, 'USER', 'Wallet refill', 0, amount);
@@ -192,10 +205,8 @@ app.post('/api/dealer/withdraw/user', authMiddleware, (req, res) => {
     if (req.user.role !== 'DEALER') return res.sendStatus(403);
     try {
         const { userId, amount } = req.body;
-        // Verify user belongs to this dealer
         const user = database.findUserByDealer(userId, req.user.id);
         if (!user) throw new Error('User not found in your network.');
-        
         database.runInTransaction(() => {
             database.addLedgerEntry(userId, 'USER', 'Withdrawal by Dealer', amount, 0);
             database.addLedgerEntry(req.user.id, 'DEALER', 'User withdrawal credit: ' + userId, 0, amount);
@@ -331,7 +342,8 @@ app.post('/api/user/ai-lucky-pick', authMiddleware, async (req, res) => {
         const ai = new GoogleGenAI({ apiKey: key });
         const { gameType, count = 5 } = req.body;
         const p = "Give " + count + " lucky nums for " + gameType + ". CSV format.";
-        const r = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: p });
+        // FIX: corrected model name — 'gemini-3-flash-preview' does not exist
+        const r = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: p });
         res.json({ luckyNumbers: r.text });
     } catch (e) { res.status(500).json({ message: "AI error" }); }
 });
@@ -341,13 +353,14 @@ const startServer = () => {
     try {
         database.connect();
         database.verifySchema();
-        
-        // NO MANDATORY RESET ON STARTUP. Data persists until 4 PM PKT scheduler.
-        
+        // FIX: Migrate any existing plaintext passwords to bcrypt hashes on startup.
+        database.migratePasswords();
+
         scheduleNextGameReset();
         const port = process.env.PORT || 3001;
         app.listen(port, () => {
-            console.error('>>> [CORE] ABABA Exchange active on port ' + port + ' <<<');
+            // FIX: use console.log for normal startup messages
+            console.log('>>> [CORE] ABABA Exchange active on port ' + port + ' <<<');
         });
     } catch (e) {
         console.error('--- [FATAL] Startup failed: ' + (e.message || e) + ' ---');

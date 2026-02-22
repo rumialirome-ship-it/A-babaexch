@@ -35,26 +35,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRole(null); setAccount(null); setToken(null); setVerifyData(null);
         localStorage.removeItem('authToken');
     }, []);
-    
-    const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
+
+    // FIX: fetchWithAuth no longer throws on non-2xx responses (except 401/403).
+    // It returns the raw Response so callers can inspect response.ok and read
+    // the body themselves. This prevents the "dead error handler" and "already 
+    // consumed body" bugs that occurred when fetchWithAuth threw eagerly.
+    const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
         const headers = new Headers(options.headers || {});
         const currentToken = token || localStorage.getItem('authToken');
         if (currentToken) headers.append('Authorization', `Bearer ${currentToken}`);
         if (!headers.has('Content-Type') && !(options.body instanceof FormData)) headers.append('Content-Type', 'application/json');
-        
+
         const response = await fetch(url, { ...options, headers });
-        if (response.status === 401 || response.status === 403) { logout(); throw new Error('Session expired'); }
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.message || `Request failed with status ${response.status}`);
+
+        // Session-ending statuses — log out immediately.
+        if (response.status === 401 || response.status === 403) {
+            logout();
+            throw new Error('Session expired');
         }
-        
+
+        // For all other statuses (including 4xx/5xx), return the response.
+        // Callers are responsible for checking response.ok and reading the body.
         return response;
     }, [token, logout]);
-    
+
+    // FIX: Verify only once on mount / token change. Removed the 2-second polling
+    // loop that was inside verify(), which caused:
+    //   - Race conditions when token changed (multiple intervals stacking up)
+    //   - Redundant load since App.tsx already polls /api/*/data every 3 seconds
     useEffect(() => {
-        let poll: ReturnType<typeof setInterval>;
         const verify = async () => {
             if (!token) { setLoading(false); return; }
             try {
@@ -65,18 +74,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setRole(data.role);
                 setVerifyData(data);
                 setLoading(false);
-
-                if (data.role !== Role.Admin) {
-                    poll = setInterval(async () => {
-                        const r = await fetch('/api/auth/verify', { headers: { 'Authorization': `Bearer ${token}` }});
-                        if (r.ok) { const d = await r.json(); setAccount(parseAccountDates(d.account)); }
-                        else logout();
-                    }, 2000);
-                }
             } catch (e) { logout(); setLoading(false); }
         };
         verify();
-        return () => poll && clearInterval(poll);
     }, [token, logout]);
 
     const login = async (id: string, pass: string) => {
@@ -85,16 +85,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ loginId: id, password: pass })
         });
-        if (!response.ok) throw new Error("Login failed");
+        // FIX: Read actual error message from server instead of generic "Login failed"
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.message || 'Login failed');
+        }
         const data = await response.json();
         localStorage.setItem('authToken', data.token);
         setAccount(parseAccountDates(data.account));
         setRole(data.role);
         setToken(data.token);
     };
-    
+
+    // FIX: resetPassword is now fully implemented, calling the backend endpoint.
+    const resetPassword = async (id: string, contact: string, newPass: string): Promise<string> => {
+        const response = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loginId: id, contact, newPassword: newPass })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || 'Reset failed');
+        return data.message || 'Password updated successfully.';
+    };
+
     return (
-        <AuthContext.Provider value={{ role, account, token, loading, verifyData, login, logout, setAccount, resetPassword: async (id, c, p) => "Reset logic stub", fetchWithAuth }}>
+        <AuthContext.Provider value={{ role, account, token, loading, verifyData, login, logout, setAccount, resetPassword, fetchWithAuth }}>
             {children}
         </AuthContext.Provider>
     );
