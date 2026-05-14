@@ -9,7 +9,7 @@ import * as database from "./server/database";
 import { authMiddleware, AuthRequest } from "./server/authMiddleware";
 
 const app = express();
-const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function startServer() {
@@ -17,13 +17,10 @@ async function startServer() {
   app.use(express.json());
 
   const isProd = process.env.NODE_ENV === "production" || !process.env.VITE_DEV_SERVER;
-
-  database.connect();
-  database.verifySchema();
   
   console.error('--- [SERVER] Initializing... ---');
   console.error('--- [SERVER] Port: ' + PORT + ' ---');
-  console.error('--- [SERVER] NODE_ENV: ' + (process.env.NODE_ENV || 'development') + ' ---');
+  console.error('--- [SERVER] NODE_ENV: ' + process.env.NODE_ENV + ' ---');
   console.error('--- [SERVER] Mode: ' + (isProd ? 'PRODUCTION' : 'DEVELOPMENT') + ' ---');
   console.error('--- [SERVER] CWD: ' + process.cwd() + ' ---');
 
@@ -381,6 +378,8 @@ async function startServer() {
     }
   }
 
+  database.connect();
+  database.verifySchema();
   scheduleNextGameReset();
 
   app.listen(PORT, "0.0.0.0", () => {
