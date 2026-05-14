@@ -1,10 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const Database = require('better-sqlite3');
-const { v4: uuidv4 } = require('uuid');
+import fs from 'fs';
+import path from 'path';
+import Database from 'better-sqlite3';
+import { v4 as uuidv4 } from 'uuid';
 
-const DB_PATH = path.join(__dirname, 'database.sqlite');
-const JSON_DB_PATH = path.join(__dirname, 'db.json');
+const DB_PATH = path.join(process.cwd(), 'database.sqlite');
+const JSON_DB_PATH = path.join(process.cwd(), 'backend', 'db.json');
 
 function main() {
     if (fs.existsSync(DB_PATH)) {
@@ -13,7 +13,7 @@ function main() {
     }
 
     if (!fs.existsSync(JSON_DB_PATH)) {
-        console.error('db.json not found. Cannot migrate data.');
+        console.error('db.json not found at ' + JSON_DB_PATH + '. Cannot migrate data.');
         process.exit(1);
     }
 
@@ -116,27 +116,27 @@ function main() {
             // Admin
             const admin = jsonData.admin;
             insertAdmin.run(admin.id, admin.name, admin.password, admin.wallet, JSON.stringify(admin.prizeRates), admin.avatarUrl);
-            admin.ledger.forEach(l => insertLedger.run(uuidv4(), admin.id, 'ADMIN', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+            admin.ledger.forEach((l: any) => insertLedger.run(uuidv4(), admin.id, 'ADMIN', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
             
             // Dealers
-            jsonData.dealers.forEach(dealer => {
+            jsonData.dealers.forEach((dealer: any) => {
                 insertDealer.run(dealer.id, dealer.name, dealer.password, dealer.area, dealer.contact, dealer.wallet, dealer.commissionRate, dealer.isRestricted ? 1 : 0, JSON.stringify(dealer.prizeRates), dealer.avatarUrl);
-                dealer.ledger.forEach(l => insertLedger.run(uuidv4(), dealer.id, 'DEALER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+                dealer.ledger.forEach((l: any) => insertLedger.run(uuidv4(), dealer.id, 'DEALER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
             });
 
             // Users
-            jsonData.users.forEach(user => {
+            jsonData.users.forEach((user: any) => {
                 insertUser.run(user.id, user.name, user.password, user.dealerId, user.area, user.contact, user.wallet, user.commissionRate, user.isRestricted ? 1 : 0, JSON.stringify(user.prizeRates), user.betLimits ? JSON.stringify(user.betLimits) : null, user.avatarUrl);
-                user.ledger.forEach(l => insertLedger.run(uuidv4(), user.id, 'USER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
+                user.ledger.forEach((l: any) => insertLedger.run(uuidv4(), user.id, 'USER', new Date(l.timestamp).toISOString(), l.description, l.debit, l.credit, l.balance));
             });
 
             // Games
-            jsonData.games.forEach(game => {
+            jsonData.games.forEach((game: any) => {
                 insertGame.run(game.id, game.name, game.drawTime, game.winningNumber || null, game.payoutsApproved ? 1 : 0);
             });
 
             // Bets
-            jsonData.bets.forEach(bet => {
+            jsonData.bets.forEach((bet: any) => {
                 insertBet.run(bet.id, bet.userId, bet.dealerId, bet.gameId, bet.subGameType, JSON.stringify(bet.numbers), bet.amountPerNumber, bet.totalAmount, new Date(bet.timestamp).toISOString());
             });
             
@@ -148,11 +148,9 @@ function main() {
         createSchema();
         migrateData();
         console.error('\nDatabase setup successful!');
-        console.error('You can now start the server.');
-        console.error('It is safe to delete the db.json file.');
     } catch (error) {
         console.error('An error occurred during database setup:', error);
-        fs.unlinkSync(DB_PATH); // Clean up failed DB creation
+        if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH); // Clean up failed DB creation
     } finally {
         db.close();
     }
