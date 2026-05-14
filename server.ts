@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import cors from "cors";
 import jwt from "jsonwebtoken";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import * as database from "./server/database";
@@ -15,9 +16,12 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  const isProd = process.env.NODE_ENV === "production" || !process.env.VITE_DEV_SERVER;
+  
   console.error('--- [SERVER] Initializing... ---');
   console.error('--- [SERVER] Port: ' + PORT + ' ---');
   console.error('--- [SERVER] Node Env: ' + process.env.NODE_ENV + ' ---');
+  console.error('--- [SERVER] Production Mode: ' + isProd + ' ---');
   console.error('--- [SERVER] CWD: ' + process.cwd() + ' ---');
 
   // --- AUTOMATIC GAME RESET SCHEDULER ---
@@ -344,7 +348,7 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  if (!isProd) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -352,10 +356,14 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    } else {
+      console.error('--- [SERVER] ERROR: dist folder not found. Please run npm run build. ---');
+    }
   }
 
   database.connect();
