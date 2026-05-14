@@ -1,0 +1,67 @@
+{
+  "admin": {
+    "id": "Guru",
+    "name": "Guru",
+    "password": "guru",
+    "wallet": 0,
+    "prizeRates": {
+      "twoDigit": 95,
+      "oneDigitOpen": 9.5,
+      "oneDigitClose": 9.5
+    },
+    "avatarUrl": "",
+    "ledger": []
+  },
+  "dealers": [
+    {
+      "id": "dealer1",
+      "name": "Super Dealer",
+      "password": "pass",
+      "area": "City",
+      "contact": "123",
+      "wallet": 10000,
+      "commissionRate": 10,
+      "isRestricted": false,
+      "prizeRates": {
+        "twoDigit": 90,
+        "oneDigitOpen": 9,
+        "oneDigitClose": 9
+      },
+      "avatarUrl": "",
+      "ledger": []
+    }
+  ],
+  "users": [
+    {
+      "id": "user1",
+      "name": "Lucky Player",
+      "password": "pass",
+      "dealerId": "dealer1",
+      "area": "Town",
+      "contact": "456",
+      "wallet": 1000,
+      "commissionRate": 5,
+      "isRestricted": false,
+      "prizeRates": {
+        "twoDigit": 85,
+        "oneDigitOpen": 8.5,
+        "oneDigitClose": 8.5
+      },
+      "betLimits": null,
+      "avatarUrl": "",
+      "ledger": []
+    }
+  ],
+  "games": [
+    { "id": "g1", "name": "Ali Baba", "drawTime": "18:15" },
+    { "id": "g2", "name": "GSM", "drawTime": "18:45" },
+    { "id": "g3", "name": "OYO TV", "drawTime": "20:15" },
+    { "id": "g4", "name": "LS1", "drawTime": "20:45" },
+    { "id": "g5", "name": "OLA TV", "drawTime": "21:15" },
+    { "id": "g6", "name": "AK", "drawTime": "21:55" },
+    { "id": "g7", "name": "LS2", "drawTime": "23:45" },
+    { "id": "g8", "name": "AKC", "drawTime": "00:55" },
+    { "id": "g9", "name": "LS3", "drawTime": "02:10" }
+  ],
+  "bets": []
+}
