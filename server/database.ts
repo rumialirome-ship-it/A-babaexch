@@ -152,6 +152,20 @@ export const getAllFromTable = (table: string, withLedger = false) => {
     }
 };
 
+export function getStats() {
+    try {
+        const counts = {
+            games: (db.prepare('SELECT COUNT(*) as c FROM games').get() as any).c,
+            users: (db.prepare('SELECT COUNT(*) as c FROM users').get() as any).c,
+            dealers: (db.prepare('SELECT COUNT(*) as c FROM dealers').get() as any).c,
+            bets: (db.prepare('SELECT COUNT(*) as c FROM bets').get() as any).c,
+        };
+        return counts;
+    } catch (e) {
+        return { error: 'Failed to fetch stats' };
+    }
+}
+
 export const runInTransaction = (fn: () => void) => db.transaction(fn)();
 
 export const addLedgerEntry = (accountId: string, accountType: string, description: string, debit: number, credit: number) => {

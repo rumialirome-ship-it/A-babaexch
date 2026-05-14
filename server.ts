@@ -9,7 +9,7 @@ import * as database from "./server/database";
 import { authMiddleware, AuthRequest } from "./server/authMiddleware";
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function startServer() {
@@ -20,8 +20,8 @@ async function startServer() {
   
   console.error('--- [SERVER] Initializing... ---');
   console.error('--- [SERVER] Port: ' + PORT + ' ---');
-  console.error('--- [SERVER] Node Env: ' + process.env.NODE_ENV + ' ---');
-  console.error('--- [SERVER] Production Mode: ' + isProd + ' ---');
+  console.error('--- [SERVER] NODE_ENV: ' + process.env.NODE_ENV + ' ---');
+  console.error('--- [SERVER] Mode: ' + (isProd ? 'PRODUCTION' : 'DEVELOPMENT') + ' ---');
   console.error('--- [SERVER] CWD: ' + process.cwd() + ' ---');
 
   // --- AUTOMATIC GAME RESET SCHEDULER ---
@@ -98,8 +98,19 @@ async function startServer() {
 
   // --- DATA ROUTES ---
   app.get('/api/games', (req, res) => {
-      const data = database.getAllFromTable('games');
-      res.json(data || []);
+      try {
+          const data = database.getAllFromTable('games');
+          console.error(`--- [SERVER] GET /api/games | Found: ${data ? data.length : 0} games ---`);
+          res.json(data || []);
+      } catch (e: any) {
+          console.error(`--- [SERVER] GET /api/games ERROR: ${e.message} ---`);
+          res.status(500).json({ error: 'DB Error' });
+      }
+  });
+
+  app.get('/api/health', (req, res) => {
+      const stats = database.getStats();
+      res.json({ status: 'ok', port: PORT, env: process.env.NODE_ENV, database: stats });
   });
 
   app.get('/api/user/data', authMiddleware, (req: AuthRequest, res) => {
@@ -358,7 +369,8 @@ async function startServer() {
     const distPath = path.join(process.cwd(), 'dist');
     if (fs.existsSync(distPath)) {
       app.use(express.static(distPath));
-      app.get('*all', (req, res) => {
+      // Fix for Express 5 wildcard error: Missing parameter name at index 1: *
+      app.get(/^\/(?!api).*/, (req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));
       });
     } else {
