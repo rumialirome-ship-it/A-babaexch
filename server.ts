@@ -89,7 +89,9 @@ async function startServer() {
 
   // --- DATA ROUTES ---
   app.get('/api/games', (req, res) => {
+      console.error('--- [SERVER] Request: GET /api/games ---');
       const data = database.getAllFromTable('games');
+      console.error('--- [SERVER] Response: ' + (data ? data.length : 0) + ' games found. ---');
       res.json(data || []);
   });
 
