@@ -44,10 +44,11 @@ function isGameOpen(drawTime: string) {
 
 export const connect = () => {
     try {
+        console.error('[DEBUG] initDatabase starting. DB_PATH: ' + DB_PATH);
         db = new Database(DB_PATH);
         db.pragma('journal_mode = WAL');
         db.pragma('foreign_keys = ON');
-        console.error('--- [DATABASE] Connection established. ---');
+        console.error('--- Database Opened at ' + DB_PATH + ' ---');
     } catch (error) {
         logError('DB_CONNECT', error);
         process.exit(1);
@@ -61,6 +62,8 @@ export const verifySchema = () => {
             console.error('--- [DATABASE] Critical: Schema missing. ---');
             process.exit(1);
         }
+        const gamesCount = (db.prepare('SELECT COUNT(*) as count FROM games').get() as any).count;
+        console.error('[DEBUG] Games count in existing DB: ' + gamesCount);
     } catch (error) {
         logError('SCHEMA_VERIFY', error);
         process.exit(1);
@@ -448,6 +451,30 @@ export const placeBulkBets = (uId: string, gId: string, groups: any[]) => {
         result = created;
     });
     return result;
+};
+
+export const updateWinningNumber = (gameId: string, newWinningNumber: string) => {
+    runInTransaction(() => {
+        const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId) as any;
+        if (!game) throw new Error('Game not found.');
+        if (game.payoutsApproved) throw new Error('Cannot update winning number after payouts are approved.');
+        
+        let finalNum = newWinningNumber;
+        if (game.name === 'AK') {
+            finalNum = newWinningNumber + '_';
+        }
+        
+        db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(finalNum, gameId);
+        
+        // If it's AKC, we might need to update the AK game too if it's currently in "_" state
+        if (game.name === 'AKC') {
+            const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get() as any;
+            if (akGame && akGame.winningNumber && akGame.winningNumber.endsWith('_')) {
+                db.prepare("UPDATE games SET winningNumber = ? WHERE name = 'AK'").run(akGame.winningNumber.slice(0, 1) + finalNum);
+            }
+        }
+    });
+    return findAccountById(gameId, 'games');
 };
 
 export const updateGameDrawTime = (id: string, time: string) => {
