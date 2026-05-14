@@ -44,7 +44,8 @@ function isGameOpen(drawTime: string) {
 
 export const connect = () => {
     try {
-        console.error('[DEBUG] initDatabase starting. DB_PATH: ' + DB_PATH);
+        console.error('--- [DATABASE] Initializing. CWD: ' + process.cwd() + ' ---');
+        console.error('--- [DATABASE] Path: ' + DB_PATH + ' ---');
         db = new Database(DB_PATH);
         db.pragma('journal_mode = WAL');
         db.pragma('foreign_keys = ON');

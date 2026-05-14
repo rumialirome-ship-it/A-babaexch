@@ -8,12 +8,17 @@ import * as database from "./server/database";
 import { authMiddleware, AuthRequest } from "./server/authMiddleware";
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function startServer() {
   app.use(cors());
   app.use(express.json());
+
+  console.error('--- [SERVER] Initializing... ---');
+  console.error('--- [SERVER] Port: ' + PORT + ' ---');
+  console.error('--- [SERVER] Node Env: ' + process.env.NODE_ENV + ' ---');
+  console.error('--- [SERVER] CWD: ' + process.cwd() + ' ---');
 
   // --- AUTOMATIC GAME RESET SCHEDULER ---
   const PKT_OFFSET_HOURS = 5;
