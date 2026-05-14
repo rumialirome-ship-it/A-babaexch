@@ -8,7 +8,7 @@ import * as database from "./server/database";
 import { authMiddleware, AuthRequest } from "./server/authMiddleware";
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function startServer() {
@@ -94,9 +94,7 @@ async function startServer() {
 
   // --- DATA ROUTES ---
   app.get('/api/games', (req, res) => {
-      console.error('--- [SERVER] Request: GET /api/games ---');
       const data = database.getAllFromTable('games');
-      console.error('--- [SERVER] Response: ' + (data ? data.length : 0) + ' games found. ---');
       res.json(data || []);
   });
 

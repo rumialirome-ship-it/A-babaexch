@@ -74,17 +74,13 @@ const AppContent: React.FC = () => {
 
     const fetchPublicData = useCallback(async () => {
         try {
-            console.error('--- [CLIENT] Fetching /api/games ---');
             const gamesResponse = await fetch('/api/games');
             if (gamesResponse.ok) {
                 const data = await gamesResponse.json();
-                console.error('--- [CLIENT] Games received:', data.length);
                 setGames(data);
-            } else {
-                console.error('--- [CLIENT] Games fetch failed:', gamesResponse.status);
             }
         } catch (e) {
-            console.error('--- [CLIENT] Games fetch error:', e);
+            console.error('Games fetch error:', e);
         }
     }, []);
 
