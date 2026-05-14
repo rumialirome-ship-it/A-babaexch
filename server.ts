@@ -8,7 +8,7 @@ import * as database from "./server/database";
 import { authMiddleware, AuthRequest } from "./server/authMiddleware";
 
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function startServer() {
