@@ -61,6 +61,7 @@ export const verifySchema = () => {
         const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'");
         if (!stmt.get()) {
             console.error('--- [DATABASE] Critical: Schema missing. ---');
+            console.error('--- [DATABASE] Please run: npm run setup-db ---');
             process.exit(1);
         }
         const gamesCount = (db.prepare('SELECT COUNT(*) as count FROM games').get() as any).count;

@@ -8,8 +8,22 @@ const JSON_DB_PATH = path.join(process.cwd(), 'backend', 'db.json');
 
 function main() {
     if (fs.existsSync(DB_PATH)) {
-        console.error('Database file already exists. Aborting setup.');
-        return;
+        const db = new Database(DB_PATH);
+        try {
+            const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='admins'");
+            if (stmt.get()) {
+                console.error('Database file already exists and is initialized. Aborting setup to prevent data loss.');
+                db.close();
+                return;
+            }
+            console.error('Database file exists but is not initialized. Proceeding with setup...');
+            db.close();
+            fs.unlinkSync(DB_PATH); // Delete empty/invalid DB to start fresh
+        } catch (e) {
+            console.error('Database file is corrupt or invalid. Recreating...');
+            db.close();
+            fs.unlinkSync(DB_PATH);
+        }
     }
 
     if (!fs.existsSync(JSON_DB_PATH)) {
