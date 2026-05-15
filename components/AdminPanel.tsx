@@ -49,20 +49,21 @@ const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entr
         });
     }, [entries, startDate, endDate]);
 
-    const inputClass = "w-full bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white font-sans";
+    const inputClass = "bg-slate-950/50 text-white p-3 rounded-2xl text-[10px] border border-white/5 font-black uppercase tracking-widest w-full focus:ring-2 focus:ring-cyan-500/50 appearance-none transition-all";
 
     return (
-        <div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">From Date</label>
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} />
+        <div className="space-y-6">
+            <div className="glass-morphism p-6 rounded-3xl border border-white/5 flex flex-col lg:flex-row gap-4 items-center shadow-2xl">
+                <div className="w-full lg:w-48 relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 z-10 pointer-events-none text-[8px] font-black uppercase">From</div>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass + " pl-12"} />
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">To Date</label>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass} />
+                <div className="w-full lg:w-48 relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 z-10 pointer-events-none text-[8px] font-black uppercase">To</div>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass + " pl-8"} />
                 </div>
-                <button onClick={() => { setStartDate(''); setEndDate(''); }} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Show All History</button>
+                <div className="flex-grow" />
+                <button onClick={() => { setStartDate(''); setEndDate(''); }} className="w-full lg:w-auto px-6 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest transition-all border border-white/10">Archive Filter</button>
             </div>
             <LedgerTable entries={filteredEntries} />
         </div>
@@ -78,60 +79,99 @@ const SortableHeader: React.FC<{
     className?: string;
 }> = ({ label, sortKey, currentSortKey, sortDirection, onSort, className }) => {
     const isActive = sortKey === currentSortKey;
-    const icon = isActive ? (sortDirection === 'asc' ? '▲' : '▼') : '';
     return (
-        <th className={`p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors ${className}`} onClick={() => onSort(sortKey)}>
+        <th className={`p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 cursor-pointer hover:text-white transition-colors group ${className}`} onClick={() => onSort(sortKey)}>
             <div className="flex items-center gap-2">
                 <span>{label}</span>
-                <span className="text-cyan-400">{icon}</span>
+                <span className={`transition-all duration-300 ${isActive ? 'text-cyan-400 opacity-100' : 'opacity-0 group-hover:opacity-30'}`}>
+                    {sortDirection === 'asc' ? <Icons.trendingUp className="w-3 h-3" /> : <Icons.trendingDown className="w-3 h-3" />}
+                </span>
             </div>
         </th>
     );
 };
 
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'cyan' }) => {
-    if (!isOpen) return null;
-    const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
+    const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-6xl' };
+    
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className={`bg-slate-900/80 rounded-lg shadow-2xl w-full border border-${themeColor}-500/30 ${sizeClasses[size]} flex flex-col max-h-[90vh]`}>
-                <div className="flex justify-between items-center p-5 border-b border-slate-700 flex-shrink-0">
-                    <h3 className={`text-lg font-bold text-${themeColor}-400 uppercase tracking-widest`}>{title}</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white">{Icons.close}</button>
+        <AnimatePresence>
+            {isOpen && (
+                <div className="fixed inset-0 flex items-center justify-center z-[100] p-4 lg:p-12">
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={onClose}
+                        className="absolute inset-0 bg-slate-950/90 backdrop-blur-xl"
+                    />
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                        className={`bg-slate-950/50 rounded-[2.5rem] shadow-2xl w-full border border-white/10 ${sizeClasses[size]} flex flex-col relative overflow-hidden glass-morphism`}
+                    >
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-3xl rounded-full -mr-32 -mt-32" />
+                        
+                        <div className="flex justify-between items-center p-8 border-b border-white/5 relative z-10">
+                            <div>
+                                <h3 className={`text-xl font-black text-${themeColor}-400 uppercase tracking-tighter`}>{title}</h3>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Authorized Admin Command</p>
+                            </div>
+                            <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-xl transition-all text-slate-500 hover:text-white">
+                                <Icons.close className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="p-8 overflow-y-auto custom-scrollbar relative z-10 max-h-[75vh]">
+                            {children}
+                        </div>
+                    </motion.div>
                 </div>
-                <div className="p-6 overflow-y-auto">{children}</div>
-            </div>
-        </div>
+            )}
+        </AnimatePresence>
     );
 };
 
 const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
-    <div className="bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
-        <div className="overflow-y-auto max-h-[60vh] mobile-scroll-x">
-            <table className="w-full text-left min-w-[600px]">
-                <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
+    <div className="glass-morphism rounded-3xl overflow-hidden border border-white/5 shadow-2xl relative">
+        <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left min-w-[700px]">
+                <thead className="bg-slate-950/50 border-b border-white/5">
                     <tr>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Debit</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Credit</th>
-                        <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance</th>
+                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Timestamp</th>
+                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Operation Desc</th>
+                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Debit Out</th>
+                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Credit In</th>
+                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Net Reserve</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
-                    {Array.isArray(entries) && [...entries].reverse().map(entry => (
-                        <tr key={entry.id} className="hover:bg-cyan-500/10 text-sm transition-colors">
-                            <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp.toLocaleString()}</td>
-                            <td className="p-3 text-white">{entry.description}</td>
-                            <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
-                            <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
-                            <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
-                        </tr>
+                <tbody className="divide-y divide-white/5">
+                    {Array.isArray(entries) && [...entries].reverse().map((entry, idx) => (
+                        <motion.tr 
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.015 }}
+                            key={entry.id} 
+                            className="hover:bg-white/[0.02] transition-colors group"
+                        >
+                            <td className="p-5 text-[10px] text-slate-500 font-mono group-hover:text-slate-300 uppercase">{entry.timestamp.toLocaleString()}</td>
+                            <td className="p-5">
+                                <div className="text-xs font-bold text-white tracking-tight">{entry.description}</div>
+                                <div className="text-[8px] text-slate-600 font-mono truncate max-w-[150px] uppercase">{entry.id}</div>
+                            </td>
+                            <td className="p-5 text-right text-red-500/80 font-mono text-xs font-bold">{entry.debit > 0 ? `-${entry.debit.toFixed(2)}` : '-'}</td>
+                            <td className="p-5 text-right text-emerald-500/80 font-mono text-xs font-bold">{entry.credit > 0 ? `+${entry.credit.toFixed(2)}` : '-'}</td>
+                            <td className="p-5 text-right font-black text-white font-mono text-sm tracking-tighter">Rs {entry.balance.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        </motion.tr>
                     ))}
                      {(!Array.isArray(entries) || entries.length === 0) && (
                         <tr>
-                            <td colSpan={5} className="p-8 text-center text-slate-500">
-                                No ledger entries found.
+                            <td colSpan={5} className="p-24 text-center">
+                                <div className="flex flex-col items-center gap-4 opacity-30">
+                                    <Icons.bookOpen className="w-12 h-12 text-slate-500" />
+                                    <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.2em]">Zero activity discovered in sector.</p>
+                                </div>
                             </td>
                         </tr>
                     )}
@@ -227,72 +267,90 @@ const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers
         }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     }, [bets, games, users, dealers, startDate, endDate, searchTerm]);
 
-    const inputClass = "bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white w-full";
+    const inputClass = "bg-slate-950/50 text-white p-3 rounded-2xl text-[10px] border border-white/5 font-black uppercase tracking-widest w-full focus:ring-2 focus:ring-emerald-500/50 appearance-none transition-all";
 
     return (
-        <div>
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                <h3 className="text-xl font-semibold text-white">Winner Detail Sheet</h3>
-                <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded text-xs text-emerald-400 font-bold uppercase tracking-widest">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    Real-time Winner Tracking
+        <div className="space-y-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Winner Resolution Matrix</h3>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Real-time Payout tracking Interface</p>
+                </div>
+                <div className="px-4 py-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    LIVE FEED ENABLED
                 </div>
             </div>
 
-            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">From Date</label>
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} />
+            <div className="glass-morphism p-6 rounded-3xl border border-white/5 flex flex-col lg:flex-row gap-4 items-center shadow-2xl">
+                <div className="w-full lg:w-48 relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 z-10 pointer-events-none text-[8px] font-black uppercase">From</div>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass + " pl-12"} />
                 </div>
-                <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">To Date</label>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass} />
+                <div className="w-full lg:w-48 relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 z-10 pointer-events-none text-[8px] font-black uppercase">To</div>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass + " pl-8"} />
                 </div>
-                <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Search User/Game</label>
-                    <input type="text" placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={inputClass} />
+                <div className="w-full flex-grow relative group">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors uppercase tracking-widest text-[8px]">{Icons.search}</span>
+                    <input type="text" placeholder="Filter by user or game node..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={inputClass + " pl-12 py-3.5"} />
                 </div>
-                <button onClick={() => { setStartDate(getTodayDateString()); setEndDate(getTodayDateString()); setSearchTerm(''); }} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-md transition-colors">Clear</button>
+                <button onClick={() => { setStartDate(getTodayDateString()); setEndDate(getTodayDateString()); setSearchTerm(''); }} className="w-full lg:w-auto px-6 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest transition-all border border-white/10">Purge Filter</button>
             </div>
 
-            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto mobile-scroll-x">
-                    <table className="w-full text-left min-w-[1000px]">
-                        <thead className="bg-slate-800/50">
+            <div className="glass-morphism rounded-3xl overflow-hidden border border-white/5 shadow-2xl relative">
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left min-w-[1200px]">
+                        <thead className="bg-slate-950/50 border-b border-white/5">
                             <tr>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Time</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Result</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Winner Pick</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Prize</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Status</th>
+                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Event Time</th>
+                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Player Node</th>
+                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Dealer Origin</th>
+                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Market</th>
+                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Result</th>
+                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Stake</th>
+                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right text-emerald-500">Total Payout</th>
+                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Protocol Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800">
+                        <tbody className="divide-y divide-white/5">
                             {winnerData.length === 0 ? (
-                                <tr><td colSpan={9} className="p-10 text-center text-slate-500">No winners found for this selection.</td></tr>
+                                <tr><td colSpan={8} className="p-24 text-center">
+                                    <div className="flex flex-col items-center gap-4 opacity-30">
+                                        <Icons.search className="w-12 h-12 text-slate-600" />
+                                        <p className="text-slate-600 font-black text-[10px] uppercase tracking-[0.2em]">Zero winners detected in current sector.</p>
+                                    </div>
+                                </td></tr>
                             ) : winnerData.map((record, i) => (
-                                <tr key={i} className="hover:bg-emerald-500/5 transition-colors">
-                                    <td className="p-4 text-xs text-slate-400 whitespace-nowrap">{record.timestamp.toLocaleString()}</td>
-                                    <td className="p-4 font-bold text-white">{record.userName}</td>
-                                    <td className="p-4 text-slate-400">{record.dealerName}</td>
-                                    <td className="p-4 text-cyan-400 font-semibold">{record.gameName}</td>
-                                    <td className="p-4 font-mono text-emerald-400 text-lg">{record.winningNumber}</td>
-                                    <td className="p-4">
-                                        <div className="text-xs text-slate-500">{record.subGameType}</div>
-                                        <div className="text-white font-mono">{record.winningNumbersInBet.join(', ')}</div>
+                                <motion.tr 
+                                    initial={{ opacity: 0, y: 5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: i * 0.02 }}
+                                    key={i} 
+                                    className="hover:bg-white/[0.02] transition-colors group"
+                                >
+                                    <td className="p-5 text-[10px] text-slate-500 font-mono group-hover:text-slate-300 uppercase">{record.timestamp.toLocaleString()}</td>
+                                    <td className="p-5">
+                                        <div className="text-sm font-black text-white tracking-tight">{record.userName}</div>
+                                        <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{record.subGameType}</div>
                                     </td>
-                                    <td className="p-4 text-right font-mono text-slate-300">{record.stake.toFixed(0)}</td>
-                                    <td className="p-4 text-right font-mono text-emerald-400 font-bold">{record.payout.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                    <td className="p-4 text-center">
-                                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${record.payoutApproved ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                                            {record.payoutApproved ? 'Paid' : 'Pending'}
+                                    <td className="p-5">
+                                        <div className="text-xs font-bold text-slate-400">{record.dealerName}</div>
+                                    </td>
+                                    <td className="p-5 text-xs font-black text-white uppercase tracking-tighter">{record.gameName}</td>
+                                    <td className="p-5 text-center">
+                                        <div className="font-mono text-emerald-400 text-lg font-black bg-emerald-500/5 py-1 px-3 rounded-lg inline-block">{record.winningNumber}</div>
+                                        <div className="text-[9px] text-white/40 font-mono mt-1 opacity-50">{record.winningNumbersInBet.join(', ')}</div>
+                                    </td>
+                                    <td className="p-5 text-right font-mono text-slate-500 text-xs font-black">{record.stake.toFixed(0)}</td>
+                                    <td className="p-5 text-right font-mono text-emerald-400 font-black text-lg group-hover:scale-105 transition-transform origin-right">Rs {record.payout.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                    <td className="p-5 text-center">
+                                        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] ${record.payoutApproved ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
+                                            <div className={`w-1 h-1 rounded-full ${record.payoutApproved ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                                            {record.payoutApproved ? 'Liquidated' : 'Pending Verification'}
                                         </span>
                                     </td>
-                                </tr>
+                                </motion.tr>
                             ))}
                         </tbody>
                     </table>
@@ -343,6 +401,7 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value, type, checked } = e.target;
@@ -363,7 +422,7 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const newPassword = dealer ? password : formData.password;
         if (newPassword && newPassword !== confirmPassword) { alert("New passwords do not match."); return; }
@@ -375,74 +434,133 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
             return;
         }
 
-        const finalData: Dealer = {
-            id: formData.id,
-            name: formData.name,
-            password: newPassword ? newPassword : (dealer?.password || ''),
-            area: formData.area,
-            contact: formData.contact,
-            wallet: Number(formData.wallet) || 0,
-            commissionRate: Number(formData.commissionRate) || 0,
-            isRestricted: dealer?.isRestricted ?? false,
-            prizeRates: {
-                oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
-                oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
-                twoDigit: Number(formData.prizeRates.twoDigit) || 0,
-            },
-            ledger: [], // CRITICAL: Strip ledger to prevent 413 error
-            avatarUrl: formData.avatarUrl,
-        };
+        setIsLoading(true);
+        try {
+            const finalData: Dealer = {
+                id: formData.id,
+                name: formData.name,
+                password: newPassword ? newPassword : (dealer?.password || ''),
+                area: formData.area,
+                contact: formData.contact,
+                wallet: Number(formData.wallet) || 0,
+                commissionRate: Number(formData.commissionRate) || 0,
+                isRestricted: dealer?.isRestricted ?? false,
+                prizeRates: {
+                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
+                },
+                ledger: [], 
+                avatarUrl: formData.avatarUrl,
+            };
 
-        onSave(finalData, dealer?.id);
+            await onSave(finalData, dealer?.id);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const displayPassword = dealer ? password : formData.password;
-    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
+    const inputClass = "w-full bg-slate-950/50 p-3.5 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-white text-xs font-bold transition-all placeholder:text-slate-700 shadow-inner";
+    const labelClass = "text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1 block";
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
-            <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Dealer Login ID</label>
-                <input type="text" name="id" value={formData.id} onChange={handleChange} placeholder="Dealer Login ID (e.g., dealer02)" className={inputClass} required />
-            </div>
-            <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Dealer Display Name" className={inputClass} required />
-            <div className="relative">
-                <input type={isPasswordVisible ? 'text' : 'password'} name="password" value={displayPassword} onChange={dealer ? (e) => setPassword(e.target.value) : handleChange} placeholder={dealer ? "New Password (optional)" : "Password"} className={inputClass + " pr-10"} required={!dealer} />
-                <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">{isPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
-            </div>
-            {displayPassword && (
-                 <div className="relative">
-                    <input type={isConfirmPasswordVisible ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm New Password" className={inputClass + " pr-10"} required />
-                    <button type="button" onClick={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white">{isConfirmPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
-                </div>
-            )}
-            <input type="url" name="avatarUrl" value={formData.avatarUrl || ''} onChange={handleChange} placeholder="Avatar URL (optional)" className={inputClass} />
-            <input type="text" name="area" value={formData.area} onChange={handleChange} placeholder="Area / Region" className={inputClass} />
-            <input type="text" name="contact" value={formData.contact} onChange={handleChange} placeholder="Contact Number" className={inputClass} />
-             {!dealer && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Initial Wallet Amount (PKR)</label>
-                  <input type="text" name="wallet" value={formData.wallet} onChange={handleChange} placeholder="e.g. 10000" className={inputClass} />
-                </div>
-            )}
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Dealer Commission Rate (%)</label>
-              <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} placeholder="e.g. 5" className={inputClass} />
-              <p className="text-[10px] text-slate-500 mt-1 italic">Sets how much this dealer earns from their system stake.</p>
-            </div>
-            
-            <fieldset className="border border-slate-600 p-4 rounded-md">
-                <legend className="px-2 text-sm font-medium text-slate-400">Prize Rates</legend>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div><label className="text-xs">2 Digit</label><input type="text" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
-                    <div><label className="text-xs">1D Open</label><input type="text" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
-                    <div><label className="text-xs">1D Close</label><input type="text" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
-                </div>
-            </fieldset>
+        <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                   <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                            <Icons.user className="w-5 h-5" />
+                        </div>
+                        <h4 className="text-xs font-black text-white uppercase tracking-widest">Network Identity</h4>
+                    </div>
 
-            <div className="flex justify-end space-x-3 pt-4">
-                <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Save Dealer</button>
+                    <div>
+                        <label className={labelClass}>Login Identity (Unique ID)</label>
+                        <input type="text" name="id" value={formData.id} onChange={handleChange} placeholder="e.g. DEALER_01" className={inputClass} required disabled={!!dealer} />
+                    </div>
+                    <div>
+                        <label className={labelClass}>Operational Name</label>
+                        <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Legal or Alias Name" className={inputClass} required />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="relative">
+                            <label className={labelClass}>{dealer ? 'Force Reset Password' : 'Access Key'}</label>
+                            <input type={isPasswordVisible ? "text" : "password"} name="password" value={dealer ? password : formData.password} onChange={e => { if(dealer) setPassword(e.target.value); else handleChange(e as any); }} className={inputClass + " pr-10"} placeholder="••••••••" required={!dealer} />
+                            <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-3 top-9 text-slate-500 hover:text-white transition-colors">
+                                {isPasswordVisible ? <Icons.trendingDown className="w-4 h-4" /> : <Icons.trendingUp className="w-4 h-4" />}
+                            </button>
+                        </div>
+                        <div className="relative">
+                            <label className={labelClass}>Confirm Key</label>
+                            <input type={isConfirmPasswordVisible ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass + " pr-10"} placeholder="••••••••" required={(dealer && password.length > 0) || !dealer} />
+                             <button type="button" onClick={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} className="absolute right-3 top-9 text-slate-500 hover:text-white transition-colors">
+                                {isConfirmPasswordVisible ? <Icons.trendingDown className="w-4 h-4" /> : <Icons.trendingUp className="w-4 h-4" />}
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className={labelClass}>Avatar Origin (URL)</label>
+                        <input type="url" name="avatarUrl" value={formData.avatarUrl || ''} onChange={handleChange} placeholder="https://..." className={inputClass} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className={labelClass}>Operational Sector (Area)</label>
+                            <input type="text" name="area" value={formData.area} onChange={handleChange} placeholder="Region" className={inputClass} />
+                        </div>
+                        <div>
+                            <label className={labelClass}>Contact Uplink</label>
+                            <input type="text" name="contact" value={formData.contact} onChange={handleChange} placeholder="Phone" className={inputClass} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                            <Icons.trendingUp className="w-5 h-5" />
+                        </div>
+                        <h4 className="text-xs font-black text-white uppercase tracking-widest">Protocol Rates</h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 bg-white/5 p-6 rounded-3xl border border-white/5">
+                        {!dealer && (
+                            <div>
+                                <label className={labelClass}>Initial Reserve Load (PKR)</label>
+                                <input type="text" name="wallet" value={formData.wallet} onChange={handleChange} placeholder="e.g. 50000" className={inputClass} />
+                            </div>
+                        )}
+                        <div>
+                            <label className={labelClass}>Operational Commission (%)</label>
+                            <input type="number" name="commissionRate" value={formData.commissionRate} onChange={handleChange} className={inputClass} step="0.1" />
+                            <p className="text-[9px] text-slate-500 mt-2 italic font-bold uppercase tracking-widest pl-1">Earnings derived from total stake flow.</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
+                            <div>
+                                <label className={labelClass}>1-Digit Prize (X)</label>
+                                <input type="number" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} />
+                            </div>
+                            <div>
+                                <label className={labelClass}>2-Digit Prize (X)</label>
+                                <input type="number" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex gap-4 pt-8 border-t border-white/5">
+                <button type="button" onClick={onCancel} className="px-8 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest transition-all border border-white/10">Abort</button>
+                <motion.button 
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit" 
+                    disabled={isLoading}
+                    className="flex-grow py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2"
+                >
+                    {isLoading ? <div className="w-4 h-4 border-2 border-slate-950/20 border-t-slate-950 animate-spin rounded-full" /> : <Icons.checkCircle className="w-4 h-4" />}
+                    {dealer ? 'Comit Identity Changes' : 'Initialize Dealer Node'}
+                </motion.button>
             </div>
         </form>
     );
@@ -456,10 +574,19 @@ const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Pro
             oneDigitOpen: admin.prizeRates.oneDigitOpen.toString(),
             oneDigitClose: admin.prizeRates.oneDigitClose.toString(),
             twoDigit: admin.prizeRates.twoDigit.toString(),
-        }
+        },
+        marqueeText: admin.marqueeText || '',
+        gameDurations: {
+            AKC: (admin.gameDurations?.AKC || 0).toString(),
+            FDS: (admin.gameDurations?.FDS || 0).toString(),
+            GDS: (admin.gameDurations?.GDS || 0).toString(),
+            RDS: (admin.gameDurations?.RDS || 0).toString(),
+        },
+        maxNumbers: (admin.maxNumbers || 10).toString(),
     });
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         if (name.includes('.')) {
             const [parent, child] = name.split('.');
@@ -475,63 +602,115 @@ const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Pro
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({
-            ...admin,
-            name: formData.name,
-            avatarUrl: formData.avatarUrl,
-            ledger: [], // CRITICAL: Strip ledger to prevent 413 error
-            prizeRates: {
-                oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
-                oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
-                twoDigit: Number(formData.prizeRates.twoDigit) || 0,
-            }
-        });
+        setIsLoading(true);
+        try {
+            await onSave({
+                ...admin,
+                name: formData.name,
+                avatarUrl: formData.avatarUrl,
+                ledger: [], 
+                marqueeText: formData.marqueeText,
+                maxNumbers: parseInt(formData.maxNumbers),
+                gameDurations: {
+                    AKC: parseInt(formData.gameDurations.AKC),
+                    FDS: parseInt(formData.gameDurations.FDS),
+                    GDS: parseInt(formData.gameDurations.GDS),
+                    RDS: parseInt(formData.gameDurations.RDS),
+                },
+                prizeRates: {
+                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
+                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
+                    twoDigit: Number(formData.prizeRates.twoDigit) || 0,
+                }
+            });
+            alert("System Global Parameters Updated & Synchronized.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none text-white";
+    const inputClass = "w-full bg-slate-950/50 p-4 rounded-2xl border border-white/10 focus:ring-2 focus:ring-cyan-500/50 text-white text-xs font-bold transition-all shadow-inner";
+    const labelClass = "text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1 block";
 
     return (
-        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 max-w-2xl mx-auto">
-            <h3 className="text-xl font-bold text-white mb-6 uppercase tracking-widest border-b border-slate-700 pb-2 flex items-center gap-2">
-                System Global Settings
+        <div className="glass-morphism p-8 rounded-[2.5rem] border border-white/5 max-w-4xl mx-auto shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 blur-3xl rounded-full -mr-32 -mt-32" />
+            
+            <h3 className="text-2xl font-black text-white mb-8 uppercase tracking-tighter flex items-center gap-3">
+                <Icons.settings className="w-8 h-8 text-cyan-400" />
+                Global Architecture
             </h3>
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">System Display Name</label>
+
+            <form onSubmit={handleSubmit} className="space-y-10 relative z-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                        <label className={labelClass}>Operational Identity (Name)</label>
                         <input type="text" name="name" value={formData.name} onChange={handleChange} className={inputClass} />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Avatar URL</label>
+                    <div className="space-y-4">
+                        <label className={labelClass}>Platform Visual Root (Avatar URL)</label>
                         <input type="url" name="avatarUrl" value={formData.avatarUrl} onChange={handleChange} className={inputClass} />
                     </div>
                 </div>
-                
-                <fieldset className="border border-slate-600 p-5 rounded-lg bg-slate-900/30">
-                    <legend className="px-2 text-sm font-bold text-cyan-400 uppercase tracking-tighter">Master Prize Ceilings (Multipliers)</legend>
-                    <p className="text-xs text-slate-500 mb-4 italic">Note: These values set the absolute maximum prize potential for the entire system.</p>
+
+                <div className="p-8 rounded-3xl bg-white/5 border border-white/5 space-y-8">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                            <Icons.trendingUp className="w-5 h-5" />
+                        </div>
+                        <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Prize Distribution Logic</h4>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                         <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">2 Digit</label>
+                            <label className={labelClass}>2-Digit X</label>
                             <input type="text" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} />
                         </div>
                         <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">1D Open</label>
+                            <label className={labelClass}>1D Open X</label>
                             <input type="text" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} />
                         </div>
                         <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">1D Close</label>
+                            <label className={labelClass}>1D Close X</label>
                             <input type="text" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} />
                         </div>
                     </div>
-                </fieldset>
+                </div>
 
-                <div className="flex justify-end pt-4">
-                    <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-black py-3 px-10 rounded-md transition-all uppercase tracking-widest shadow-lg shadow-cyan-900/20">
-                        Update Global Settings
-                    </button>
+                <div className="space-y-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400">
+                            <Icons.clock className="w-5 h-5" />
+                        </div>
+                        <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Market Temporal Constraints</h4>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 rounded-3xl bg-white/5 border border-white/5">
+                        {Object.keys(formData.gameDurations).map(game => (
+                            <div key={game}>
+                                <label className={labelClass}>{game} (MIN)</label>
+                                <input type="number" name={`gameDurations.${game}`} value={formData.gameDurations[game as keyof typeof formData.gameDurations]} onChange={handleChange} className={inputClass} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <label className={labelClass}>Broadcasting Message (Marquee)</label>
+                    <textarea name="marqueeText" value={formData.marqueeText} onChange={handleChange as any} placeholder="ENTER SYSTEM ANNOUNCEMENT..." className={inputClass + " h-24 resize-none pt-4"} />
+                </div>
+
+                <div className="flex justify-center pt-4">
+                    <motion.button 
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        disabled={isLoading}
+                        type="submit" 
+                        className="w-full py-5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-cyan-500/40 transition-all flex items-center justify-center gap-3"
+                    >
+                        {isLoading ? <div className="w-5 h-5 border-3 border-slate-950/20 border-t-slate-950 animate-spin rounded-full" /> : <Icons.checkCircle className="w-5 h-5" />}
+                        {isLoading ? 'SYNCING ARCHITECTURE...' : 'COMMIT PROTOCOL CHANGES'}
+                    </motion.button>
                 </div>
             </form>
         </div>
@@ -540,47 +719,65 @@ const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Pro
 
 const DealerTransactionForm: React.FC<{ 
     dealers: Dealer[]; 
-    onTransaction: (dealerId: string, amount: number) => void; 
+    onTransaction: (dealerId: string, amount: number) => Promise<void>; 
     onCancel: () => void;
     type: 'Top-Up' | 'Withdrawal';
 }> = ({ dealers, onTransaction, onCancel, type }) => {
     const [selectedDealerId, setSelectedDealerId] = useState<string>('');
     const [amount, setAmount] = useState<number | ''>('');
+    const [isLoading, setIsLoading] = useState(false);
     const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
     
-    const inputClass = `w-full bg-slate-800 p-2.5 rounded-md border border-slate-600 focus:ring-2 focus:ring-${themeColor}-500 focus:outline-none text-white`;
+    const inputClass = `w-full bg-slate-950/50 p-4 rounded-2xl border border-white/10 focus:ring-2 focus:ring-${themeColor}-500/50 text-white text-sm font-bold shadow-inner transition-all appearance-none`;
+    const labelClass = "block text-[10px] uppercase font-black text-slate-500 mb-1.5 tracking-widest ml-1";
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedDealerId || !amount || amount <= 0) {
             alert(`Please select a dealer and enter a valid positive amount.`);
             return;
         }
-        const dealerName = dealers.find(d => d.id === selectedDealerId)?.name || 'the selected dealer';
-        const confirmationAction = type === 'Top-Up' ? 'to' : 'from';
-        if (window.confirm(`Are you sure you want to ${type.toLowerCase()} PKR ${amount} ${confirmationAction} ${dealerName}'s wallet?`)) {
-            onTransaction(selectedDealerId, Number(amount));
+        setIsLoading(true);
+        try {
+            await onTransaction(selectedDealerId, Number(amount));
+        } finally {
+            setIsLoading(false);
         }
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4 text-slate-200">
-            <div>
-                <label htmlFor="dealer-select" className="block text-sm font-medium text-slate-400 mb-1">Select Dealer</label>
-                <select id="dealer-select" value={selectedDealerId} onChange={(e) => setSelectedDealerId(e.target.value)} className={inputClass} required>
-                    <option value="" disabled>-- Choose a dealer --</option>
-                    {dealers.map(dealer => <option key={dealer.id} value={dealer.id}>{dealer.name} ({dealer.id})</option>)}
-                </select>
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+                <div>
+                    <label className={labelClass}>Network Origin (Dealer)</label>
+                    <select value={selectedDealerId} onChange={(e) => setSelectedDealerId(e.target.value)} className={inputClass} required>
+                        <option value="" disabled>-- Choose Dealer Node --</option>
+                        {Array.isArray(dealers) && dealers.map(d => (
+                            <option key={d.id} value={d.id}>
+                                {d.name} ({d.id}) — Pool: Rs {d.wallet.toLocaleString()}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label className={labelClass}>Financial Volume (PKR)</label>
+                    <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 font-mono text-xs font-black">RS</span>
+                        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="0.00" className={inputClass + " pl-10"} min="1" required />
+                    </div>
+                </div>
             </div>
-            <div>
-                <label htmlFor="amount-input" className="block text-sm font-medium text-slate-400 mb-1">Amount (PKR)</label>
-                <input id="amount-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="e.g. 5000" className={inputClass} min="1" required />
-            </div>
-            <div className="flex justify-end space-x-3 pt-4">
-                <button type="button" onClick={onCancel} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors">Cancel</button>
-                <button type="submit" className={`font-bold py-2 px-4 rounded-md transition-colors text-white ${type === 'Top-Up' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
-                    {type}
-                </button>
+            <div className="flex gap-4 pt-6">
+                <button type="button" onClick={onCancel} className="flex-1 bg-white/5 hover:bg-white/10 text-white font-black py-4 rounded-2xl text-[10px] transition-all uppercase tracking-widest border border-white/10">Abort</button>
+                <motion.button 
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={isLoading}
+                    type="submit" 
+                    className={`flex-grow font-black py-4 rounded-2xl text-slate-950 text-[10px] shadow-xl transition-all uppercase tracking-[0.2em] shadow-${themeColor}-500/20 bg-${themeColor}-500 hover:bg-${themeColor}-400`}
+                >
+                    {isLoading ? 'Processing...' : `Confirm ${type}`}
+                </motion.button>
             </div>
         </form>
     );
@@ -588,63 +785,101 @@ const DealerTransactionForm: React.FC<{
 
 const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }> = ({ summary, admin }) => {
     if (!summary) {
-        return <div className="text-center p-8 text-slate-400">Loading financial summary...</div>;
+        return (
+            <div className="p-24 text-center">
+                <div className="w-16 h-16 border-4 border-white/5 border-t-cyan-500 rounded-full animate-spin mx-auto mb-6" />
+                <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest animate-pulse">Syncing Global Financial Ledger...</p>
+            </div>
+        );
     }
 
-    const SummaryCard: React.FC<{ title: string; value: number; color: string }> = ({ title, value, color }) => (
-        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-            <p className="text-sm text-slate-400 uppercase tracking-wider">{title}</p>
-            <p className={`text-3xl font-bold font-mono ${color}`}>{value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-        </div>
+    const SummaryCard: React.FC<{ title: string; value: number; color: string; icon: React.ReactNode }> = ({ title, value, color, icon }) => (
+        <motion.div 
+            whileHover={{ y: -5 }}
+            className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-2xl relative overflow-hidden group"
+        >
+            <div className={`absolute top-0 right-0 w-24 h-24 ${color.replace('text-', 'bg-')}/5 blur-3xl rounded-full -mr-12 -mt-12 transition-all group-hover:scale-150`} />
+            <div className="relative z-10">
+                <div className="flex items-center gap-4 mb-4">
+                    <div className={`p-3 rounded-2xl ${color.replace('text-', 'bg-')}/10 ${color}`}>
+                        {icon}
+                    </div>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{title}</p>
+                </div>
+                <p className={`text-3xl font-black font-mono tracking-tighter ${color}`}>
+                    Rs {value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Protocol Verification</span>
+                    <Icons.checkCircle className="w-3 h-3 text-emerald-500/50" />
+                </div>
+            </div>
+        </motion.div>
     );
     
     return (
-        <div>
-            <h3 className="text-xl font-semibold text-white mb-4">Financial Dashboard</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <SummaryCard title="System Wallet" value={admin.wallet} color="text-cyan-400" />
-                <SummaryCard title="Total Bets Placed" value={summary.totals.totalStake} color="text-white" />
-                <SummaryCard title="Total Prize Payouts" value={summary.totals.totalPayouts} color="text-amber-400" />
-                <SummaryCard title="Net System Profit" value={summary.totals.netProfit} color={summary.totals.netProfit >= 0 ? "text-green-400" : "text-red-400"} />
+        <div className="space-y-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <SummaryCard title="System Reserve" value={admin.wallet} color="text-cyan-400" icon={<Icons.wallet className="w-5 h-5" />} />
+                <SummaryCard title="Flow Stake" value={summary.totals.totalStake} color="text-white" icon={<Icons.trendingUp className="w-5 h-5" />} />
+                <SummaryCard title="Payout Commit" value={summary.totals.totalPayouts} color="text-amber-400" icon={<Icons.checkCircle className="w-5 h-5" />} />
+                <SummaryCard title="Net Yield" value={summary.totals.netProfit} color={summary.totals.netProfit >= 0 ? "text-emerald-400" : "text-red-400"} icon={<Icons.trendingUp className="w-5 h-5" />} />
             </div>
 
-            <h3 className="text-xl font-semibold text-white mb-4">Game-by-Game Breakdown</h3>
-            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto mobile-scroll-x">
-                    <table className="w-full text-left min-w-[700px]">
-                        <thead className="bg-slate-800/50">
-                            <tr>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Payouts</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Dealer Profit</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Commissions</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Net Profit</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {summary.games.map(game => (
-                                <tr key={game.gameName} className="hover:bg-cyan-500/10 transition-colors">
-                                    <td className="p-4 font-medium text-white">{game.gameName} <span className="text-xs text-slate-400">({game.winningNumber})</span></td>
-                                    <td className="p-4 text-right font-mono text-white">{game.totalStake.toFixed(2)}</td>
-                                    <td className="p-4 text-right font-mono text-amber-400">{game.totalPayouts.toFixed(2)}</td>
-                                    <td className="p-4 text-right font-mono text-emerald-400">{game.totalDealerProfit.toFixed(2)}</td>
-                                    <td className="p-4 text-right font-mono text-sky-400">{game.totalCommissions.toFixed(2)}</td>
-                                    <td className={`p-4 text-right font-mono font-bold ${game.netProfit >= 0 ? "text-green-400" : "text-red-400"}`}>{game.netProfit.toFixed(2)}</td>
+            <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Market Performance Matrix</h3>
+                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-white/5 px-4 py-1.5 rounded-full border border-white/5">Segmented Game Audit</div>
+                </div>
+                
+                <div className="glass-morphism rounded-[2rem] overflow-hidden border border-white/5 shadow-2xl">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left min-w-[900px]">
+                            <thead className="bg-slate-950/50 border-b border-white/5">
+                                <tr>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Market Node</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Inflow Stake</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Payouts</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Dealer Margin</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Commissions</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Net Liquidity</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                        <tfoot className="bg-slate-800/50 border-t-2 border-slate-600">
-                            <tr className="font-bold text-white">
-                                <td className="p-4 text-sm uppercase">Grand Total</td>
-                                <td className="p-4 text-right font-mono">{summary.totals.totalStake.toFixed(2)}</td>
-                                <td className="p-4 text-right font-mono text-amber-300">{summary.totals.totalPayouts.toFixed(2)}</td>
-                                <td className="p-4 text-right font-mono text-emerald-300">{summary.totals.totalDealerProfit.toFixed(2)}</td>
-                                <td className="p-4 text-right font-mono text-sky-300">{summary.totals.totalCommissions.toFixed(2)}</td>
-                                <td className={`p-4 text-right font-mono ${summary.totals.netProfit >= 0 ? "text-green-300" : "text-red-300"}`}>{summary.totals.netProfit.toFixed(2)}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {summary.games.map((game, idx) => (
+                                    <motion.tr 
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        key={game.gameName} 
+                                        className="hover:bg-white/[0.02] transition-colors group"
+                                    >
+                                        <td className="p-6">
+                                            <div className="text-sm font-black text-white tracking-tight">{game.gameName}</div>
+                                            <div className="text-[9px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-md inline-block uppercase mt-1">Result: {game.winningNumber}</div>
+                                        </td>
+                                        <td className="p-6 text-right font-mono text-white text-xs">{game.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        <td className="p-6 text-right font-mono text-amber-500/80 text-xs">{game.totalPayouts.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        <td className="p-6 text-right font-mono text-emerald-500/80 text-xs">{game.totalDealerProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        <td className="p-6 text-right font-mono text-sky-500/80 text-xs">{game.totalCommissions.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                        <td className={`p-6 text-right font-mono font-black text-sm ${game.netProfit >= 0 ? "text-emerald-400" : "text-red-400"} group-hover:scale-110 transition-transform origin-right`}>
+                                            {game.netProfit >= 0 ? '+' : ''}{game.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </td>
+                                    </motion.tr>
+                                ))}
+                            </tbody>
+                            <tfoot className="bg-slate-950/80 border-t-2 border-white/10">
+                                <tr className="font-black text-white">
+                                    <td className="p-6 text-[10px] uppercase tracking-[0.2em] font-black">Architecture Aggregate</td>
+                                    <td className="p-6 text-right font-mono text-sm">{summary.totals.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                    <td className="p-6 text-right font-mono text-sm text-amber-400">{summary.totals.totalPayouts.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                    <td className="p-6 text-right font-mono text-sm text-emerald-400">{summary.totals.totalDealerProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                    <td className="p-6 text-right font-mono text-sm text-sky-400">{summary.totals.totalCommissions.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                    <td className={`p-6 text-right font-mono text-base ${summary.totals.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>{summary.totals.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -654,6 +889,7 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
 const NumberLimitsView: React.FC = () => {
     const [limits, setLimits] = useState<NumberLimit[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
     const [formState, setFormState] = useState<Omit<NumberLimit, 'id'>>({
         gameType: '2-digit',
         numberValue: '',
@@ -669,7 +905,6 @@ const NumberLimitsView: React.FC = () => {
             setLimits(data);
         } catch (error) {
             console.error("Failed to fetch number limits:", error);
-            alert("Failed to fetch number limits.");
         } finally {
             setIsLoading(false);
         }
@@ -684,7 +919,7 @@ const NumberLimitsView: React.FC = () => {
         
         let processedValue = value;
         if (name === 'numberValue') {
-            processedValue = value.replace(/\D/g, ''); // Digits only
+            processedValue = value.replace(/\D/g, ''); 
             const maxLength = formState.gameType === '2-digit' ? 2 : 1;
             if (processedValue.length > maxLength) {
                 processedValue = processedValue.slice(0, maxLength);
@@ -701,16 +936,17 @@ const NumberLimitsView: React.FC = () => {
         e.preventDefault();
         const { gameType, numberValue, limitAmount } = formState;
         if (!numberValue.trim() || limitAmount <= 0) {
-            alert("Please enter a valid number and a limit amount greater than zero.");
+            alert("Enter valid target and value nodes.");
             return;
         }
 
         const maxLength = formState.gameType === '2-digit' ? 2 : 1;
         if (numberValue.length !== maxLength) {
-             alert(`Number must be ${maxLength} digit(s) long for this game type.`);
+             alert(`Target must be exactly ${maxLength} digits.`);
             return;
         }
 
+        setIsSaving(true);
         try {
             await fetchWithAuth('/api/admin/number-limits', {
                 method: 'POST',
@@ -718,86 +954,115 @@ const NumberLimitsView: React.FC = () => {
             });
             setFormState({ gameType: '2-digit', numberValue: '', limitAmount: 0 });
             await fetchLimits();
-        } catch (error) {
-            console.error("Failed to save limit:", error);
-            alert("Failed to save limit.");
+        } finally {
+            setIsSaving(false);
         }
     };
     
     const handleDelete = async (limitId: number) => {
-        if (window.confirm("Are you sure you want to delete this limit?")) {
+        if (window.confirm("Purge this limit restriction from protocol?")) {
             try {
                 await fetchWithAuth(`/api/admin/number-limits/${limitId}`, { method: 'DELETE' });
                 await fetchLimits();
             } catch (error) {
-                console.error("Failed to delete limit:", error);
-                alert("Failed to delete limit.");
+                console.error("Deletion failed:", error);
             }
         }
     };
 
-    const inputClass = "bg-slate-800 p-2 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full";
+    const inputClass = "bg-slate-950/50 text-white p-4 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-xs font-bold transition-all shadow-inner";
+    const labelClass = "text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1 block";
+
     const gameTypeLabels: Record<NumberLimit['gameType'], string> = {
-        '1-open': '1 Digit Open',
-        '1-close': '1 Digit Close',
-        '2-digit': '2 Digit',
+        '1-open': 'One Digit Open',
+        '1-close': 'One Digit Close',
+        '2-digit': 'Standard 2-Digit',
     };
 
     return (
-        <div>
-            <h3 className="text-xl font-semibold text-white mb-4">Manage Number Betting Limits</h3>
-            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
-                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Game Type</label>
+        <div className="space-y-10">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Stake Restriction Controls</h3>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Configure Global Number Hard-Limits</p>
+                </div>
+            </div>
+
+            <div className="glass-morphism p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-500/5 blur-3xl rounded-full -mr-24 -mt-24" />
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end relative z-10">
+                    <div className="space-y-4">
+                        <label className={labelClass}>Market Node Type</label>
                         <select name="gameType" value={formState.gameType} onChange={handleInputChange} className={inputClass}>
                             <option value="2-digit">2 Digit</option>
                             <option value="1-open">1 Digit Open</option>
                             <option value="1-close">1 Digit Close</option>
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Number</label>
-                        <input type="text" name="numberValue" value={formState.numberValue} onChange={handleInputChange} className={inputClass} placeholder={formState.gameType === '2-digit' ? 'e.g., 42' : 'e.g., 7'} />
+                    <div className="space-y-4">
+                        <label className={labelClass}>Target Number</label>
+                        <input type="text" name="numberValue" value={formState.numberValue} onChange={handleInputChange} className={inputClass} placeholder={formState.gameType === '2-digit' ? '00-99' : '0-9'} />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Max Stake (PKR)</label>
-                        <input type="number" name="limitAmount" value={formState.limitAmount || ''} onChange={handleInputChange} className={inputClass} placeholder="e.g., 5000" />
+                    <div className="space-y-4">
+                        <label className={labelClass}>Max System exposure (PKR)</label>
+                        <input type="number" name="limitAmount" value={formState.limitAmount || ''} onChange={handleInputChange} className={inputClass} placeholder="5000" />
                     </div>
-                    <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Set Limit</button>
+                    <motion.button 
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        disabled={isSaving}
+                        type="submit" 
+                        className="h-[52px] bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-cyan-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                        {isSaving ? <div className="w-4 h-4 border-2 border-slate-950/20 border-t-slate-950 animate-spin rounded-full" /> : <Icons.checkCircle className="w-4 h-4" />}
+                        Apply protocol limit
+                    </motion.button>
                 </form>
             </div>
-             <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                 <div className="overflow-x-auto mobile-scroll-x">
-                     <table className="w-full text-left min-w-[600px]">
-                         <thead className="bg-slate-800/50">
-                             <tr>
-                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game Type</th>
-                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Number</th>
-                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Limit Amount (PKR)</th>
-                                 <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
-                             </tr>
-                         </thead>
-                         <tbody className="divide-y divide-slate-800">
+
+            <div className="glass-morphism rounded-3xl overflow-hidden border border-white/5 shadow-2xl">
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left min-w-[800px]">
+                        <thead className="bg-slate-950/50 border-b border-white/5">
+                            <tr>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Node Architecture</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Defined Target</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Max Capacity (PKR)</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Operational Protocol</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
                             {isLoading ? (
-                                <tr><td colSpan={4} className="p-8 text-center text-slate-400">Loading limits...</td></tr>
+                                <tr><td colSpan={4} className="p-24 text-center">
+                                    <div className="w-10 h-10 border-4 border-white/5 border-t-cyan-500 rounded-full animate-spin mx-auto" />
+                                </td></tr>
                             ) : limits.length === 0 ? (
-                                <tr><td colSpan={4} className="p-8 text-center text-slate-500">No limits set.</td></tr>
+                                <tr><td colSpan={4} className="p-24 text-center">
+                                    <p className="text-slate-600 font-black text-[10px] uppercase tracking-widest opacity-30">No active restrictions in global buffer.</p>
+                                </td></tr>
                             ) : (
-                                limits.map(limit => (
-                                     <tr key={limit.id} className="hover:bg-cyan-500/10 transition-colors">
-                                         <td className="p-4 text-white">{gameTypeLabels[limit.gameType]}</td>
-                                         <td className="p-4 font-mono text-cyan-300 text-lg">{limit.numberValue}</td>
-                                         <td className="p-4 font-mono text-white">{limit.limitAmount.toLocaleString()}</td>
-                                         <td className="p-4">
-                                             <button onClick={() => handleDelete(limit.id)} className="bg-red-500/20 hover:bg-red-500/40 text-red-300 font-semibold py-1 px-3 rounded-md text-sm transition-colors">Delete</button>
+                                limits.map((limit, idx) => (
+                                     <motion.tr 
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        key={limit.id} 
+                                        className="hover:bg-white/[0.02] transition-colors group"
+                                     >
+                                         <td className="p-6 text-xs font-black text-white uppercase tracking-widest">{gameTypeLabels[limit.gameType]}</td>
+                                         <td className="p-6">
+                                             <div className="font-mono text-cyan-400 text-2xl font-black bg-cyan-500/5 px-4 py-1 rounded-xl inline-block border border-cyan-500/10">{limit.numberValue}</div>
                                          </td>
-                                     </tr>
+                                         <td className="p-6 font-mono font-black text-white text-lg">Rs {limit.limitAmount.toLocaleString()}</td>
+                                         <td className="p-6 text-center">
+                                             <button onClick={() => handleDelete(limit.id)} className="px-5 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest transition-all border border-red-500/10 active:scale-95">Purge</button>
+                                         </td>
+                                     </motion.tr>
                                 ))
                             )}
-                         </tbody>
-                     </table>
-                 </div>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
@@ -864,72 +1129,119 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
         } as BookingData;
     }, [selectedGameId, bets, users, dealers]);
     
-    const BreakdownCard: React.FC<{ title: string; data: { name: string; amount: number }[] | { type: string; amount: number }[]; total: number; children?: React.ReactNode }> = ({ title, data, total }) => (
-        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 h-full flex flex-col">
-            <h4 className="text-lg font-semibold text-white mb-3">{title}</h4>
-            <div className="flex-grow overflow-y-auto pr-2 space-y-2">
-                {data.length === 0 ? <p className="text-slate-500 text-sm">No data yet.</p> : data.map((item, index) => {
-                    const name = 'name' in item ? item.name : item.type;
-                    const amount = item.amount;
-                    const percentage = total > 0 ? (amount / total) * 100 : 0;
-                    return (
-                        <div key={index} className="text-sm">
-                            <div className="flex justify-between items-center mb-1">
-                                <span className="text-slate-300 truncate pr-2">{name}</span>
-                                <span className="font-mono text-white font-semibold">{amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                            </div>
-                            <div className="w-full bg-slate-700 rounded-full h-1.5">
-                                <div className="bg-cyan-500 h-1.5 rounded-full" style={{ width: `${percentage}%` }}></div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
+    const BreakdownCard: React.FC<{ title: string; data: { name: string; amount: number }[] | { type: string; amount: number }[]; total: number; variant: 'cyan' | 'emerald' | 'amber' }> = ({ title, data, total, variant }) => {
+        const colors = {
+            cyan: { bg: 'bg-cyan-500', glow: 'shadow-cyan-500/20', text: 'text-cyan-400' },
+            emerald: { bg: 'bg-emerald-500', glow: 'shadow-emerald-500/20', text: 'text-emerald-400' },
+            amber: { bg: 'bg-amber-500', glow: 'shadow-amber-500/20', text: 'text-amber-400' }
+        }[variant];
 
-    return (
-        <div>
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-white">Live Game Booking Breakdown</h3>
-                <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded text-[10px] text-emerald-400 font-bold uppercase tracking-widest animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                    Live Updates Active
+        return (
+            <div className="glass-morphism p-6 rounded-[2rem] border border-white/5 h-full flex flex-col shadow-xl">
+                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${colors.bg}`} />
+                    {title}
+                </h4>
+                <div className="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-4">
+                    {data.length === 0 ? (
+                        <p className="text-slate-600 font-black text-[9px] uppercase tracking-widest text-center py-8">Awaiting Node Data...</p>
+                    ) : data.map((item, index) => {
+                        const name = 'name' in item ? item.name : item.type;
+                        const amount = item.amount;
+                        const percentage = total > 0 ? (amount / total) * 100 : 0;
+                        return (
+                            <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: '100%' }}
+                                key={index} 
+                                className="space-y-1.5"
+                            >
+                                <div className="flex justify-between items-end mb-1 px-1">
+                                    <span className="text-[10px] font-black text-white/80 truncate uppercase tracking-tighter">{name}</span>
+                                    <span className={`font-mono ${colors.text} font-black text-xs`}>Rs {amount.toLocaleString()}</span>
+                                </div>
+                                <div className="w-full bg-slate-900 rounded-full h-1 relative overflow-hidden">
+                                    <motion.div 
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${percentage}%` }}
+                                        className={`${colors.bg} h-full rounded-full transition-all duration-1000 ease-out`} 
+                                    />
+                                </div>
+                                <div className="flex justify-end">
+                                    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{percentage.toFixed(1)}% LOAD</span>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
                 </div>
             </div>
-            <div className="bg-slate-800/50 p-3 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
+        );
+    };
+
+    return (
+        <div className="space-y-8">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Live Traffic Analyzer</h3>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Real-time Game Booking Breakdown</p>
+                </div>
+                <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-2xl text-[10px] text-emerald-400 font-black uppercase tracking-widest animate-pulse transition-all">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50"></span>
+                    Operational Sync Active
+                </div>
+            </div>
+
+            <div className="glass-morphism p-4 rounded-[2rem] flex items-center gap-3 overflow-x-auto custom-scrollbar border border-white/5 scroll-px-4">
                 {ongoingGames.length > 0 ? ongoingGames.map(game => (
-                    <button key={game.id} onClick={() => setSelectedGameId(game.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${selectedGameId === game.id ? 'bg-slate-700 text-cyan-400 shadow-lg' : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'}`}>
-                        <img src={game.logo} alt={game.name} className="w-5 h-5 rounded-full" />
+                    <motion.button 
+                        whileHover={{ y: -2 }}
+                        whileTap={{ scale: 0.95 }}
+                        key={game.id} 
+                        onClick={() => setSelectedGameId(game.id)} 
+                        className={`flex items-center gap-3 py-3 px-6 text-[10px] font-black rounded-2xl transition-all uppercase tracking-widest border whitespace-nowrap ${selectedGameId === game.id ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xl shadow-cyan-500/20' : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-white'}`}
+                    >
+                        <img src={game.logo} alt={game.name} className="w-5 h-5 rounded-lg object-cover shadow-lg" />
                         <span>{game.name}</span>
-                    </button>
-                )) : <p className="text-slate-400 p-2">No games are currently open for betting.</p>}
+                    </motion.button>
+                )) : <p className="text-slate-600 font-black text-[10px] p-4 uppercase tracking-[0.2em] w-full text-center">Global Market nodes Offline / Closed.</p>}
             </div>
 
             {!selectedGameId ? (
-                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700">
-                    <p className="text-slate-400">Please select an ongoing game to view its live booking status.</p>
+                <div className="text-center p-24 glass-morphism rounded-[3rem] border border-white/5 shadow-2xl">
+                    <Icons.activity className="w-16 h-16 text-slate-700 mx-auto mb-6 opacity-20" />
+                    <p className="text-slate-500 font-black text-xs uppercase tracking-[0.3em]">Awaiting node selection for traffic audit...</p>
                 </div>
             ) : bookingData ? (
-                <div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-                            <p className="text-sm text-slate-400 uppercase tracking-wider">Total Bets</p>
-                            <p className="text-4xl font-bold font-mono text-white">{bookingData.totalBets.toLocaleString()}</p>
+                <div className="space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="glass-morphism p-8 rounded-[2.5rem] border border-white/5 shadow-2xl flex items-center justify-between group overflow-hidden relative">
+                             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full -mr-16 -mt-16" />
+                             <div className="relative z-10">
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Transaction Volume</p>
+                                <p className="text-5xl font-black font-mono text-white tracking-tighter group-hover:scale-110 transition-transform origin-left">{bookingData.totalBets.toLocaleString()}</p>
+                             </div>
+                             <Icons.moveUpRight className="w-12 h-12 text-slate-800" />
                         </div>
-                         <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-                            <p className="text-sm text-slate-400 uppercase tracking-wider">Total Stake</p>
-                            <p className="text-4xl font-bold font-mono text-cyan-400">{bookingData.totalStake.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                         <div className="glass-morphism p-8 rounded-[2.5rem] border border-white/5 shadow-2xl flex items-center justify-between group overflow-hidden relative">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 blur-3xl rounded-full -mr-16 -mt-16" />
+                            <div className="relative z-10">
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Operational Stake</p>
+                                <p className="text-5xl font-black font-mono text-cyan-400 tracking-tighter group-hover:scale-110 transition-transform origin-left">Rs {bookingData.totalStake.toLocaleString(undefined, {maximumFractionDigits: 0})}</p>
+                            </div>
+                             <Icons.trendingUp className="w-12 h-12 text-cyan-950/30" />
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <BreakdownCard title="Booking by Dealer" data={bookingData.dealerData} total={bookingData.totalStake} />
-                        <BreakdownCard title="Booking by Type" data={bookingData.typeData} total={bookingData.totalStake} />
-                        <BreakdownCard title="Top Players (by Stake)" data={bookingData.userData} total={bookingData.totalStake} />
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[500px]">
+                        <BreakdownCard title="Regional Dealer Load" data={bookingData.dealerData} total={bookingData.totalStake} variant="cyan" />
+                        <BreakdownCard title="Sub-Market Flow" data={bookingData.typeData} total={bookingData.totalStake} variant="emerald" />
+                        <BreakdownCard title="Primary User Nodes" data={bookingData.userData} total={bookingData.totalStake} variant="amber" />
                     </div>
                 </div>
             ) : (
-                 <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 text-slate-500">No betting data available for this game yet.</div>
+                 <div className="text-center p-24 glass-morphism rounded-[3rem] border border-white/5 shadow-2xl transition-all">
+                     <Icons.activity className="w-12 h-12 text-slate-700 mx-auto mb-6 animate-pulse" />
+                     <p className="text-slate-500 font-black text-xs uppercase tracking-[0.2em]">Zero engagement detected in selected market buffer.</p>
+                 </div>
             )}
         </div>
     );
@@ -942,7 +1254,6 @@ const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: nu
     const handleCopy = () => {
         if (data.length === 0 || copyStatus !== 'Copy') return;
 
-        // Clean format: "Number, rs Amount" per line as requested
         const copyText = data
             .map(item => `${item.number}, rs ${item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}`)
             .join('\n');
@@ -957,55 +1268,53 @@ const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: nu
         });
     };
 
-    const getButtonContent = () => {
-        switch(copyStatus) {
-            case 'Copied!':
-                return (
-                    <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        {copyStatus}
-                    </>
-                );
-            case 'Failed!':
-                 return (
-                    <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                        {copyStatus}
-                    </>
-                );
-            default: // 'Copy'
-                return (
-                    <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                        {copyStatus}
-                    </>
-                );
-        }
-    };
-
     return (
-        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 flex flex-col">
-            <div className="flex justify-between items-center mb-3">
-                <h4 className={`text-lg font-semibold ${color}`}>{title}</h4>
-                <button
+        <div className="glass-morphism p-6 rounded-[2rem] border border-white/5 flex flex-col shadow-xl h-full">
+            <div className="flex justify-between items-center mb-6 px-1">
+                <h4 className={`text-sm font-black uppercase tracking-widest ${color}`}>{title}</h4>
+                <motion.button
+                    whileTap={{ scale: 0.95 }}
                     onClick={handleCopy}
                     disabled={data.length === 0}
-                    className="flex items-center bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-1 px-3 rounded-md text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center bg-white/5 hover:bg-white/10 text-[10px] text-slate-400 font-black uppercase tracking-widest py-2 px-4 rounded-xl transition-all disabled:opacity-50 border border-white/5"
                 >
-                    {getButtonContent()}
-                </button>
+                    {copyStatus === 'Copied!' ? (
+                         <>
+                            <Icons.checkCircle className="h-3 w-3 mr-2 text-emerald-400" />
+                            Synchronized
+                        </>
+                    ) : (
+                        <>
+                            <Icons.activity className="h-3 w-3 mr-2" />
+                            {copyStatus === 'Copy' ? 'Copy Dump' : copyStatus}
+                        </>
+                    )}
+                </motion.button>
             </div>
-            <div className="flex-grow overflow-y-auto pr-2 space-y-2 max-h-[60vh]">
+            <div className="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-3 max-h-[500px]">
                 {data.length === 0 ? (
-                    <p className="text-slate-500 text-sm text-center pt-4">No data for this selection.</p>
+                    <div className="flex flex-col items-center justify-center h-48 opacity-20">
+                         <Icons.activity className="w-8 h-8 text-slate-500 mb-3" />
+                         <p className="text-slate-500 font-black text-[9px] uppercase tracking-widest">No Buffer Data</p>
+                    </div>
                 ) : (
                     data.map((item, index) => (
-                        <div key={index} className="flex justify-between items-baseline text-sm p-3 rounded-md bg-slate-900/50 transition-all hover:bg-slate-800/70 border-l-4 border-transparent hover:border-cyan-500">
-                            <span className={`font-mono text-2xl font-bold ${color}`}>{item.number}</span>
-                            <span className="font-mono text-white font-semibold text-lg">
+                        <motion.div 
+                            initial={{ x: -10, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            transition={{ delay: index * 0.02 }}
+                            key={index} 
+                            className="flex justify-between items-center p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 transition-all group"
+                        >
+                            <div className="flex items-center gap-4">
+                                <span className={`font-mono text-2xl font-black ${color} group-hover:scale-125 transition-transform origin-left`}>{item.number}</span>
+                                <div className="h-4 w-px bg-white/5" />
+                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Target</span>
+                            </div>
+                            <span className="font-mono text-white font-black text-sm">
                                 Rs {item.stake.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                             </span>
-                        </div>
+                        </motion.div>
                     ))
                 )}
             </div>
@@ -1099,59 +1408,88 @@ const NumberSummaryView: React.FC<{
     }, [finalSummary, games]);
 
     return (
-        <div>
-            <h3 className="text-xl font-semibold text-white mb-4">Number-wise Stake Summary</h3>
-            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Date</label>
-                        <input type="date" name="date" value={filters.date} onChange={handleFilterChange} className={`${inputClass} font-sans`} />
+        <div className="space-y-10">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Number-wise Stake Audit</h3>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Global Aggregate Analysis</p>
+                </div>
+            </div>
+
+            <div className="glass-morphism p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-500/5 blur-3xl rounded-full -mr-24 -mt-24" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-end relative z-10">
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1 block">Archive Date</label>
+                        <input type="date" name="date" value={filters.date} onChange={handleFilterChange} className="bg-slate-950/50 text-white p-4 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-xs font-bold transition-all shadow-inner w-full" />
                     </div>
-                     <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Game</label>
-                        <select name="gameId" value={filters.gameId} onChange={handleFilterChange} className={inputClass}>
-                            <option value="">All Games</option>
+                     <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1 block">Market Node</label>
+                        <select name="gameId" value={filters.gameId} onChange={handleFilterChange} className="bg-slate-950/50 text-white p-4 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-xs font-bold transition-all shadow-inner w-full">
+                            <option value="">All Markets</option>
                             {games.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Dealer</label>
-                        <select name="dealerId" value={filters.dealerId} onChange={handleFilterChange} className={inputClass}>
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1 block">Origin Dealer</label>
+                        <select name="dealerId" value={filters.dealerId} onChange={handleFilterChange} className="bg-slate-950/50 text-white p-4 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-xs font-bold transition-all shadow-inner w-full">
                             <option value="">All Dealers</option>
                             {dealers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Filter by Number</label>
-                        <input type="text" value={numberFilter} onChange={e => setNumberFilter(e.target.value)} placeholder="e.g., ^5, 5$, 5" className={inputClass} />
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1 block">Number Filter</label>
+                        <input type="text" value={numberFilter} onChange={e => setNumberFilter(e.target.value)} placeholder="^5, 5$, 5" className="bg-slate-950/50 text-white p-4 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-xs font-bold transition-all shadow-inner w-full" />
                     </div>
-                    <button onClick={clearFilters} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded-md transition-colors h-fit">Clear Filters</button>
+                    <motion.button 
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={clearFilters} 
+                        className="h-[52px] bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl transition-all border border-white/5 flex items-center justify-center gap-2"
+                    >
+                        Purge Filter
+                    </motion.button>
                 </div>
             </div>
 
             {gameBreakdownData.length > 0 && (
-                <div className="mb-8">
-                    <h4 className="text-lg font-semibold text-cyan-400 mb-4 uppercase tracking-wider">Game Stake Breakdown</h4>
+                <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-cyan-500" />
+                        Market Stake Distribution
+                    </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-4">
                         {gameBreakdownData.map((item, idx) => (
-                            <div key={idx} className="bg-slate-800/50 p-3 rounded-lg border border-slate-700 text-center flex flex-col justify-center">
-                                <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-1 truncate">{item.name}</p>
-                                <p className="text-lg font-bold font-mono text-white">Rs {item.stake.toLocaleString()}</p>
-                            </div>
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: idx * 0.03 }}
+                                key={idx} 
+                                className="glass-morphism p-4 rounded-2xl border border-white/5 text-center flex flex-col justify-center relative overflow-hidden group"
+                            >
+                                <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <p className="text-[8px] text-slate-500 font-black uppercase tracking-widest mb-1 truncate relative z-10">{item.name}</p>
+                                <p className="text-sm font-black font-mono text-white relative z-10">Rs {item.stake.toLocaleString()}</p>
+                            </motion.div>
                         ))}
                     </div>
                 </div>
             )}
 
             {isLoading && !summary ? (
-                <div className="text-center p-8 text-slate-400">Loading summary...</div>
+                <div className="text-center p-24">
+                     <div className="w-10 h-10 border-4 border-white/5 border-t-cyan-500 rounded-full animate-spin mx-auto" />
+                </div>
             ) : !finalSummary ? (
-                <div className="text-center p-8 bg-slate-800/50 rounded-lg border border-slate-700 text-slate-500">Please select a date to view the summary.</div>
+                <div className="text-center p-24 glass-morphism rounded-[3rem] border border-white/5 shadow-2xl opacity-30">
+                    <Icons.search className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+                    <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest">Select Archive Date for Audit</p>
+                </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <SummaryColumn title="2 Digit Stakes" data={finalSummary.twoDigit} color="text-cyan-400" />
-                    <SummaryColumn title="1 Digit Open" data={finalSummary.oneDigitOpen} color="text-amber-400" />
-                    <SummaryColumn title="1 Digit Close" data={finalSummary.oneDigitClose} color="text-rose-400" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <SummaryColumn title="2-Digit Node Stakes" data={finalSummary.twoDigit} color="text-cyan-400" />
+                    <SummaryColumn title="1-Digit Open Buffer" data={finalSummary.oneDigitOpen} color="text-amber-400" />
+                    <SummaryColumn title="1-Digit Close Buffer" data={finalSummary.oneDigitClose} color="text-rose-400" />
                 </div>
             )}
         </div>
@@ -1393,390 +1731,539 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
   };
 
   const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: Icons.chartBar },
-    { id: 'dealers', label: 'Dealers', icon: Icons.userGroup }, 
-    { id: 'users', label: 'Users', icon: Icons.clipboardList },
-    { id: 'games', label: 'Games', icon: Icons.gamepad },
-    { id: 'winners', label: 'Winners', icon: Icons.star },
-    { id: 'liveBooking', label: 'Live Booking', icon: Icons.sparkles },
-    { id: 'numberSummary', label: 'Number Summary', icon: Icons.chartBar },
-    { id: 'limits', label: 'Limits', icon: Icons.clipboardList }, 
-    { id: 'bettingSheet', label: 'Bet Search', icon: Icons.search }, 
-    { id: 'history', label: 'Ledgers', icon: Icons.bookOpen },
-    { id: 'settings', label: 'Settings', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg> },
+    { id: 'dashboard', label: 'Monitor', icon: <Icons.activity className="w-4 h-4" /> },
+    { id: 'dealers', label: 'Nodes', icon: <Icons.userGroup className="w-4 h-4" /> }, 
+    { id: 'users', label: 'Clients', icon: <Icons.user className="w-4 h-4" /> },
+    { id: 'games', label: 'Markets', icon: <Icons.gamepad className="w-4 h-4" /> },
+    { id: 'winners', label: 'Rewards', icon: <Icons.star className="w-4 h-4" /> },
+    { id: 'liveBooking', label: 'Traffic', icon: <Icons.sparkles className="w-4 h-4" /> },
+    { id: 'numberSummary', label: 'Summary', icon: <Icons.chartBar className="w-4 h-4" /> },
+    { id: 'limits', label: 'Protocol', icon: <Icons.shield className="w-4 h-4" /> }, 
+    { id: 'bettingSheet', label: 'Search', icon: <Icons.search className="w-4 h-4" /> }, 
+    { id: 'history', label: 'Ledger', icon: <Icons.bookOpen className="w-4 h-4" /> },
+    { id: 'settings', label: 'Core', icon: <Icons.settings className="w-4 h-4" /> },
   ];
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
-      <h2 className="text-3xl font-bold text-red-400 mb-6 uppercase tracking-widest">Admin Console</h2>
-      <div className="bg-slate-800/50 p-1.5 rounded-lg flex items-center space-x-2 mb-6 self-start flex-wrap border border-slate-700">
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center space-x-2 py-2 px-4 text-sm font-semibold rounded-md transition-all duration-300 ${activeTab === tab.id ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'}`}>
-            {tab.icon} <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
+    <div className="min-h-screen pb-24">
+      {/* Header Section */}
+      <header className="px-6 py-10 max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-end gap-6 relative">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-cyan-500/5 blur-[120px] rounded-full -ml-32 -mt-32 pointer-events-none" />
+          <div className="relative z-10">
+              <div className="flex items-center gap-4 mb-2">
+                  <div className="w-12 h-12 rounded-2xl bg-cyan-500 shadow-xl shadow-cyan-500/20 flex items-center justify-center text-slate-950">
+                    <Icons.shield className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">Command Center</h2>
+                    <p className="text-[10px] text-cyan-400 font-black uppercase tracking-[0.3em] mt-1">Operational Protocol v4.0.2</p>
+                  </div>
+              </div>
+          </div>
+          
+          <div className="flex items-center gap-4 relative z-10">
+            <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleManualRefresh}
+                disabled={isRefreshingManual}
+                className="p-4 rounded-2xl bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all group"
+            >
+                <Icons.refreshCw className={`w-5 h-5 ${isRefreshingManual ? 'animate-spin text-cyan-400' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+            </motion.button>
+            <div className="flex flex-col items-end">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Authenticated Admin</p>
+                <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-2xl border border-white/5 shadow-inner">
+                    <span className="text-xs font-black text-white uppercase tracking-tight">{admin.name}</span>
+                    <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center overflow-hidden">
+                        {admin.avatarUrl ? <img src={admin.avatarUrl} className="w-full h-full object-cover" /> : <Icons.user className="w-3 h-3 text-emerald-400" />}
+                    </div>
+                </div>
+            </div>
+          </div>
+      </header>
+
+      {/* Navigation Matrix */}
+      <nav className="px-6 mb-12 max-w-7xl mx-auto relative z-20">
+        <div className="glass-morphism p-2 rounded-[2rem] border border-white/5 shadow-2xl flex items-center gap-2 overflow-x-auto custom-scrollbar no-scrollbar">
+            {tabs.map((tab, idx) => (
+              <button 
+                key={tab.id} 
+                onClick={() => setActiveTab(tab.id)} 
+                className={`flex items-center gap-3 py-3.5 px-6 text-[10px] font-black rounded-[1.5rem] transition-all whitespace-nowrap uppercase tracking-widest relative group ${activeTab === tab.id ? 'text-slate-950' : 'text-slate-500 hover:text-white'}`}
+              >
+                {activeTab === tab.id && (
+                  <motion.div 
+                    layoutId="activeTabAdmin"
+                    className="absolute inset-0 bg-cyan-500 rounded-[1.5rem] shadow-xl shadow-cyan-500/40"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-3">
+                  {tab.icon}
+                  {tab.label}
+                </span>
+                {activeTab === tab.id && (
+                    <motion.div 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-white rounded-full shadow-lg z-20 border-2 border-cyan-500"
+                    />
+                )}
+              </button>
+            ))}
+        </div>
+      </nav>
       
-      {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
-      {activeTab === 'winners' && <WinnersView bets={bets} games={games} users={users} dealers={dealers} />}
-      {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} bets={bets} />}
-      {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
-      {activeTab === 'limits' && <NumberLimitsView />}
-      {activeTab === 'settings' && <SystemSettingsForm admin={admin} onSave={onUpdateAdmin} />}
-
-      {activeTab === 'dealers' && (
-        <div>
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-            <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">Dealers ({sortedDealers.length})</h3>
-            <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
-                 <div className="relative w-full sm:w-64">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
-                    <input type="text" placeholder="Search by name, area, ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full"/>
-                </div>
-                <button onClick={() => { setSelectedDealer(undefined); setIsModalOpen(true); }} className="flex items-center justify-center bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md whitespace-nowrap transition-colors">
-                  {Icons.plus} Create Dealer
-                </button>
-            </div>
-          </div>
-          <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-             <div className="overflow-x-auto mobile-scroll-x">
-                 <table className="w-full text-left min-w-[800px]">
-                     <thead className="bg-slate-800/50">
-                         <tr>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">ID / Area</th>
-                              <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Comm %</th>
-                             <SortableHeader label="Status" sortKey="status" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
-                             <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
-                         </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-800">
-                         {sortedDealers.map(dealer => (
-                             <tr key={dealer.id} className="hover:bg-cyan-500/10 transition-colors">
-                                 <td className="p-4 font-medium"><div className="flex items-center gap-3">
-                                     {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
-                                     <span className="font-semibold text-white">{dealer.name}</span>
-                                 </div></td>
-                                 <td className="p-4 text-slate-400"><div className="font-mono">{dealer.id}</div><div className="text-xs">{dealer.area}</div></td>
-                                 <td className="p-4 font-mono text-white">{dealer.wallet.toLocaleString()}</td>
-                                 <td className="p-4 text-center font-bold text-white">{dealer.commissionRate}%</td>
-                                 <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${dealer.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{dealer.isRestricted ? 'Restricted' : 'Active'}</span></td>
-                                 <td className="p-4">
-                                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                        <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Edit</button>
-                                        <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center">Ledger</button>
-                                        <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors text-center ${dealer.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
-                                            {dealer.isRestricted ? 'Unrestrict' : 'Restrict'}
-                                        </button>
-                                      </div>
-                                 </td>
-                             </tr>
-                         ))}
-                     </tbody>
-                 </table>
-             </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'games' && (
-        <div>
-            <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-3">
-                    <h3 className="text-xl font-semibold text-white">Declare Winning Numbers</h3>
-                    <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded text-[10px] text-emerald-400 font-bold uppercase tracking-widest animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                        Live Sync
+      {/* Viewport Container */}
+      <main className="px-6 max-w-7xl mx-auto relative z-10">
+          <AnimatePresence mode="wait">
+            <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+            >
+                {activeTab === 'dashboard' && <DashboardView summary={summaryData} admin={admin} />}
+                {activeTab === 'winners' && <WinnersView bets={bets} games={games} users={users} dealers={dealers} />}
+                {activeTab === 'liveBooking' && <LiveBookingView games={games} users={users} dealers={dealers} bets={bets} />}
+                {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
+                {activeTab === 'limits' && <NumberLimitsView />}
+                {activeTab === 'settings' && <SystemSettingsForm admin={admin} onSave={onUpdateAdmin} />}
+                {activeTab === 'history' && (
+                  <div className="space-y-8">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="space-y-1">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Financial Archive Nexus</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Protocol Ledger Access & Liquidity Management</p>
+                      </div>
+                      <div className="flex flex-wrap gap-4">
+                        <motion.button 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setIsTopUpModalOpen(true)} 
+                          className="px-6 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all flex items-center gap-2"
+                        >
+                          {Icons.plus} Inject Reserve
+                        </motion.button>
+                        <motion.button 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setIsWithdrawalModalOpen(true)} 
+                          className="px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-amber-500/20 transition-all flex items-center gap-2"
+                        >
+                          {Icons.minus} Liquidate Funds
+                        </motion.button>
+                        <motion.button 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => { setViewingLedgerId(admin.id); setViewingLedgerType('admin'); }} 
+                          className="px-6 py-3.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-sky-500/20 transition-all flex items-center gap-2"
+                        >
+                          {Icons.eye} Root Ledger
+                        </motion.button>
+                      </div>
                     </div>
-                </div>
-                <button 
-                    onClick={handleManualRefresh}
-                    disabled={isRefreshingManual}
-                    className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 px-4 py-2 rounded-md transition-all text-xs font-bold uppercase tracking-widest disabled:opacity-50"
-                >
-                    <svg className={`w-4 h-4 ${isRefreshingManual ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    {isRefreshingManual ? 'Syncing...' : 'Refresh Data'}
-                </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {games.map(game => {
-                    const isAK = game.name === 'AK';
-                    const isAKC = game.name === 'AKC';
-                    const isSingleDigitGame = isAK || isAKC;
-                    const isAKPending = isAK && game.winningNumber && game.winningNumber.endsWith('_');
 
-                    return (
-                    <div key={game.id} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                        <h4 className="font-bold text-lg text-white">{game.name}</h4>
-                        {game.winningNumber ? (
-                            game.payoutsApproved ? (
-                                <div className="flex items-center justify-between my-2">
-                                    <div>
-                                        <p className="text-sm text-slate-400">Winner Declared</p>
-                                        <p className="text-2xl font-bold text-emerald-400">{game.winningNumber}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-slate-700/50 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                                        <span>Approved</span>
-                                    </div>
-                                </div>
-                            ) : editingGame?.id === game.id ? (
-                                <div className="my-2">
-                                    <p className="text-sm text-slate-400">Editing Number...</p>
-                                    <div className="flex items-center space-x-2 mt-1">
-                                        <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-900 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
-                                        <button onClick={() => handleUpdateWinner(game.id, game.name)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Save</button>
-                                        <button onClick={() => setEditingGame(null)} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-3 rounded-md text-sm transition-colors">Cancel</button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between my-2 gap-2">
-                                    {isAKPending ? (
-                                        <>
-                                            <div>
-                                                <p className="text-sm text-slate-400">Open Declared</p>
-                                                <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-sm text-slate-400">Waiting for AKC</p>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div>
-                                            <p className="text-sm text-slate-400">Pending Approval</p>
-                                            <p className="text-2xl font-bold text-amber-400">{game.winningNumber}</p>
-                                        </div>
-                                    )}
-                                    <div className='flex flex-col sm:flex-row gap-2 self-end sm:self-center'>
-                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="bg-slate-700 hover:bg-slate-600 text-amber-400 font-semibold py-2 px-3 rounded-md text-sm transition-colors">
-                                            Edit
-                                        </button>
-                                        {!isAKPending && (
-                                            <button 
-                                                onClick={() => { if (window.confirm(`Are you sure you want to approve payouts for ${game.name}? This action cannot be undone.`)) { approvePayouts(game.id); } }} 
-                                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors animate-pulse whitespace-nowrap"
-                                            >
-                                                Approve Payouts
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            )
-                        ) : (
-                            <div className="flex items-center space-x-2 my-2">
-                                <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="w-20 bg-slate-800 p-2 text-center text-xl font-bold rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500" placeholder={isSingleDigitGame ? '0' : '00'} />
-                                <button onClick={() => handleDeclareWinner(game.id, game.name)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded-md transition-colors">Declare</button>
-                            </div>
-                        )}
-                        <div className="text-sm text-slate-400 flex items-center gap-2">
-                          <span>Draw Time:</span>
-                          {editingDrawTime?.gameId === game.id ? (
-                              <>
-                                  <input 
-                                      type="time" 
-                                      value={editingDrawTime.time}
-                                      onChange={(e) => setEditingDrawTime({ ...editingDrawTime, time: e.target.value })}
-                                      className="bg-slate-900 p-1 rounded-md border border-slate-600 focus:ring-1 focus:ring-cyan-500 text-sm text-white"
-                                  />
-                                  <button 
-                                      onClick={async () => {
-                                          try {
-                                              await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time);
-                                              setEditingDrawTime(null);
-                                          } catch (error: any) {
-                                              alert(`Failed to update time: ${error.message}`);
-                                          }
-                                      }}
-                                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
-                                      Save
-                                  </button>
-                                  <button 
-                                      onClick={() => setEditingDrawTime(null)}
-                                      className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-1 px-2 rounded-md text-xs transition-colors">
-                                      Cancel
-                                  </button>
-                              </>
-                          ) : (
-                              <>
-                                  <span className="font-semibold text-slate-300">{game.drawTime}</span>
-                                  <button 
-                                      onClick={() => setEditingDrawTime({ gameId: game.id, time: game.drawTime })}
-                                      className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-2 rounded-md text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                      disabled={!!game.winningNumber}
-                                  >
-                                      Edit
-                                  </button>
-                              </>
-                          )}
-                        </div>
-                        {(isAK || isAKC) && (
-                            <p className="text-xs text-slate-500 mt-2">
-                                Note: The AKC result provides the 'close' digit for the AK game.
-                            </p>
-                        )}
-                    </div>
-                )})}
-            </div>
-        </div>
-      )}
-
-      {activeTab === 'bettingSheet' && (
-        <div>
-            <h3 className="text-xl font-semibold text-white mb-4">Comprehensive Betting Sheet</h3>
-            <div className="flex items-center gap-4 mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-                <label htmlFor="bet-search" className="font-semibold text-slate-300 whitespace-nowrap">Search by Number:</label>
-                <div className="relative flex-grow max-w-xs">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
-                    <input id="bet-search" type="text" placeholder="e.g. 42" value={betSearchQuery} onChange={(e) => setBetSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full" />
-                </div>
-            </div>
-
-            {searchSummary && (
-                <div className="mb-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                    <div><p className="text-sm text-slate-400 uppercase">Number</p><p className="text-2xl font-bold text-cyan-400">{searchSummary.number}</p></div>
-                    <div><p className="text-sm text-slate-400 uppercase">Total Bets</p><p className="text-2xl font-bold text-white">{searchSummary.count}</p></div>
-                    <div><p className="text-sm text-slate-400 uppercase">Total Stake</p><p className="text-2xl font-bold text-emerald-400">PKR {searchSummary.totalStake.toLocaleString()}</p></div>
-                </div>
-            )}
-
-            <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-                <div className="overflow-x-auto max-h-[60vh] mobile-scroll-x">
-                    <table className="w-full text-left min-w-[700px]">
-                        <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
+                    <div className="glass-morphism rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl relative">
+                      <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left min-w-[800px]">
+                          <thead className="bg-slate-950/50 border-b border-white/5">
                             <tr>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Timestamp</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">User</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Game</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Number</th>
-                                <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Stake (PKR)</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Dealer Identification</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Region</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Pool Balance</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Audit Actions</th>
                             </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {filteredBets.length > 0 ? (
-                                filteredBets.map(bet => (
-                                    <tr key={`${bet.betId}-${bet.number}`} className="hover:bg-cyan-500/10 transition-colors">
-                                        <td className="p-4 text-sm text-slate-400 whitespace-nowrap">{bet.timestamp.toLocaleString()}</td>
-                                        <td className="p-4 font-semibold text-white">{bet.userName}</td>
-                                        <td className="p-4 text-slate-400">{bet.dealerName}</td>
-                                        <td className="p-4 text-slate-300">{bet.gameName}</td>
-                                        <td className="p-4 text-right font-mono text-cyan-300 text-lg">{bet.number}</td>
-                                        <td className="p-4 text-right font-mono text-white">{bet.amount.toLocaleString()}</td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr><td colSpan={6} className="text-center p-8 text-slate-500">{betSearchQuery ? 'No bets found.' : 'Enter a number to search.'}</td></tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {dealers.map((dealer, i) => (
+                              <tr key={dealer.id} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="p-6">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 overflow-hidden shadow-lg group-hover:scale-110 transition-transform">
+                                      {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-700 bg-white/5 font-black text-xs">{dealer.name[0]}</div>}
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-black text-white tracking-tight">{dealer.name}</div>
+                                      <div className="text-[9px] text-slate-500 font-mono font-bold uppercase tracking-widest">{dealer.id}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{dealer.area || 'CORE SEC'}</div>
+                                </td>
+                                <td className="p-6 text-right font-mono text-cyan-400 font-black text-sm">Rs {dealer.wallet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                <td className="p-6">
+                                  <div className="flex justify-center">
+                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="px-5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest transition-all border border-white/10">Inspect Archive</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'dealers' && (
+                  <div className="space-y-8">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="space-y-1">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Dealer Node Registry</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{sortedDealers.length} Active Operational Units</p>
+                      </div>
+                      <div className="flex w-full md:w-auto gap-4">
+                        <div className="relative flex-grow md:w-64 group">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-cyan-500 transition-colors uppercase tracking-widest text-[8px]">{Icons.search}</span>
+                          <input type="text" placeholder="Search Node Identity..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-3.5 pl-10 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-white text-[10px] font-black uppercase tracking-widest transition-all placeholder:text-slate-700 shadow-inner" />
+                        </div>
+                        <motion.button 
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => { setSelectedDealer(undefined); setIsModalOpen(true); }} 
+                          className="px-6 py-3.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-cyan-500/20 transition-all flex items-center gap-2 whitespace-nowrap"
+                        >
+                          {Icons.plus} Initialize Node
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    <div className="glass-morphism rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl relative">
+                      <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left min-w-[1000px]">
+                          <thead className="bg-slate-950/50 border-b border-white/5">
+                            <tr>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Dealer Identity</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Operational Region</th>
+                              <SortableHeader label="Pool Reserve" sortKey="wallet" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Comm Rate</th>
+                              <SortableHeader label="Protocol Status" sortKey="status" currentSortKey={dealerSortKey} sortDirection={dealerSortDirection} onSort={handleDealerSort} />
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Admin Controls</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {sortedDealers.map(dealer => (
+                              <tr key={dealer.id} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="p-6">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/5 overflow-hidden shadow-xl group-hover:scale-110 transition-transform">
+                                      {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-700 bg-white/5"><Icons.user className="w-5 h-5" /></div>}
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-black text-white tracking-tight">{dealer.name}</div>
+                                      <div className="text-[10px] text-slate-500 font-mono font-bold uppercase tracking-widest">{dealer.id}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{dealer.area || 'UNMAPPED SECTION'}</div>
+                                </td>
+                                <td className="p-6 font-mono text-cyan-400 font-black text-sm">Rs {dealer.wallet.toLocaleString()}</td>
+                                <td className="p-6 text-center">
+                                  <span className="text-xs font-black text-white bg-white/5 px-3 py-1 rounded-lg border border-white/5">{dealer.commissionRate}%</span>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex justify-center">
+                                    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] ${dealer.isRestricted ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'}`}>
+                                      <div className={`w-1 h-1 rounded-full ${dealer.isRestricted ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
+                                      {dealer.isRestricted ? 'Restricted' : 'Operational'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5">{Icons.edit}</button>
+                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10">{Icons.bookOpen}</button>
+                                    <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${dealer.isRestricted ? 'bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 hover:bg-red-500/10 text-red-400 border-red-500/10'}`}>
+                                      {dealer.isRestricted ? Icons.checkCircle : Icons.close}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'games' && (
+                  <div className="space-y-8">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="space-y-1">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Market Control Matrix</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Winning Node Declaration Protocols</p>
+                      </div>
+                      <div className="px-4 py-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 animate-pulse">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                        LIVE SYNC ESTABLISHED
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {games.map(game => {
+                        const isAK = game.name === 'AK';
+                        const isAKC = game.name === 'AKC';
+                        const isSingleDigitGame = isAK || isAKC;
+                        const isAKPending = isAK && game.winningNumber && game.winningNumber.endsWith('_');
+
+                        return (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            key={game.id} 
+                            className="glass-morphism p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden group"
+                          >
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform" />
+                            
+                            <div className="flex items-center gap-4 mb-8">
+                              <img src={game.logo} className="w-14 h-14 rounded-2xl object-cover shadow-2xl border border-white/10" alt={game.name} />
+                              <div>
+                                <h4 className="text-xl font-black text-white uppercase tracking-tighter">{game.name}</h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Icons.clock className="w-3 h-3 text-slate-500" />
+                                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Draw: {game.drawTime}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-6 relative z-10">
+                              {game.winningNumber ? (
+                                <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5">
+                                  {game.payoutsApproved ? (
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Audit Complete</p>
+                                        <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
+                                      </div>
+                                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
+                                        <Icons.checkCircle className="w-6 h-6" />
+                                      </div>
+                                    </div>
+                                  ) : editingGame?.id === game.id ? (
+                                    <div className="space-y-4">
+                                      <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Node Re-calibration</p>
+                                      <div className="flex gap-2">
+                                        <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" />
+                                        <button onClick={() => handleUpdateWinner(game.id, game.name)} className="px-6 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20">Save</button>
+                                      </div>
+                                      <button onClick={() => setEditingGame(null)} className="w-full py-3 rounded-2xl bg-white/5 text-slate-500 font-black text-[10px] uppercase tracking-widest border border-white/5">Discard</button>
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-6">
+                                      <div className="flex items-end justify-between">
+                                        <div>
+                                          <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">{isAKPending ? 'Open Vector Declared' : 'Verification Required'}</p>
+                                          <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
+                                        </div>
+                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="text-slate-500 hover:text-white transition-colors">{Icons.edit}</button>
+                                      </div>
+                                      {!isAKPending && (
+                                        <motion.button 
+                                          whileHover={{ scale: 1.02 }}
+                                          whileTap={{ scale: 0.98 }}
+                                          onClick={() => { if (window.confirm(`Commit Payout protocol for ${game.name}?`)) { approvePayouts(game.id); } }} 
+                                          className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2"
+                                        >
+                                          <Icons.checkCircle className="w-4 h-4" />
+                                          Liquidate Payouts
+                                        </motion.button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5 space-y-4">
+                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Declare Game Result</p>
+                                  <div className="flex gap-2">
+                                    <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" placeholder={isSingleDigitGame ? '0' : '00'} />
+                                    <motion.button 
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      onClick={() => handleDeclareWinner(game.id, game.name)} 
+                                      className="px-6 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20"
+                                    >
+                                      Commit
+                                    </motion.button>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="pt-6 border-t border-white/5 flex items-center justify-between">
+                                <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Temporal Root</div>
+                                {editingDrawTime?.gameId === game.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <input type="time" value={editingDrawTime.time} onChange={(e) => setEditingDrawTime({ ...editingDrawTime, time: e.target.value })} className="bg-slate-950 text-white p-2 rounded-xl border border-white/10 text-[10px] font-bold" />
+                                    <button onClick={async () => { try { await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time); setEditingDrawTime(null); } catch (error: any) { alert(error.message); } }} className="text-emerald-400">{Icons.checkCircle}</button>
+                                  </div>
+                                ) : (
+                                  <button disabled={!!game.winningNumber} onClick={() => setEditingDrawTime({ gameId: game.id, time: game.drawTime })} className="text-[10px] font-black text-slate-400 hover:text-white transition-all uppercase tracking-widest disabled:opacity-30 flex items-center gap-2">
+                                    {game.drawTime} {Icons.edit}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'bettingSheet' && (
+                  <div className="space-y-8">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="space-y-1">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Event Extraction Buffer</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Audit Specific Number Vectors</p>
+                      </div>
+                    </div>
+
+                    <div className="glass-morphism p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-500/5 blur-3xl rounded-full -mr-24 -mt-24" />
+                      <div className="flex flex-col md:flex-row items-end gap-6 relative z-10 font-bold uppercase tracking-widest text-[10px]">
+                        <div className="flex-grow space-y-4 w-full">
+                          <label className="ml-1 text-slate-500">Number Search Key</label>
+                          <div className="relative group">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-cyan-500 transition-colors">{Icons.search}</span>
+                            <input type="text" placeholder="e.g. 42" value={betSearchQuery} onChange={(e) => setBetSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-4 pl-12 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-white text-xs font-bold transition-all shadow-inner" />
+                          </div>
+                        </div>
+                        {searchSummary && (
+                          <div className="flex-grow grid grid-cols-2 gap-4 w-full md:w-auto">
+                            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                              <p className="text-[8px] text-slate-600 mb-1">Volume</p>
+                              <p className="text-xl font-black text-white font-mono">{searchSummary.count}</p>
+                            </div>
+                            <div className="bg-cyan-500/5 p-4 rounded-2xl border border-cyan-500/10">
+                              <p className="text-[8px] text-cyan-600 mb-1">Exposure</p>
+                              <p className="text-xl font-black text-cyan-400 font-mono">Rs {searchSummary.totalStake.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        )}
+                        <button onClick={() => setBetSearchQuery('')} className="bg-white/5 hover:bg-white/10 text-white px-8 py-4 rounded-2xl border border-white/5 transition-all w-full md:w-auto">Purge Input</button>
+                      </div>
+                    </div>
+
+                    <div className="glass-morphism rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl relative">
+                      <div className="overflow-x-auto custom-scrollbar max-h-[60vh]">
+                        <table className="w-full text-left min-w-[800px]">
+                          <thead className="bg-slate-950/50 border-b border-white/5 sticky top-0 backdrop-blur-xl z-20">
+                            <tr>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Timestamp</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Origin Client</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Operational Dealer</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Market</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Target Num</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Stake Value</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {filteredBets.length > 0 ? filteredBets.map((bet, i) => (
+                              <tr key={`${bet.betId}-${bet.number}`} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="p-6 text-[10px] text-slate-500 font-mono group-hover:text-slate-300 uppercase">{bet.timestamp.toLocaleString()}</td>
+                                <td className="p-6 font-black text-white text-xs">{bet.userName}</td>
+                                <td className="p-6 text-slate-500 text-[10px] uppercase font-bold tracking-widest">{bet.dealerName}</td>
+                                <td className="p-6 text-slate-300 text-xs font-bold uppercase tracking-tight">{bet.gameName}</td>
+                                <td className="p-6 text-right font-mono text-cyan-400 text-lg font-black">{bet.number}</td>
+                                <td className="p-6 text-right font-mono text-white font-black text-sm">Rs {bet.amount.toLocaleString()}</td>
+                              </tr>
+                            )) : (
+                              <tr><td colSpan={6} className="p-24 text-center">
+                                <div className="opacity-20 flex flex-col items-center gap-4">
+                                  <Icons.search className="w-12 h-12 text-slate-500" />
+                                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">{betSearchQuery ? 'No Vectors Found' : 'Awaiting Search Key'}</p>
+                                </div>
+                              </td></tr>
                             )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-      )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-       {activeTab === 'users' && (
-        <div>
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-            <h3 className="text-xl font-semibold text-white text-left w-full sm:w-auto">All Users ({sortedUsers.length})</h3>
-             <div className="flex w-full sm:w-auto sm:justify-end gap-2 flex-col sm:flex-row">
-                 <div className="relative w-full sm:w-64">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
-                    <input type="text" placeholder="Search by name, ID, area, dealer..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-md border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full"/>
-                </div>
-            </div>
-          </div>
-           <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-               <div className="overflow-x-auto mobile-scroll-x">
-                   <table className="w-full text-left min-w-[800px]">
-                       <thead className="bg-slate-800/50">
-                           <tr>
-                               <SortableHeader label="Name" sortKey="name" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
-                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                               <SortableHeader label="Wallet (PKR)" sortKey="wallet" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
-                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Comm %</th>
-                               <SortableHeader label="Status" sortKey="status" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
-                               <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
-                           </tr>
-                       </thead>
-                       <tbody className="divide-y divide-slate-800">
-                           {sortedUsers.map(user => (
-                               <tr key={user.id} className="hover:bg-cyan-500/10 transition-colors">
-                                   <td className="p-4 font-medium"><div className="flex items-center gap-3">
-                                     {user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
-                                     <div>
-                                        <div className="font-semibold text-white">{user.name}</div>
-                                        <div className="text-xs text-slate-400 font-mono">{user.id}</div>
-                                     </div>
-                                   </div></td>
-                                   <td className="p-4 text-slate-400">{dealers.find(d => d.id === user.dealerId)?.name || 'N/A'}</td>
-                                   <td className="p-4 font-mono text-white">{user.wallet.toLocaleString()}</td>
-                                   <td className="p-4 text-center font-bold text-white">{user.commissionRate}%</td>
-                                   <td className="p-4"><span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${user.isRestricted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{user.isRestricted ? 'Restricted' : 'Active'}</span></td>
-                                   <td className="p-4 text-center">
-                                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2">
-                                            <button onClick={() => { setSelectedUserToEdit(user); setIsUserEditModalOpen(true); }} className="bg-slate-700 hover:bg-slate-600 text-sky-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">Edit</button>
-                                            <button onClick={() => { setViewingLedgerId(user.id); setViewingLedgerType('user'); }} className="bg-slate-700 hover:bg-slate-600 text-emerald-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center">Ledger</button>
-                                            <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`font-semibold py-1 px-3 rounded-md text-sm transition-colors w-full sm:w-auto text-center ${user.isRestricted ? 'bg-green-500/20 hover:bg-green-500/40 text-green-300' : 'bg-red-500/20 hover:bg-red-500/40 text-red-300'}`}>
-                                                {user.isRestricted ? 'Unrestrict' : 'Restrict'}
-                                            </button>
-                                       </div>
-                                   </td>
-                               </tr>
-                           ))}
-                       </tbody>
-                   </table>
-               </div>
-           </div>
-        </div>
-      )}
+                {activeTab === 'users' && (
+                  <div className="space-y-8">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="space-y-1">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Client Interface Directory</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{sortedUsers.length} Authorized Network Participants</p>
+                      </div>
+                      <div className="relative w-full md:w-64 group">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-sky-500 transition-colors uppercase tracking-widest text-[8px]">{Icons.search}</span>
+                          <input type="text" placeholder="Identify Client Node..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-3.5 pl-10 rounded-2xl border border-white/5 focus:ring-2 focus:ring-sky-500/50 text-white text-[10px] font-black uppercase tracking-widest transition-all placeholder:text-slate-700 shadow-inner" />
+                      </div>
+                    </div>
+
+                    <div className="glass-morphism rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl relative">
+                      <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left min-w-[1000px]">
+                          <thead className="bg-slate-950/50 border-b border-white/5">
+                            <tr>
+                              <SortableHeader label="Client Identity" sortKey="name" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Origin Dealer</th>
+                              <SortableHeader label="Available Reserve" sortKey="wallet" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Comm Rate</th>
+                              <SortableHeader label="Access Protocol" sortKey="status" currentSortKey={userSortKey} sortDirection={userSortDirection} onSort={handleUserSort} />
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Protocol Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {sortedUsers.map(user => (
+                              <tr key={user.id} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="p-6">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-white/5 overflow-hidden shadow-xl group-hover:scale-110 transition-transform">
+                                      {user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-700 bg-white/5"><Icons.user className="w-5 h-5" /></div>}
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-black text-white tracking-tight">{user.name}</div>
+                                      <div className="text-[10px] text-slate-500 font-mono font-bold uppercase tracking-widest">{user.id}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{dealers.find(d => d.id === user.dealerId)?.name || 'UNKNOWN PARENT'}</div>
+                                </td>
+                                <td className="p-6 font-mono text-white font-black text-sm">Rs {user.wallet.toLocaleString()}</td>
+                                <td className="p-6 text-center">
+                                  <span className="text-xs font-black text-white bg-white/5 px-3 py-1 rounded-lg border border-white/5">{user.commissionRate}%</span>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex justify-center">
+                                    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] ${user.isRestricted ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-sky-500/10 text-sky-500 border border-sky-500/20'}`}>
+                                      <div className={`w-1 h-1 rounded-full ${user.isRestricted ? 'bg-red-500' : 'bg-sky-500 animate-pulse'}`} />
+                                      {user.isRestricted ? 'Restricted' : 'Operational'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button onClick={() => { setSelectedUserToEdit(user); setIsUserEditModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5">{Icons.edit}</button>
+                                    <button onClick={() => { setViewingLedgerId(user.id); setViewingLedgerType('user'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10">{Icons.bookOpen}</button>
+                                    <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${user.isRestricted ? 'bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 hover:bg-red-500/10 text-red-400 border-red-500/10'}`}>
+                                      {user.isRestricted ? Icons.checkCircle : Icons.close}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+            </motion.div>
+          </AnimatePresence>
+        </main>
       
-      {activeTab === 'history' && (
-        <div>
-          <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-            <h3 className="text-xl font-semibold text-white">Dealer Transaction Ledgers</h3>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setIsTopUpModalOpen(true)} className="flex items-center bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
-                {Icons.plus} Wallet Top-Up
-              </button>
-              <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex items-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
-                {Icons.minus} Withdraw Funds
-              </button>
-               <button onClick={() => { setViewingLedgerId(admin.id); setViewingLedgerType('admin'); }} className="flex items-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap">
-                {Icons.eye} View Admin Ledger
-              </button>
-            </div>
-          </div>
-          <div className="bg-slate-800/50 rounded-lg overflow-hidden border border-slate-700">
-            <div className="overflow-x-auto mobile-scroll-x">
-              <table className="w-full text-left min-w-[600px]">
-                <thead className="bg-slate-800/50">
-                  <tr>
-                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Dealer</th>
-                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Area</th>
-                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Current Balance (PKR)</th>
-                    <th className="p-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {dealers.map(dealer => (
-                    <tr key={dealer.id} className="hover:bg-cyan-500/10 transition-colors">
-                      <td className="p-4 font-medium"><div className="flex items-center gap-3">
-                        {dealer.avatarUrl ? <img src={dealer.avatarUrl} alt={dealer.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">{Icons.user}</div>}
-                        <span className="font-semibold text-white">{dealer.name}</span>
-                      </div></td>
-                      <td className="p-4 text-slate-400">{dealer.area}</td>
-                      <td className="p-4 font-mono text-white text-right">{dealer.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="p-4 text-center"><button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-1 px-3 rounded-md text-sm transition-colors">View Ledger</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={selectedDealer ? "Edit Dealer" : "Create Dealer"}>
           <DealerForm dealer={selectedDealer} dealers={dealers} onSave={handleSaveDealer} onCancel={() => setIsModalOpen(false)} adminPrizeRates={admin.prizeRates} />
       </Modal>

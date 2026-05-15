@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates } from './types';
 import { Icons, GAME_LOGOS } from './constants';
 import LandingPage from './components/LandingPage';
@@ -13,40 +14,76 @@ const Header: React.FC = () => {
     if (!role || !account) return null;
 
     const roleColors: { [key in Role]: string } = {
-        [Role.Admin]: 'bg-red-500/20 text-red-300 border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.5)]',
-        [Role.Dealer]: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.5)]',
-        [Role.User]: 'bg-sky-500/20 text-sky-300 border-sky-500/30 shadow-[0_0_10px_rgba(14,165,233,0.5)]',
+        [Role.Admin]: 'from-red-500/20 to-red-600/20 text-red-300 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.3)]',
+        [Role.Dealer]: 'from-emerald-500/20 to-emerald-600/20 text-emerald-300 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.3)]',
+        [Role.User]: 'from-sky-500/20 to-sky-600/20 text-sky-300 border-sky-500/30 shadow-[0_0_15px_rgba(14,165,233,0.3)]',
     };
 
     return (
-        <header className="sticky top-0 z-40 bg-slate-900/50 backdrop-blur-lg border-b border-cyan-400/20">
+        <header className="sticky top-0 z-40 bg-slate-900/40 backdrop-blur-xl border-b border-white/5">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-20">
-                <div className="flex items-center gap-4">
-                    {account.avatarUrl ? (
-                        <img src={account.avatarUrl} alt={account.name} className="w-12 h-12 rounded-full object-cover border-2 border-cyan-400/50" />
-                    ) : (
-                        <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-cyan-400/50 flex items-center justify-center">
-                            <span className="font-bold text-xl text-cyan-300">{account.name ? account.name.charAt(0) : '?'}</span>
-                        </div>
-                    )}
-                    <div>
-                        <h1 className="text-xl font-bold glitch-text hidden md:block" data-text="A-BABA EXCHANGE">A-BABA EXCHANGE</h1>
-                         <div className="flex items-center text-sm">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold mr-2 ${roleColors[role] || 'bg-slate-700'}`}>{role}</span>
-                            <span className="text-slate-300 font-semibold tracking-wider">{account.name || 'Account'}</span>
-                        </div>
+                <motion.div 
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center gap-4"
+                >
+                    <div className="relative">
+                        {account.avatarUrl ? (
+                            <img src={account.avatarUrl} alt={account.name} className="w-12 h-12 rounded-full object-cover border-2 border-cyan-400/30 shadow-lg" />
+                        ) : (
+                            <div className="w-12 h-12 rounded-full bg-slate-800/80 border-2 border-cyan-400/30 flex items-center justify-center shadow-lg">
+                                <span className="font-bold text-xl text-cyan-300">{account.name ? account.name.charAt(0) : '?'}</span>
+                            </div>
+                        )}
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 border-2 border-slate-900 shadow-sm" />
                     </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                     { typeof account.wallet === 'number' && (
-                        <div className="hidden md:flex items-center bg-slate-800/50 px-4 py-2 rounded-md border border-slate-700 shadow-inner">
-                            {React.cloneElement(Icons.wallet, { className: "h-6 w-6 mr-3 text-cyan-400" })}
-                            <span className="font-semibold text-white text-lg tracking-wider">PKR {account.wallet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-black tracking-tighter text-white hidden md:block group cursor-default">
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">A-BABA</span>
+                                <span className="ml-1 opacity-80">EXCHANGE</span>
+                            </h1>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest border bg-gradient-to-br ${roleColors[role] || 'bg-slate-700'}`}>{role}</span>
                         </div>
+                        <span className="text-slate-400 text-sm font-medium tracking-wide">
+                            {account.name || 'Account'}
+                        </span>
+                    </div>
+                </motion.div>
+
+                <div className="flex items-center space-x-4">
+                    { typeof account.wallet === 'number' && (
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="hidden md:flex items-center bg-white/5 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/10 shadow-xl"
+                        >
+                            <div className="p-1.5 bg-cyan-500/10 rounded-lg mr-3">
+                                {React.cloneElement(Icons.wallet, { className: "h-5 w-5 text-cyan-400" })}
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-none mb-1">Balance</span>
+                                <span className="font-mono font-bold text-white tracking-tight">
+                                    PKR {account.wallet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                        </motion.div>
                     )}
-                    <button onClick={logout} className="bg-slate-700/50 border border-slate-600 hover:bg-red-500/30 hover:border-red-500/50 text-white font-bold py-2 px-4 rounded-md transition-all duration-300">Logout</button>
+                    
+                    <motion.button 
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={logout} 
+                        className="bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/30 text-white/90 hover:text-white font-bold py-2 px-5 rounded-xl transition-all duration-300 text-sm tracking-wide"
+                    >
+                        Sign Out
+                    </motion.button>
                 </div>
             </div>
+            
+            {/* Ambient header glow */}
+            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent shadow-[0_0_20px_rgba(34,211,238,0.2)]" />
         </header>
     );
 };
