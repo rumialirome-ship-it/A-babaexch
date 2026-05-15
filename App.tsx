@@ -297,8 +297,5 @@ const AppContent: React.FC = () => {
     );
 };
 
-function App() { return (<AuthProvider><AppContent /></AuthProvider>); }
-export default App;
-
 function App() { return (<div className="App bg-transparent text-slate-200 h-full"><AuthProvider><AppContent /></AuthProvider></div>); }
 export default App;
