@@ -292,7 +292,7 @@ export const UserForm: React.FC<{
                 <div className="relative">
                     <label className={labelClass}>{user ? "Change Secret Password" : "Account Password"}</label>
                     <input type={isPasswordVisible ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className={inputClass + " pr-12"} required={!user} />
-                    <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-4 top-9 text-slate-500 hover:text-slate-300 transition-colors">{isPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
+                    <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-4 top-9 text-slate-500 hover:text-slate-300 transition-colors">{isPasswordVisible ? <Icons.eyeOff className="w-5 h-5" /> : <Icons.eye className="w-5 h-5" />}</button>
                 </div>
                 <div>
                     <label className={labelClass}>Validate Password</label>
@@ -460,10 +460,10 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
   }, [safeUsers, searchQuery]);
 
   const tabs = [
-    { id: 'users', label: 'Users', icon: Icons.userGroup },
-    { id: 'terminal', label: 'Terminal', icon: Icons.clipboardList },
-    { id: 'wallet', label: 'Wallet', icon: Icons.wallet },
-    { id: 'history', label: 'History', icon: Icons.bookOpen },
+    { id: 'users', label: 'Users', icon: <Icons.userGroup className="w-4 h-4" /> },
+    { id: 'terminal', label: 'Terminal', icon: <Icons.clipboardList className="w-4 h-4" /> },
+    { id: 'wallet', label: 'Wallet', icon: <Icons.wallet className="w-4 h-4" /> },
+    { id: 'history', label: 'History', icon: <Icons.bookOpen className="w-4 h-4" /> },
   ];
 
   if (!dealer) return <div className="p-8 text-center text-slate-400">Loading dealer profile...</div>;
@@ -539,7 +539,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
                         <div className="relative group sm:w-80">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors">{Icons.search}</span>
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors"><Icons.search className="w-4 h-4" /></span>
                             <input 
                                 type="text" 
                                 placeholder="Filter by ID, name or area..." 
@@ -930,7 +930,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
                     <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass + " pl-8"} />
                 </div>
                 <div className="w-full flex-grow relative group">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors">{Icons.search}</span>
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors"><Icons.search className="w-4 h-4" /></span>
                     <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Filter history node..." className={inputClass + " pl-12 py-3.5"} />
                 </div>
                 <button onClick={() => {setStartDate(''); setEndDate(''); setSearchTerm('');}} className="w-full lg:w-auto px-6 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest transition-all border border-white/10">Purge Filter</button>

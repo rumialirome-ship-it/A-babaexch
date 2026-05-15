@@ -292,7 +292,7 @@ const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers
                     <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass + " pl-8"} />
                 </div>
                 <div className="w-full flex-grow relative group">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors uppercase tracking-widest text-[8px]">{Icons.search}</span>
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors uppercase tracking-widest text-[8px]"><Icons.search className="w-3 h-3" /></span>
                     <input type="text" placeholder="Filter by user or game node..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={inputClass + " pl-12 py-3.5"} />
                 </div>
                 <button onClick={() => { setStartDate(getTodayDateString()); setEndDate(getTodayDateString()); setSearchTerm(''); }} className="w-full lg:w-auto px-6 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest transition-all border border-white/10">Purge Filter</button>
@@ -1845,7 +1845,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                           onClick={() => setIsTopUpModalOpen(true)} 
                           className="px-6 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all flex items-center gap-2"
                         >
-                          {Icons.plus} Inject Reserve
+                          <Icons.plus className="w-4 h-4" /> Inject Reserve
                         </motion.button>
                         <motion.button 
                           whileHover={{ scale: 1.02 }}
@@ -1853,7 +1853,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                           onClick={() => setIsWithdrawalModalOpen(true)} 
                           className="px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-amber-500/20 transition-all flex items-center gap-2"
                         >
-                          {Icons.minus} Liquidate Funds
+                          <Icons.minus className="w-4 h-4" /> Liquidate Funds
                         </motion.button>
                         <motion.button 
                           whileHover={{ scale: 1.02 }}
@@ -1861,7 +1861,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                           onClick={() => { setViewingLedgerId(admin.id); setViewingLedgerType('admin'); }} 
                           className="px-6 py-3.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-sky-500/20 transition-all flex items-center gap-2"
                         >
-                          {Icons.eye} Root Ledger
+                          <Icons.eye className="w-4 h-4" /> Root Ledger
                         </motion.button>
                       </div>
                     </div>
@@ -1918,7 +1918,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                       </div>
                       <div className="flex w-full md:w-auto gap-4">
                         <div className="relative flex-grow md:w-64 group">
-                          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-cyan-500 transition-colors uppercase tracking-widest text-[8px]">{Icons.search}</span>
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-cyan-500 transition-colors uppercase tracking-widest text-[8px]"><Icons.search className="w-3 h-3" /></span>
                           <input type="text" placeholder="Search Node Identity..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-3.5 pl-10 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-white text-[10px] font-black uppercase tracking-widest transition-all placeholder:text-slate-700 shadow-inner" />
                         </div>
                         <motion.button 
@@ -1927,7 +1927,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                           onClick={() => { setSelectedDealer(undefined); setIsModalOpen(true); }} 
                           className="px-6 py-3.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-cyan-500/20 transition-all flex items-center gap-2 whitespace-nowrap"
                         >
-                          {Icons.plus} Initialize Node
+                          <Icons.plus className="w-4 h-4" /> Initialize Node
                         </motion.button>
                       </div>
                     </div>
@@ -1974,12 +1974,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                                     </span>
                                   </div>
                                 </td>
-                                <td className="p-6">
+                                  <td className="p-6">
                                   <div className="flex items-center justify-center gap-2">
-                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5">{Icons.edit}</button>
-                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10">{Icons.bookOpen}</button>
+                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5"><Icons.edit className="w-4 h-4" /></button>
+                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10"><Icons.bookOpen className="w-4 h-4" /></button>
                                     <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${dealer.isRestricted ? 'bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 hover:bg-red-500/10 text-red-400 border-red-500/10'}`}>
-                                      {dealer.isRestricted ? Icons.checkCircle : Icons.close}
+                                      {dealer.isRestricted ? <Icons.checkCircle className="w-4 h-4" /> : <Icons.close className="w-4 h-4" />}
                                     </button>
                                   </div>
                                 </td>
@@ -2061,7 +2061,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                                           <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">{isAKPending ? 'Open Vector Declared' : 'Verification Required'}</p>
                                           <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
                                         </div>
-                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="text-slate-500 hover:text-white transition-colors">{Icons.edit}</button>
+                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="text-slate-500 hover:text-white transition-colors"><Icons.edit className="w-4 h-4" /></button>
                                       </div>
                                       {!isAKPending && (
                                         <motion.button 
@@ -2099,11 +2099,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                                 {editingDrawTime?.gameId === game.id ? (
                                   <div className="flex items-center gap-2">
                                     <input type="time" value={editingDrawTime.time} onChange={(e) => setEditingDrawTime({ ...editingDrawTime, time: e.target.value })} className="bg-slate-950 text-white p-2 rounded-xl border border-white/10 text-[10px] font-bold" />
-                                    <button onClick={async () => { try { await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time); setEditingDrawTime(null); } catch (error: any) { alert(error.message); } }} className="text-emerald-400">{Icons.checkCircle}</button>
+                                    <button onClick={async () => { try { await updateGameDrawTime(editingDrawTime.gameId, editingDrawTime.time); setEditingDrawTime(null); } catch (error: any) { alert(error.message); } }} className="text-emerald-400"><Icons.checkCircle className="w-4 h-4" /></button>
                                   </div>
                                 ) : (
                                   <button disabled={!!game.winningNumber} onClick={() => setEditingDrawTime({ gameId: game.id, time: game.drawTime })} className="text-[10px] font-black text-slate-400 hover:text-white transition-all uppercase tracking-widest disabled:opacity-30 flex items-center gap-2">
-                                    {game.drawTime} {Icons.edit}
+                                    {game.drawTime} <Icons.edit className="w-3 h-3" />
                                   </button>
                                 )}
                               </div>
@@ -2130,7 +2130,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                         <div className="flex-grow space-y-4 w-full">
                           <label className="ml-1 text-slate-500">Number Search Key</label>
                           <div className="relative group">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-cyan-500 transition-colors">{Icons.search}</span>
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-cyan-500 transition-colors"><Icons.search className="w-4 h-4" /></span>
                             <input type="text" placeholder="e.g. 42" value={betSearchQuery} onChange={(e) => setBetSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-4 pl-12 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-white text-xs font-bold transition-all shadow-inner" />
                           </div>
                         </div>
@@ -2196,7 +2196,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{sortedUsers.length} Authorized Network Participants</p>
                       </div>
                       <div className="relative w-full md:w-64 group">
-                          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-sky-500 transition-colors uppercase tracking-widest text-[8px]">{Icons.search}</span>
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-sky-500 transition-colors uppercase tracking-widest text-[8px]"><Icons.search className="w-3 h-3" /></span>
                           <input type="text" placeholder="Identify Client Node..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-3.5 pl-10 rounded-2xl border border-white/5 focus:ring-2 focus:ring-sky-500/50 text-white text-[10px] font-black uppercase tracking-widest transition-all placeholder:text-slate-700 shadow-inner" />
                       </div>
                     </div>
@@ -2245,10 +2245,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                                 </td>
                                 <td className="p-6">
                                   <div className="flex items-center justify-center gap-2">
-                                    <button onClick={() => { setSelectedUserToEdit(user); setIsUserEditModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5">{Icons.edit}</button>
-                                    <button onClick={() => { setViewingLedgerId(user.id); setViewingLedgerType('user'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10">{Icons.bookOpen}</button>
+                                    <button onClick={() => { setSelectedUserToEdit(user); setIsUserEditModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5"><Icons.edit className="w-4 h-4" /></button>
+                                    <button onClick={() => { setViewingLedgerId(user.id); setViewingLedgerType('user'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10"><Icons.bookOpen className="w-4 h-4" /></button>
                                     <button onClick={() => toggleAccountRestriction(user.id, 'user')} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${user.isRestricted ? 'bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 hover:bg-red-500/10 text-red-400 border-red-500/10'}`}>
-                                      {user.isRestricted ? Icons.checkCircle : Icons.close}
+                                      {user.isRestricted ? <Icons.checkCircle className="w-4 h-4" /> : <Icons.close className="w-4 h-4" />}
                                     </button>
                                   </div>
                                 </td>

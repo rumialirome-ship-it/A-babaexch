@@ -60,7 +60,7 @@ const Header: React.FC = () => {
                             className="hidden md:flex items-center bg-white/5 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/10 shadow-xl"
                         >
                             <div className="p-1.5 bg-cyan-500/10 rounded-lg mr-3">
-                                {React.cloneElement(Icons.wallet, { className: "h-5 w-5 text-cyan-400" })}
+                                <Icons.wallet className="h-5 w-5 text-cyan-400" />
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-none mb-1">Balance</span>
