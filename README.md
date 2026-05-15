@@ -110,7 +110,7 @@ Now we install dependencies and build both the frontend and the backend bundle.
     ```
 
 4.  **Build the Application**:
-    This command builds the frontend (into `dist/`) and the backend server (into `dist/server.cjs`).
+    This command builds the frontend (into `dist/`) and the backend server (into `dist/server.mjs`).
     ```bash
     npm run build
     ```
@@ -137,7 +137,7 @@ Now, let's launch the bundled Node.js server.
 2.  **Start the Server with PM2**:
     We point PM2 to the bundled ESM server file.
     ```bash
-    pm2 start dist/server.cjs --name ababa-backend
+    pm2 start dist/server.mjs --name ababa-backend
     ```
 
 3.  **Configure PM2 to Start on Boot**:
