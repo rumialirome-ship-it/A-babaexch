@@ -110,7 +110,13 @@ async function startServer() {
 
   app.get('/api/health', (req, res) => {
       const stats = database.getStats();
-      res.json({ status: 'ok', port: PORT, env: process.env.NODE_ENV, database: stats });
+      res.json({ 
+          status: 'ok', 
+          time: new Date().toISOString(),
+          port: PORT, 
+          env: process.env.NODE_ENV, 
+          database: stats 
+      });
   });
 
   app.get('/api/user/data', authMiddleware, (req: AuthRequest, res) => {

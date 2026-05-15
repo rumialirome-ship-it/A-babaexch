@@ -69,150 +69,114 @@ Next, we'll create the necessary directory and upload your application code from
     sudo mkdir -p /var/www/html/A-babaexch
 
     # Set the current user as the owner of this directory
-    # This allows you to upload files without needing sudo.
     sudo chown -R $USER:$USER /var/www/html/A-babaexch
     ```
 
 2.  **Upload Files from Local Machine**:
-    Open a **new terminal on your local computer**. Use `scp` (secure copy) to transfer all your project files and folders (including the `backend` directory) into the server directory.
+    Use `scp` or `git` to transfer your project files.
 
+    **Option A: Using Git (Recommended)**
     ```bash
-    # Replace /path/to/your/local/project/* with the actual path on your computer.
-    # The '*' ensures the contents of the directory are copied.
-    # Replace your_server_ip with your server's IP address.
-    scp -r /path/to/your/local/project/* your_username@your_server_ip:/var/www/html/A-babaexch/
+    cd /var/www/html/A-babaexch
+    git clone https://github.com/your-repo/A-babaexch.git .
     ```
-    After this step, your server's `/var/www/html/A-babaexch/` directory should contain your `index.html`, `package.json`, the `backend/` folder, and all other project files.
+
+    **Option B: Using SCP**
+    ```bash
+    # Run this on your LOCAL computer
+    scp -r /path/to/your/project/* your_username@your_server_ip:/var/www/html/A-babaexch/
+    ```
 
 ---
 
-### **Step 3: Frontend Setup & Build**
+### **Step 3: Installation & Build**
 
-Before setting up the backend, we need to install the frontend dependencies and create a production-ready build.
+Now we install dependencies and build both the frontend and the backend bundle.
 
 1.  **Navigate to the Project Directory**:
     ```bash
     cd /var/www/html/A-babaexch
     ```
 
-2.  **Install Frontend Dependencies**:
-    This command reads the root `package.json` file and installs libraries like React and Vite.
+2.  **Install All Dependencies**:
     ```bash
     npm install
     ```
 
-3.  **Build the Frontend**:
-    This script compiles the React/TypeScript application into static HTML, CSS, and JavaScript files inside a `dist` directory.
+3.  **Setup Database**:
+    Initialize the SQLite database with seed data.
+    ```bash
+    npm run setup-db
+    ```
+
+4.  **Build the Application**:
+    This command builds the frontend (into `dist/`) and the backend server (into `dist/server.mjs`).
     ```bash
     npm run build
     ```
-    After this step, you will have a new `/var/www/html/A-babaexch/dist` folder containing the optimized frontend assets.
 
 ---
 
 ### **Step 4: Backend Setup with PM2**
 
-Now, let's configure and launch the Node.js backend application.
+Now, let's launch the bundled Node.js server.
 
-1.  **Navigate to the Backend Directory on the Server**:
-    ```bash
-    cd /var/www/html/A-babaexch/backend
-    ```
-
-2.  **Install Dependencies**:
-    This reads `package.json` and installs the required libraries (Express, JWT, etc.).
-    ```bash
-    npm install
-    ```
-    
-3.  **Install SQLite and Setup Database**:
-    The application uses SQLite for its database.
-    ```bash
-    # Install the SQLite command-line tool
-    sudo apt update && sudo apt install sqlite3 -y
-
-    # Run the database setup script
-    # This reads the initial data from db.json, creates a database.sqlite file,
-    # and populates it with the necessary tables and data.
-    npm run db:setup
-    ```
-    > **Note**: This setup script is designed to run only once. If you need to reset the database, you must first delete the `backend/database.sqlite` file. You can now safely remove `backend/db.json`.
-
-
-4.  **Create Environment File (`.env`)**:
-    This file stores your application's secrets.
+1.  **Create Environment File (`.env`)**:
     ```bash
     nano .env
     ```
-    Add the following content. **It is critical to generate a strong, unique secret for `JWT_SECRET`**. You can use an online generator or a command like `openssl rand -base64 32`.
-    ```
+    Add the following content (Change the secrets!):
+    ```env
     PORT=3001
-    JWT_SECRET=your_super_secret_and_long_jwt_key_here
-    API_KEY=your_google_gemini_api_key_here
+    JWT_SECRET=your_super_secret_jwt_key
+    GEMINI_API_KEY=your_google_ai_studio_key
+    NODE_ENV=production
     ```
-    > **Note**: The `API_KEY` is for the Google Gemini API. You can get a key from Google AI Studio. This is required for the "AI Lucky Pick" feature.
-    
-    Save and close the file (`Ctrl+X`, then `Y`, then `Enter`).
+    Save and close (`Ctrl+X`, then `Y`, then `Enter`).
 
-5.  **Install PM2 Globally**:
-    PM2 is the process manager that will keep your backend running.
+2.  **Start the Server with PM2**:
+    We point PM2 to the bundled ESM server file.
     ```bash
-    sudo npm install pm2 -g
+    pm2 start dist/server.mjs --name ababa-backend
     ```
 
-6.  **Start the Backend with PM2**:
-    This command starts the server, names the process `ababa-backend`, and will restart it automatically if it crashes.
-    ```bash
-    pm2 start server.js --name ababa-backend
-    ```
-
-7.  **Configure PM2 to Start on Boot**:
-    This ensures that if your server reboots, your application will automatically restart.
+3.  **Configure PM2 to Start on Boot**:
     ```bash
     pm2 startup
-    ```
-    Run the command that PM2 gives you (it will start with `sudo env...`).
-
-8.  **Save the Process List**:
-    ```bash
+    # Run the command PM2 displays in your terminal
     pm2 save
     ```
-    You can check the status of your backend anytime with `pm2 status`.
+
+4.  **Verify Status**:
+    ```bash
+    pm2 status
+    pm2 logs ababa-backend
+    ```
 
 ---
 
 ### **Step 5: Nginx Configuration (Reverse Proxy)**
 
-Nginx will act as the web server. It will serve your built frontend files and forward API requests (`/api/...`) to your backend.
+Nginx will serve the static files and proxy API requests to port 3001.
 
-1.  **Install Nginx**:
+1.  **Create Nginx Config**:
     ```bash
-    sudo apt install nginx -y
+    sudo nano /etc/nginx/sites-available/ababaexch
     ```
 
-2.  **Create an Nginx Configuration File**:
-    ```bash
-    sudo nano /etc/nginx/sites-available/abexch.live
-    ```
-
-3.  **Add the following configuration**:
-    This file tells Nginx how to handle requests for `abexch.live`.
+2.  **Add Configuration**:
     ```nginx
     server {
         listen 80;
-        server_name abexch.live www.abexch.live;
+        server_name yourdomain.com; # Replace with your actual domain
 
-        # CRITICAL: Path to your project's *BUILD* folder.
         root /var/www/html/A-babaexch/dist;
         index index.html;
 
-        # For single-page applications, this ensures that refreshing any page
-        # still serves the main index.html file.
         location / {
-            try_files $uri /index.html;
+            try_files $uri $uri/ /index.html;
         }
 
-        # Proxy API requests to the backend Node.js server running on port 3001
         location /api/ {
             proxy_pass http://localhost:3001;
             proxy_http_version 1.1;
@@ -223,6 +187,15 @@ Nginx will act as the web server. It will serve your built frontend files and fo
         }
     }
     ```
+
+3.  **Enable and Restart**:
+    ```bash
+    sudo ln -s /etc/nginx/sites-available/ababaexch /etc/nginx/sites-enabled/
+    sudo nginx -t
+    sudo systemctl restart nginx
+    ```
+
+---
     > ## 🔴 CRITICAL: The `root` Path is EVERYTHING! 🔴
     >
     > The most common deployment failure is setting this path incorrectly. It **MUST** point to the `/dist` subfolder.
@@ -238,145 +211,71 @@ Nginx will act as the web server. It will serve your built frontend files and fo
 
     Save and close the file.
 
-4.  **Enable the Site**:
-    This creates a link from the `sites-available` directory to the `sites-enabled` directory, which Nginx reads from.
-    ```bash
-    sudo ln -s /etc/nginx/sites-available/abexch.live /etc/nginx/sites-enabled/
-    ```
+### **Step 6: Secure Your Site with HTTPS (Certbot)**
 
-5.  **Test and Restart Nginx**:
-    ```bash
-    sudo nginx -t  # Test for syntax errors
-    sudo systemctl restart nginx
-    ```
-    If the test is successful, your site should now be accessible at `http://abexch.live`.
-
----
-
-### **Step 6: Secure Your Site with HTTPS (Let's Encrypt SSL)**
-
-Finally, we will secure your site with a free SSL certificate.
-
-1.  **Install Certbot**:
-    Certbot is the tool that automates obtaining and renewing SSL certificates.
-    ```bash
-    sudo apt install certbot python3-certbot-nginx -y
-    ```
-
-2.  **Obtain and Install the SSL Certificate**:
-    This command will automatically detect your domain from the Nginx configuration, get a certificate, and update your Nginx file to use HTTPS.
-    ```bash
-    sudo certbot --nginx -d abexch.live -d www.abexch.live
-    ```
-    Follow the on-screen prompts:
-    -   Enter your email address (for renewal notices).
-    -   Agree to the terms of service.
-    -   Choose whether to share your email.
-    -   When asked about redirecting HTTP traffic, choose option `2` to redirect. This is highly recommended for security.
-
-3.  **Verify Automatic Renewal**:
-    Certbot sets up a scheduled task to renew your certificate automatically. You can test it with a dry run.
-    ```bash
-    sudo certbot renew --dry-run
-    ```
-    If there are no errors, you're all set.
-
----
-
-### **Deployment Complete!**
-
-Your A-Baba Exchange platform is now live and secure. You can access it at **`https://abexch.live`**.
+```bash
+sudo apt install certbot python3-certbot-nginx -y
+sudo certbot --nginx -d yourdomain.com
+```
 
 ---
 
 ### **Updating the Application**
 
-When you have new code changes to deploy, follow these steps to ensure they are applied correctly.
-
-1.  **Upload New Files**:
-    Use `scp` or another method to transfer your updated files to the server, overwriting the old ones. For example, to update the backend:
+1.  **Pull/Upload Changes**:
     ```bash
-    # On your local machine
-    scp -r /path/to/your/local/project/backend/* your_username@your_server_ip:/var/www/html/A-babaexch/backend/
+    cd /var/www/html/A-babaexch
+    git pull origin main
+    # OR upload via SCP
     ```
 
-2.  **Rebuild Frontend (if necessary)**:
-    If you made changes to the frontend code (any file outside the `backend` directory), you must create a new build.
+2.  **Rebuild**:
     ```bash
-    # On the server
-    cd /var/www/html/A-babaexch
+    npm install
     npm run build
     ```
 
-3.  **Restart the Backend Process**:
-    Simply running `pm2 restart` can sometimes fail to pick up all changes. A more reliable method is to use `reload`.
+3.  **Restart PM2**:
     ```bash
-    # On the server
-    pm2 reload ababa-backend
-    ```
-    Alternatively, for a complete refresh, you can delete and restart the process:
-    ```bash
-    # On the server
-    pm2 delete ababa-backend
-    cd /var/www/html/A-babaexch/backend
-    pm2 start server.js --name ababa-backend
-    pm2 save # Don't forget to save the process list again!
+    pm2 restart ababa-backend --update-env
     ```
 
-4.  **Check the Logs**:
-    After restarting, immediately check the logs to confirm the new version is running and there are no errors.
-    ```bash
-    pm2 logs ababa-backend
-    ```
+---
+
+### **Troubleshooting**
+
+#### **1. Database Issues**
+If games don't show or login fails, reset the database:
+```bash
+pm2 stop ababa-backend
+rm database.sqlite
+npm run setup-db
+pm2 start ababa-backend
+```
+
+#### **2. Git Pull Conflicts (SQLite)**
+If `database.sqlite` blocks a git pull:
+```bash
+git stash --include-untracked
+git pull origin main
+git stash pop
+```
+
+#### **3. Express 5 Wildcard Errors**
+If you see `PathError: Missing parameter name`, ensure your wildcard route in `server.ts` uses regex:
+```js
+app.get(/^\/(?!api).*/, (req, res) => { ... });
+```
+
+#### **4. Nginx 502 Bad Gateway**
+- Check PM2 status: `pm2 status`
+- Check logs: `pm2 logs ababa-backend`
+- Ensure PM2 is running on **3001** and Nginx matches.
 
 ---
 
 ### **Managing Your Application**
 
--   **View backend logs**: `pm2 logs ababa-backend`
--   **Restart the backend**: `pm2 restart ababa-backend`
--   **Stop the backend**: `pm2 stop ababa-backend`
--   **Check Nginx status**: `sudo systemctl status nginx`
--   **Restart Nginx**: `sudo systemctl restart nginx`
-
-### **Troubleshooting**
-
--   **Admin Login Fails AND/OR No Games Show on Landing Page**:
-    -   **Cause**: This is the most common issue after the initial deployment. It almost always means the backend database (`database.sqlite`) was not created or populated correctly. The backend server might have started before the setup script was run, creating an empty database file which the setup script then refuses to overwrite.
-    -   **Solution**: You must force a recreation of the database. Follow these steps precisely on your server:
-        1.  **Stop the backend server**:
-            ```bash
-            pm2 stop ababa-backend
-            ```
-        2.  **Navigate to the backend directory**:
-            ```bash
-            cd /var/www/html/A-babaexch/backend
-            ```
-        3.  **Delete the incorrect database file**:
-            ```bash
-            rm database.sqlite
-            ```
-        4.  **Run the setup script again to create a fresh, correct database**:
-            ```bash
-            npm run db:setup
-            ```
-            You should see messages confirming the schema was created and data was migrated.
-        5.  **Restart the backend server**:
-            ```bash
-            pm2 restart ababa-backend
-            ```
-        6.  Check the logs to confirm it started without errors: `pm2 logs ababa-backend`.
-        7.  Refresh the website. The games and login should now work.
-
--   **502 Bad Gateway Error**: This usually means Nginx can't connect to your backend.
-    -   Check if the backend is running with `pm2 status`. If it has stopped or is in an errored state, check the logs with `pm2 logs ababa-backend`.
--   **Permission Errors**: If you have issues with the database file, ensure its directory has the correct permissions: `sudo chown -R $USER:$USER /var/www/html/A-babaexch/backend`.
--   **Changes Not Appearing**: If you update frontend files, you may need to clear your browser cache. For backend changes, restart the process with `pm2 reload ababa-backend`.
--   **Blank Page or "CRITICAL DEPLOYMENT MISCONFIGURATION" Error**:
-    -   **Cause**: This is the other most common deployment error. It means your Nginx web server is serving the **development** folder (`/var/www/html/A-babaexch`) instead of the **production build** folder (`/var/www/html/A-babaexch/dist`). The browser is receiving a raw TypeScript file (`.tsx`) which it cannot execute.
-    -   **Solution**: The error page itself contains the exact steps to fix this. You must edit your Nginx configuration and change the `root` directive to point to the correct `/dist` directory.
-        1.  Open the configuration file on your server: `sudo nano /etc/nginx/sites-available/abexch.live`
-        2.  Find the line `root /var/www/html/A-babaexch;`
-        3.  Change it to **`root /var/www/html/A-babaexch/dist;`**
-        4.  Save the file, then restart Nginx: `sudo systemctl restart nginx`
-        5.  Clear your browser's cache completely and reload your website. The error will be gone.
+- **Logs**: `pm2 logs ababa-backend`
+- **Restart**: `pm2 restart ababa-backend`
+- **Nginx Status**: `sudo systemctl status nginx`
