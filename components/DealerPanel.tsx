@@ -65,30 +65,36 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
 };
 
 const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
-    <div className="elite-card rounded-2xl overflow-hidden glass-panel">
-        <div className="overflow-x-auto max-h-[30rem] no-scrollbar">
+    <div className="elite-card rounded-[2.5rem] overflow-hidden glass-panel border-white/5 shadow-2xl">
+        <div className="overflow-x-auto max-h-[35rem] no-scrollbar">
             <table className="w-full text-left">
-                <thead className="sticky top-0 bg-[#0a0c10] z-20 shadow-xl border-b border-white/5">
+                <thead className="sticky top-0 bg-[#0a0c10] z-20 border-b border-white/5 shadow-xl">
                     <tr>
-                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Entry Timestamp</th>
-                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Descriptor</th>
-                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Debit</th>
-                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Credit</th>
-                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Balance</th>
+                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Execution Time</th>
+                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Activity Vector</th>
+                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Debit</th>
+                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Credit</th>
+                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Final Index</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                     {[...entries].reverse().map(entry => (
-                        <tr key={entry.id} className="hover:bg-white/[0.02] transition-colors">
-                            <td className="p-6 text-[10px] font-mono text-slate-500">{entry.timestamp?.toLocaleString()}</td>
-                            <td className="p-6 text-white font-bold text-sm tracking-tight">{entry.description}</td>
-                            <td className="p-6 text-right text-rose-500 font-mono font-black">{entry.debit > 0 ? `-${entry.debit.toFixed(0)}` : '---'}</td>
-                            <td className="p-6 text-right text-emerald-500 font-mono font-black">{entry.credit > 0 ? `+${entry.credit.toFixed(0)}` : '---'}</td>
-                            <td className="p-6 text-right font-black text-white font-mono italic">Rs {entry.balance.toLocaleString()}</td>
+                        <tr key={entry.id} className="hover:bg-white/[0.03] group transition-all">
+                            <td className="p-8">
+                                <div className="text-[10px] font-mono text-slate-500">{entry.timestamp?.toLocaleDateString()}</div>
+                                <div className="text-[11px] font-mono text-emerald-500/60 font-bold">{entry.timestamp?.toLocaleTimeString()}</div>
+                            </td>
+                            <td className="p-8">
+                                <div className="text-white font-black text-base tracking-tight font-display uppercase leading-tight italic">{entry.description}</div>
+                                <div className="text-[9px] text-slate-600 font-bold uppercase tracking-widest mt-1">LOG_SUCCESS</div>
+                            </td>
+                            <td className="p-8 text-right text-rose-500 font-mono font-black italic text-lg">{entry.debit > 0 ? `-${entry.debit.toFixed(0)}` : '---'}</td>
+                            <td className="p-8 text-right text-emerald-400 font-mono font-black italic text-lg">{entry.credit > 0 ? `+${entry.credit.toFixed(0)}` : '---'}</td>
+                            <td className="p-8 text-right font-black text-white font-mono italic text-xl tracking-tighter">Rs {entry.balance.toLocaleString()}</td>
                         </tr>
                     ))}
                     {entries.length === 0 && (
-                        <tr><td colSpan={5} className="p-10 text-center text-slate-500 text-[10px] font-bold uppercase tracking-widest">Zero Transaction History</td></tr>
+                        <tr><td colSpan={5} className="p-20 text-center text-slate-500 text-[11px] font-black uppercase tracking-[0.5em] italic">Cipher Ledger Empty</td></tr>
                     )}
                 </tbody>
             </table>
@@ -239,80 +245,131 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
     const showT = (msg: string, type: 'success' | 'error') => setToast({ msg, type });
 
     return (
-        <div className="max-w-7xl mx-auto px-6 py-12 md:py-20 relative z-10">
+        <div className="max-w-7xl mx-auto px-8 py-16 md:py-24 relative z-10">
             <AnimatePresence>{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}</AnimatePresence>
 
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row justify-between items-end mb-20 gap-8">
-                <div className="border-l-4 border-emerald-500 pl-8">
-                    <h2 className="text-5xl md:text-7xl font-black text-white tracking-widest uppercase mb-4">Command Center</h2>
-                    <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px]">Dealer Authority: <span className="text-emerald-500">{dealer.name}</span></p>
+            <motion.div 
+                initial={{ opacity: 0, y: 30 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="flex flex-col lg:flex-row justify-between items-start lg:items-end mb-24 gap-12"
+            >
+                <div className="space-y-6">
+                    <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Authority Uplink Active</span>
+                    </div>
+                    <div className="border-l-4 border-emerald-600 pl-8">
+                        <h2 className="text-5xl md:text-8xl font-display font-black text-white tracking-tighter uppercase leading-[0.85] mb-4">
+                            Command <br />
+                            <span className="text-emerald-500">Center</span>
+                        </h2>
+                        <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-[10px]">Supervisor ID: <span className="text-emerald-500">{dealer.name}</span></p>
+                    </div>
                 </div>
-                <div className="bg-black/40 p-2 rounded-2xl border border-white/5 flex gap-2 overflow-x-auto no-scrollbar">
-                    {['users', 'terminal', 'wallet', 'history'].map(t => (
-                        <button key={t} onClick={() => setActiveTab(t)} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/10' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
-                            {t}
+
+                <div className="bg-black/30 backdrop-blur-md p-2 rounded-[2rem] border border-white/5 flex gap-2 overflow-x-auto no-scrollbar shadow-2xl">
+                    {[
+                        { id: 'users', label: 'Network Nodes', icon: Icons.users },
+                        { id: 'terminal', label: 'Entry Gate', icon: Icons.terminal },
+                        { id: 'wallet', label: 'Treasury', icon: Icons.wallet },
+                        { id: 'history', label: 'Global Audit', icon: Icons.history }
+                    ].map(t => (
+                        <button 
+                            key={t.id} 
+                            onClick={() => setActiveTab(t.id)} 
+                            className={`flex items-center gap-3 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all whitespace-nowrap ${activeTab === t.id ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                        >
+                            <span className="opacity-60">{t.icon}</span>
+                            {t.label}
                         </button>
                     ))}
                 </div>
             </motion.div>
 
             {activeTab === 'users' && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-                        <div className="relative flex-1 w-full">
-                            <input type="text" placeholder="FILTER NETWORK NODES..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold text-[11px] uppercase tracking-[0.2em] focus:border-emerald-500/50 outline-none transition-all" />
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
+                    <div className="flex flex-col lg:flex-row justify-between items-center gap-8">
+                        <div className="relative flex-1 w-full group">
+                            <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-emerald-500 transition-colors">
+                                {Icons.search}
+                            </div>
+                            <input 
+                                type="text" 
+                                placeholder="IDENTIFY NETWORK NODE..." 
+                                value={searchQuery} 
+                                onChange={e => setSearchQuery(e.target.value)} 
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl pl-16 pr-8 py-5 text-white font-black text-[11px] uppercase tracking-[0.3em] focus:border-emerald-500/50 outline-none transition-all shadow-inner" 
+                            />
                         </div>
-                        <button onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} className="w-full md:w-auto px-10 py-4 bg-emerald-600 shadow-xl shadow-emerald-500/10 text-white font-black rounded-2xl tracking-[0.3em] uppercase text-[11px] hover:bg-emerald-500 active:scale-95 transition-all">New Deployment</button>
+                        <button 
+                            onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} 
+                            className="w-full lg:w-auto px-12 py-5 bg-emerald-600 shadow-2xl shadow-emerald-500/30 text-white font-black rounded-2xl tracking-[0.4em] uppercase text-[11px] hover:bg-emerald-500 active:scale-95 transition-all flex items-center justify-center gap-3"
+                        >
+                            <span className="text-lg leading-none">+</span>
+                            Deploy Node
+                        </button>
                     </div>
 
-                    <div className="elite-card rounded-3xl overflow-hidden glass-panel">
+                    <div className="elite-card rounded-[2.5rem] overflow-hidden glass-panel border-white/5 shadow-2xl">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
-                                <thead className="bg-white/[0.02] border-b border-white/5">
+                                <thead className="bg-[#0a0c10] border-b border-white/5">
                                     <tr>
-                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Identity Hub</th>
-                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Sector</th>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Node Descriptor</th>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Vector Hub</th>
                                         <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Liquidity</th>
-                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-center">Node Rate</th>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-center">Protocol Rate</th>
                                         <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-center">Status</th>
-                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Ops</th>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Commands</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {!isLoaded ? (
-                                        <tr><td colSpan={6} className="p-20 text-center text-slate-600 font-black text-[10px] uppercase tracking-[0.4em] animate-pulse">Scanning Secure Network...</td></tr>
+                                        <tr><td colSpan={6} className="p-32 text-center text-slate-600 font-black text-[11px] uppercase tracking-[0.5em] animate-pulse">Synchronizing Secure Protocol...</td></tr>
                                     ) : filteredUsers.length === 0 ? (
-                                        <tr><td colSpan={6} className="p-20 text-center text-slate-600 font-black text-[10px] uppercase tracking-[0.4em]">Zero Active Nodes Detected</td></tr>
+                                        <tr><td colSpan={6} className="p-32 text-center text-slate-600 font-black text-[11px] uppercase tracking-[0.5em] italic">No Authorized Entities Found</td></tr>
                                     ) : filteredUsers.map(u => (
-                                        <tr key={u.id} className="group hover:bg-emerald-500/[0.02] transition-all">
+                                        <tr key={u.id} className="group hover:bg-emerald-500/[0.03] transition-all">
                                             <td className="p-8">
-                                                <div className="text-white font-bold text-base tracking-tight">{u.name}</div>
-                                                <div className="text-[10px] text-slate-500 font-mono tracking-widest mt-1 uppercase">{u.id}</div>
+                                                <div className="text-white font-black text-xl tracking-tight font-display italic uppercase leading-none group-hover:text-emerald-400 transition-colors">{u.name}</div>
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <span className="text-[10px] text-slate-600 font-black tracking-widest uppercase">NODE_ID:</span>
+                                                    <span className="text-[10px] text-emerald-500/70 font-mono font-bold tracking-widest uppercase">{u.id}</span>
+                                                </div>
                                             </td>
                                             <td className="p-8">
-                                                <div className="text-slate-300 font-bold text-sm tracking-tight">{u.area || '-'}</div>
-                                                <div className="text-[10px] text-slate-500 font-mono tracking-widest uppercase mt-1">{u.contact || '-'}</div>
+                                                <div className="text-slate-300 font-bold text-sm tracking-tight">{u.area || 'SEGMENT_NULL'}</div>
+                                                <div className="flex items-center gap-1.5 mt-1.5 opacity-50">
+                                                    <span className="text-[10px] font-mono text-slate-400">{u.contact || 'TRACE_NULL'}</span>
+                                                </div>
                                             </td>
                                             <td className="p-8 text-right font-mono">
-                                                <div className="text-emerald-400 font-black text-lg">Rs {u.wallet.toLocaleString()}</div>
-                                                <div className="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Available Funds</div>
+                                                <div className="text-emerald-400 font-black text-2xl tracking-tighter italic">Rs {u.wallet.toLocaleString()}</div>
+                                                <div className="text-[9px] text-slate-600 uppercase font-black tracking-[0.2em] mt-1">AVAILABLE BALANCE</div>
                                             </td>
-                                            <td className="p-8 text-center"><span className="text-white font-black text-xs font-mono">{u.commissionRate}%</span></td>
                                             <td className="p-8 text-center">
-                                                <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${u.isRestricted ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'}`}>
-                                                    {u.isRestricted ? 'Restricted' : 'Operational'}
-                                                </span>
+                                                <div className="inline-flex flex-col items-center">
+                                                    <span className="text-white font-black text-lg font-mono italic">{u.commissionRate}%</span>
+                                                    <span className="text-[8px] text-slate-600 font-black uppercase tracking-widest">Yield Cut</span>
+                                                </div>
                                             </td>
-                                            <td className="p-8 text-right"><MoreOptionsDropdown user={u} onEdit={() => { setSelectedUser(u); setIsUserModalOpen(true); }} onLedger={() => setViewingUserLedgerFor(u)} onToggleStatus={() => { toggleAccountRestriction(u.id, 'user'); showT("Node status updated.", "success"); }} onDelete={async () => { await onDeleteUser(u.id); showT("Node purged from database.", "success"); }} /></td>
+                                            <td className="p-8 text-center text-[10px] font-black uppercase tracking-[0.3em]">
+                                                {u.isRestricted ? (
+                                                    <span className="text-rose-500 bg-rose-500/10 border border-rose-500/20 px-4 py-2 rounded-xl">Restricted</span>
+                                                ) : (
+                                                    <span className="text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-xl">Active Node</span>
+                                                )}
+                                            </td>
+                                            <td className="p-8 text-right"><MoreOptionsDropdown user={u} onEdit={() => { setSelectedUser(u); setIsUserModalOpen(true); }} onLedger={() => setViewingUserLedgerFor(u)} onToggleStatus={() => { toggleAccountRestriction(u.id, 'user'); showT("Node authorization toggled.", "success"); }} onDelete={async () => { await onDeleteUser(u.id); showT("Node purged from master index.", "success"); }} /></td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                    <div className="flex justify-center gap-6 pt-10">
-                        <button onClick={() => setIsTopUpModalOpen(true)} className="px-10 py-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black rounded-2xl tracking-[0.3em] uppercase text-[11px] hover:bg-emerald-500/20 active:scale-95 transition-all">Deposit Asset</button>
-                        <button onClick={() => setIsWithdrawalModalOpen(true)} className="px-10 py-4 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-black rounded-2xl tracking-[0.3em] uppercase text-[11px] hover:bg-amber-500/20 active:scale-95 transition-all">Withdraw Asset</button>
+                    <div className="flex flex-col sm:flex-row justify-center gap-8 pt-10">
+                        <button onClick={() => setIsTopUpModalOpen(true)} className="px-12 py-5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black rounded-2xl tracking-[0.4em] uppercase text-[11px] hover:bg-emerald-500/20 active:scale-95 transition-all shadow-xl shadow-emerald-500/10">Inject Asset</button>
+                        <button onClick={() => setIsWithdrawalModalOpen(true)} className="px-12 py-5 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-black rounded-2xl tracking-[0.4em] uppercase text-[11px] hover:bg-amber-500/20 active:scale-95 transition-all shadow-xl shadow-amber-500/10">Withdraw Asset</button>
                     </div>
                 </motion.div>
             )}
@@ -361,28 +418,76 @@ const BettingTerminalView: React.FC<{ users: User[], games: Game[], placeBetAsDe
             });
             if (groups.length === 0) throw new Error("Invalid Syntax");
             await placeBetAsDealer({ userId: uId, gameId: gId, betGroups: groups });
-            setInput(''); alert("Batch deployment complete.");
+            setInput(''); alert("Batch data packets successfully synchronized.");
         } catch (e: any) { alert(e.message); } finally { setLoading(false); }
     };
 
+    const selectClass = "w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white font-black text-[11px] uppercase tracking-[0.2em] outline-none focus:border-emerald-500/50 appearance-none cursor-pointer transition-all shadow-inner";
+
     return (
-        <div className="elite-card glass-panel rounded-3xl p-10 border border-white/10 space-y-8">
-            <div className="flex items-center gap-4">
-                <div className="h-6 w-1 bg-emerald-500 rounded-full" />
-                <h3 className="text-xl font-bold text-white uppercase tracking-tighter">Encrypted Entry Terminal</h3>
+        <div className="elite-card glass-panel rounded-[3.5rem] p-12 border border-white/10 space-y-12 shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+                {Icons.terminal}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <select value={uId} onChange={e => setUId(e.target.value)} className="bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-[10px] uppercase tracking-widest outline-none focus:border-emerald-500/50">
-                    <option value="">SELECT TARGET NODE</option>
-                    {(users || []).filter(u => !u.isRestricted).map(u => <option key={u.id} value={u.id}>{u.name} ({u.id})</option>)}
-                </select>
-                <select value={gId} onChange={e => setGId(e.target.value)} className="bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-[10px] uppercase tracking-widest outline-none focus:border-emerald-500/50">
-                    <option value="">SELECT MARKET GATE</option>
-                    {games.filter(g => g.isMarketOpen).map(g => <option key={g.id} value={g.id}>{g.name} (DRAW @ {g.drawTime})</option>)}
-                </select>
+            <div className="flex items-center gap-5 relative z-10">
+                <div className="h-10 w-1.5 bg-emerald-500 rounded-full" />
+                <div>
+                    <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter">Proxy Link Terminal</h3>
+                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em] mt-1">Secure External Insertion Protocol</p>
+                </div>
             </div>
-            <textarea rows={10} value={input} onChange={e => setInput(e.target.value)} placeholder={"BATCH ENTRY PROTOCOL:\n14, 25 100\n88, 91 500"} className="w-full bg-black/40 border border-white/10 rounded-2xl p-8 text-white font-mono text-base focus:border-emerald-500/50 outline-none resize-none" />
-            <div className="flex justify-end"><button onClick={handle} disabled={!uId || !gId || !input || loading} className="w-full md:w-auto px-12 py-5 bg-emerald-600 shadow-2xl shadow-emerald-500/20 text-white font-black rounded-2xl tracking-[0.3em] uppercase text-[11px] hover:bg-emerald-500 active:scale-95 transition-all disabled:opacity-50">{loading ? 'PROCESSING...' : 'INITIALIZE BATCH'}</button></div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Target Endpoint</label>
+                    <div className="relative">
+                        <select value={uId} onChange={e => setUId(e.target.value)} className={selectClass}>
+                            <option value="">SELECT TARGET NODE</option>
+                            {(users || []).filter(u => !u.isRestricted).map(u => <option key={u.id} value={u.id}>{u.name} (ID: {u.id})</option>)}
+                        </select>
+                        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Market Gateway</label>
+                    <div className="relative">
+                        <select value={gId} onChange={e => setGId(e.target.value)} className={selectClass}>
+                            <option value="">SELECT MARKET GATE</option>
+                            {games.filter(g => g.isMarketOpen).map(g => <option key={g.id} value={g.id}>{g.name} (GATE_DRAW @ {g.drawTime})</option>)}
+                        </select>
+                        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"/></svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-5 relative z-10">
+                <div className="flex justify-between items-center px-1 font-black text-[10px] text-slate-500 uppercase tracking-widest">
+                    <span>Packet Data Buffer</span>
+                    <span className="opacity-40 font-mono italic">Format: Entry_String [Separator] Stake_Value</span>
+                </div>
+                <textarea 
+                    rows={12} 
+                    value={input} 
+                    onChange={e => setInput(e.target.value)} 
+                    placeholder={"INSERTION EXAMPLE:\n14, 25 100.00\n88, 91 500.00"} 
+                    className="w-full bg-black/60 border border-white/5 rounded-[2.5rem] p-10 text-white font-mono text-xl font-black italic tracking-tighter focus:border-emerald-500/50 outline-none resize-none shadow-2xl leading-relaxed" 
+                />
+            </div>
+
+            <div className="flex justify-end pt-4 relative z-10">
+                <button 
+                    onClick={handle} 
+                    disabled={!uId || !gId || !input || loading} 
+                    className="w-full md:w-auto px-16 py-6 bg-emerald-600 shadow-2xl shadow-emerald-500/30 text-white font-black rounded-[1.5rem] tracking-[0.5em] uppercase text-[12px] hover:bg-emerald-500 active:scale-95 transition-all disabled:opacity-20 disabled:grayscale relative overflow-hidden group"
+                >
+                    <span className="relative z-10">{loading ? 'SYNCHRONIZING...' : 'AUTHORIZE INJECTION'}</span>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                </button>
+            </div>
         </div>
     );
 };
