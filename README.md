@@ -1,13 +1,13 @@
-# A-Baba Exchange - Production Deployment Guide
+# A-Baba Exchange - Elite Production Deployment Guide
 
-This comprehensive guide provides step-by-step instructions to deploy the A-Baba Exchange full-stack application on a fresh Ubuntu 22.04 server.
+This guide provides precise, step-by-step instructions to deploy the "Elite Edition" of A-Baba Exchange on an Ubuntu server. This version features an advanced UI path, high-frequency synchronization, and strict protocol management.
 
 We will use:
--   **Vite** to build the frontend into optimized static assets.
--   **SQLite** as the SQL database engine.
--   **Nginx** as a reverse proxy to serve the frontend and route API requests.
--   **PM2** as a process manager to keep the Node.js backend running continuously.
--   **Certbot (Let's Encrypt)** to secure the application with a free SSL certificate (HTTPS).
+-   **Vite**: Frontend optimization.
+-   **SQLite**: Self-contained SQL engine.
+-   **Nginx**: Elite reverse proxy & SSL termination.
+-   **PM2**: High-availability process management.
+-   **Port 3001**: Dedicated backend synchronization port.
 
 ---
 

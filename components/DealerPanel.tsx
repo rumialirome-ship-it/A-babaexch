@@ -1,24 +1,39 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType } from '../types';
-import { Icons } from '../constants';
+import { motion, AnimatePresence } from 'motion/react';
+import { Dealer, User, PrizeRates, LedgerEntry, Bet, Game, SubGameType } from '../types';
+import { Icons, GAME_LOGOS } from '../constants';
 import { useCountdown } from '../hooks/useCountdown';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'emerald' }) => {
-    if (!isOpen) return null;
-    const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-5xl' };
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex justify-center items-center z-50 p-4 overflow-y-auto">
-            <div className={`bg-slate-900/95 rounded-xl shadow-2xl w-full border border-${themeColor}-500/30 ${sizeClasses[size]} flex flex-col my-auto max-h-[95vh]`}>
-                <div className="flex justify-between items-center p-4 sm:p-5 border-b border-slate-700 flex-shrink-0">
-                    <h3 className={`text-base sm:text-lg font-bold text-${themeColor}-400 uppercase tracking-widest`}>{title}</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white p-1">{Icons.close}</button>
-                </div>
-                <div className="p-4 sm:p-6 overflow-y-auto">{children}</div>
-            </div>
-        </div>
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/90 backdrop-blur-md flex justify-center items-center z-[100] p-6"
+                    onClick={(e) => e.target === e.currentTarget && onClose()}
+                >
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                        className={`elite-card rounded-3xl w-full flex flex-col max-h-[90vh] overflow-hidden ${size === 'xl' ? 'max-w-5xl' : size === 'lg' ? 'max-w-3xl' : 'max-w-md'} border-${themeColor}-500/20`}
+                    >
+                        <div className="flex justify-between items-center p-8 border-b border-white/5 bg-white/[0.02]">
+                            <h3 className={`text-xs font-black uppercase tracking-[0.3em] text-${themeColor}-400`}>{title}</h3>
+                            <button onClick={onClose} className="p-2 rounded-xl bg-white/5 text-slate-500 hover:text-white transition-all">{Icons.close}</button>
+                        </div>
+                        <div className="p-10 overflow-y-auto no-scrollbar">
+                            {children}
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 };
 
@@ -29,87 +44,63 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
     }, [onClose]);
 
     return (
-        <div className={`fixed top-4 right-4 z-[100] p-4 rounded-lg shadow-2xl border flex items-center gap-3 animate-slide-in max-w-[90vw] sm:max-w-md ${
-            type === 'success' ? 'bg-emerald-900 border-emerald-500 text-emerald-50' : 'bg-red-900 border-red-500 text-red-50'
-        }`}>
-            <span className="text-xl shrink-0">{type === 'success' ? '✅' : '⚠️'}</span>
-            <span className="font-semibold text-sm">{message}</span>
-            <button onClick={onClose} className="ml-auto opacity-50 hover:opacity-100 p-1">{Icons.close}</button>
-        </div>
+        <motion.div 
+            initial={{ opacity: 0, y: -20, x: 20 }}
+            animate={{ opacity: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className={`fixed top-6 right-6 z-[2000] p-5 rounded-2xl shadow-2xl border flex items-center gap-4 backdrop-blur-xl max-w-sm w-full ${
+                type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+            }`}
+        >
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${type === 'success' ? 'bg-emerald-500/20' : 'bg-rose-500/20'}`}>
+                {type === 'success' ? Icons.check : Icons.alertTriangle}
+            </div>
+            <div className="flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-0.5">Dealer Operations</p>
+                <p className="font-bold text-sm leading-tight text-white">{message}</p>
+            </div>
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/5 opacity-40 hover:opacity-100 transition-all">{Icons.close}</button>
+        </motion.div>
     );
 };
 
 const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
-    <div className="space-y-4">
-        {/* Mobile View */}
-        <div className="sm:hidden space-y-3">
-            {Array.isArray(entries) && [...entries].reverse().map(entry => (
-                <div key={entry.id} className="bg-slate-800/40 p-4 rounded-xl border border-slate-700 shadow-md">
-                    <div className="flex justify-between items-start mb-2">
-                        <div className="text-[10px] text-slate-500 font-mono">{entry.timestamp?.toLocaleString() || 'N/A'}</div>
-                        <div className="text-right">
-                            <div className="text-[9px] text-slate-500 uppercase font-black">Balance</div>
-                            <div className="font-mono text-white font-bold">Rs {entry.balance.toFixed(2)}</div>
-                        </div>
-                    </div>
-                    <div className="text-sm text-slate-200 mb-2 font-semibold">{entry.description}</div>
-                    <div className="flex gap-4">
-                        {entry.debit > 0 && (
-                            <div>
-                                <div className="text-[9px] text-red-500 uppercase font-black">Debit (-)</div>
-                                <div className="text-red-400 font-mono font-bold">Rs {entry.debit.toFixed(2)}</div>
-                            </div>
-                        )}
-                        {entry.credit > 0 && (
-                            <div>
-                                <div className="text-[9px] text-emerald-500 uppercase font-black">Credit (+)</div>
-                                <div className="text-emerald-400 font-mono font-bold">Rs {entry.credit.toFixed(2)}</div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            ))}
-            {(!Array.isArray(entries) || entries.length === 0) && (
-                <div className="p-8 text-center text-slate-500 text-sm">No records found.</div>
-            )}
-        </div>
-
-        {/* Desktop View */}
-        <div className="hidden sm:block bg-slate-900/50 rounded-lg overflow-hidden border border-slate-700">
-            <div className="overflow-y-auto max-h-[60vh] mobile-scroll-x">
-                <table className="w-full text-left min-w-[600px]">
-                    <thead className="bg-slate-800/50 sticky top-0 backdrop-blur-sm">
-                        <tr>
-                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
-                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
-                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Debit</th>
-                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Credit</th>
-                            <th className="p-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Balance</th>
+    <div className="elite-card rounded-2xl overflow-hidden glass-panel">
+        <div className="overflow-x-auto max-h-[30rem] no-scrollbar">
+            <table className="w-full text-left">
+                <thead className="sticky top-0 bg-[#0a0c10] z-20 shadow-xl border-b border-white/5">
+                    <tr>
+                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Entry Timestamp</th>
+                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Descriptor</th>
+                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Debit</th>
+                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Credit</th>
+                        <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Balance</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                    {[...entries].reverse().map(entry => (
+                        <tr key={entry.id} className="hover:bg-white/[0.02] transition-colors">
+                            <td className="p-6 text-[10px] font-mono text-slate-500">{entry.timestamp?.toLocaleString()}</td>
+                            <td className="p-6 text-white font-bold text-sm tracking-tight">{entry.description}</td>
+                            <td className="p-6 text-right text-rose-500 font-mono font-black">{entry.debit > 0 ? `-${entry.debit.toFixed(0)}` : '---'}</td>
+                            <td className="p-6 text-right text-emerald-500 font-mono font-black">{entry.credit > 0 ? `+${entry.credit.toFixed(0)}` : '---'}</td>
+                            <td className="p-6 text-right font-black text-white font-mono italic">Rs {entry.balance.toLocaleString()}</td>
                         </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                        {Array.isArray(entries) && [...entries].reverse().map(entry => (
-                            <tr key={entry.id} className="hover:bg-emerald-500/10 text-sm transition-colors">
-                                <td className="p-3 text-slate-400 whitespace-nowrap">{entry.timestamp?.toLocaleString() || 'N/A'}</td>
-                                <td className="p-3 text-white">{entry.description}</td>
-                                <td className="p-3 text-right text-red-400 font-mono">{entry.debit > 0 ? entry.debit.toFixed(2) : '-'}</td>
-                                <td className="p-3 text-right text-green-400 font-mono">{entry.credit > 0 ? entry.credit.toFixed(2) : '-'}</td>
-                                <td className="p-3 text-right font-semibold text-white font-mono">{entry.balance.toFixed(2)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                    ))}
+                    {entries.length === 0 && (
+                        <tr><td colSpan={5} className="p-10 text-center text-slate-500 text-[10px] font-bold uppercase tracking-widest">Zero Transaction History</td></tr>
+                    )}
+                </tbody>
+            </table>
         </div>
     </div>
 );
 
-export const UserForm: React.FC<{ 
+const UserForm: React.FC<{ 
     user?: User; 
     users: User[]; 
     onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>; 
     onCancel: () => void; 
-    dealerPrizeRates: PrizeRates, 
     dealerId: string;
     showToast: (msg: string, type: 'success' | 'error') => void 
 }> = ({ user, users, onSave, onCancel, dealerId, showToast }) => {
@@ -121,218 +112,362 @@ export const UserForm: React.FC<{
     const [formData, setFormData] = useState(() => {
         if (user) {
             return {
-                id: user.id,
-                name: user.name,
-                contact: user.contact || '',
-                area: user.area || '',
-                password: '',
-                wallet: user.wallet.toString(),
-                commissionRate: (user.commissionRate ?? 0).toString(),
-                betLimits: {
-                    oneDigit: (user.betLimits?.oneDigit ?? 1000).toString(),
-                    twoDigit: (user.betLimits?.twoDigit ?? 5000).toString(),
-                    perDraw: (user.betLimits?.perDraw ?? 20000).toString(),
-                },
-                prizeRates: {
-                    oneDigitOpen: (user.prizeRates?.oneDigitOpen ?? 9.50).toString(),
-                    oneDigitClose: (user.prizeRates?.oneDigitClose ?? 9.50).toString(),
-                    twoDigit: (user.prizeRates?.twoDigit ?? 85.00).toString()
-                },
+                id: user.id, name: user.name, contact: user.contact || '', area: user.area || '', password: '', 
+                wallet: user.wallet.toString(), commissionRate: (user.commissionRate || 0).toString(),
+                betLimits: { oneDigit: (user.betLimits?.oneDigit || 1000).toString(), twoDigit: (user.betLimits?.twoDigit || 5000).toString(), perDraw: (user.betLimits?.perDraw || 20000).toString() },
+                prizeRates: { oneDigitOpen: (user.prizeRates?.oneDigitOpen || 9.50).toString(), oneDigitClose: (user.prizeRates?.oneDigitClose || 9.50).toString(), twoDigit: (user.prizeRates?.twoDigit || 85.00).toString() },
                 avatarUrl: user.avatarUrl || ''
             };
         }
         return {
-            id: '', name: '', area: '', contact: '', 
-            commissionRate: '0', 
+            id: '', name: '', area: '', contact: '', commissionRate: '0', 
             prizeRates: { oneDigitOpen: '9.50', oneDigitClose: '9.50', twoDigit: '85.00' }, 
-            avatarUrl: '', wallet: '0',
-            betLimits: { oneDigit: '1000', twoDigit: '5000', perDraw: '20000' }
+            avatarUrl: '', wallet: '0', betLimits: { oneDigit: '1000', twoDigit: '5000', perDraw: '20000' }
         };
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         if (name.includes('.')) {
-            const [parent, child] = name.split('.');
-            setFormData(prev => ({ 
-                ...prev, 
-                [parent]: { 
-                    ...(prev[parent as keyof typeof prev] as object), 
-                    [child]: value 
-                } 
-            }));
-        } else {
-            setFormData(prev => ({ ...prev, [name]: value }));
-        }
+            const [p, c] = name.split('.');
+            setFormData(prev => ({ ...prev, [p]: { ...(prev[p as keyof typeof prev] as object), [c]: value } }));
+        } else setFormData(prev => ({ ...prev, [name]: value }));
     };
     
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const activePass = user ? (password || user.password) : password;
-        
-        if (!user && !password) { showToast("⚠️ Password is required.", "error"); return; }
-        if (password && password !== confirmPassword) { showToast("⚠️ Passwords do not match.", "error"); return; }
-        
-        const isIdTaken = !user && users.some(u => u.id.toLowerCase() === formData.id.toLowerCase());
-        if (isIdTaken) { showToast("⚠️ Username already exists.", "error"); return; }
+        if (!user && !password) { showToast("Master key required.", "error"); return; }
+        if (password && password !== confirmPassword) { showToast("Keys mismatch.", "error"); return; }
+        if (!user && users.some(u => u.id.toLowerCase() === formData.id.toLowerCase())) { showToast("ID already deployed.", "error"); return; }
 
         setIsLoading(true);
         try {
-            const userPayload: User = {
-                id: formData.id,
-                name: formData.name,
-                contact: formData.contact,
-                area: formData.area,
-                password: activePass,
-                dealerId,
-                wallet: Number(formData.wallet) || 0,
-                commissionRate: Number(formData.commissionRate) || 0,
-                isRestricted: user?.isRestricted ?? false,
-                ledger: [], 
-                avatarUrl: formData.avatarUrl,
-                betLimits: {
-                    oneDigit: Number(formData.betLimits.oneDigit) || 0,
-                    twoDigit: Number(formData.betLimits.twoDigit) || 0,
-                    perDraw: Number(formData.betLimits.perDraw) || 0
-                },
-                prizeRates: {
-                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen) || 0,
-                    oneDigitClose: Number(formData.prizeRates.oneDigitClose) || 0,
-                    twoDigit: Number(formData.prizeRates.twoDigit) || 0
-                }
+            const payload: User = {
+                id: formData.id, name: formData.name, contact: formData.contact, area: formData.area,
+                password: password || user!.password, dealerId,
+                wallet: Number(formData.wallet) || 0, commissionRate: Number(formData.commissionRate) || 0,
+                isRestricted: user?.isRestricted || false, ledger: [], avatarUrl: formData.avatarUrl,
+                betLimits: { oneDigit: Number(formData.betLimits.oneDigit), twoDigit: Number(formData.betLimits.twoDigit), perDraw: Number(formData.betLimits.perDraw) },
+                prizeRates: { oneDigitOpen: Number(formData.prizeRates.oneDigitOpen), oneDigitClose: Number(formData.prizeRates.oneDigitClose), twoDigit: Number(formData.prizeRates.twoDigit) }
             };
-
-            await onSave(userPayload, user?.id, user ? undefined : Number(formData.wallet));
-            showToast(user ? "✅ User updated successfully!" : "✅ User added successfully!", "success");
+            await onSave(payload, user?.id, user ? undefined : Number(formData.wallet));
+            showToast("Terminal configuration synchronized.", "success");
             onCancel();
-        } catch (err: any) {
-            showToast(`⚠️ ${err.message || 'Error processing user'}`, 'error');
-        } finally {
-            setIsLoading(false); 
-        }
+        } catch (err: any) { showToast(err.message, 'error'); } finally { setIsLoading(false); }
     };
 
-    const inputClass = "w-full bg-slate-800 p-2.5 rounded-md border border-slate-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none text-white text-sm transition-all";
-    const labelClass = "block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-widest";
+    const inputClass = "w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white text-sm focus:border-emerald-500/50 outline-none transition-all";
+    const labelClass = "block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-widest ml-1";
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-1">
-                    <label className={labelClass}>Username / Login ID</label>
-                    <input type="text" name="id" value={formData.id} onChange={handleChange} className={inputClass} required disabled={!!user} placeholder="e.g. jhon123" />
-                </div>
-                <div className="sm:col-span-1">
-                    <label className={labelClass}>Full Display Name</label>
-                    <input type="text" name="name" value={formData.name} onChange={handleChange} className={inputClass} required placeholder="e.g. Jhon Doe" />
-                </div>
-                <div className="sm:col-span-1">
-                    <label className={labelClass}>Phone Number</label>
-                    <input type="tel" name="contact" value={formData.contact} onChange={handleChange} className={inputClass} required placeholder="e.g. 03001234567" />
-                </div>
-                <div className="sm:col-span-1">
-                    <label className={labelClass}>City / Area</label>
-                    <input type="text" name="area" value={formData.area} onChange={handleChange} className={inputClass} required placeholder="e.g. Karachi" />
-                </div>
-                
-                <div className="sm:col-span-1 relative">
-                    <label className={labelClass}>{user ? "Change Password (optional)" : "Password"}</label>
-                    <input type={isPasswordVisible ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className={inputClass} required={!user} />
-                    <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-3 top-7 text-slate-500">{isPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
-                </div>
-                <div className="sm:col-span-1">
-                    <label className={labelClass}>Confirm Password</label>
-                    <input type={isPasswordVisible ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass} required={!!password} />
-                </div>
+        <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div><label className={labelClass}>Terminal ID</label><input type="text" name="id" value={formData.id} onChange={handleChange} className={inputClass} required disabled={!!user} placeholder="A-00000" /></div>
+                <div><label className={labelClass}>Identity Name</label><input type="text" name="name" value={formData.name} onChange={handleChange} className={inputClass} required placeholder="Full Name" /></div>
+                <div><label className={labelClass}>Contact Link</label><input type="tel" name="contact" value={formData.contact} onChange={handleChange} className={inputClass} required placeholder="Phone" /></div>
+                <div><label className={labelClass}>Sector / Area</label><input type="text" name="area" value={formData.area} onChange={handleChange} className={inputClass} required placeholder="City" /></div>
+                <div className="relative"><label className={labelClass}>Security Key</label><input type={isPasswordVisible ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} className={inputClass} required={!user} /><button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-4 top-10 text-slate-500">{isPasswordVisible ? Icons.eyeOff : Icons.eye}</button></div>
+                <div><label className={labelClass}>Verify Key</label><input type={isPasswordVisible ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass} required={!!password} /></div>
+                <div><label className={labelClass}>Initial Liquidity</label><input type="text" name="wallet" value={formData.wallet} onChange={handleChange} className={inputClass} disabled={!!user} /></div>
+                <div><label className={labelClass}>Commission Node (%)</label><input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} className={inputClass} /></div>
+            </div>
 
-                <div className="sm:col-span-1">
-                    <label className={labelClass}>Wallet Balance (PKR)</label>
-                    <input type="text" name="wallet" value={formData.wallet} onChange={handleChange} className={inputClass} disabled={!!user} />
-                </div>
-                <div className="sm:col-span-1">
-                    <label className={labelClass}>User Commission Rate (%)</label>
-                    <input type="text" name="commissionRate" value={formData.commissionRate} onChange={handleChange} className={inputClass} placeholder="e.g. 5.5" />
+            <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-6">
+                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-4">Payout Multipliers</p>
+                <div className="grid grid-cols-3 gap-6">
+                    <div><label className={labelClass}>2-Digit Rate</label><input type="text" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} /></div>
+                    <div><label className={labelClass}>Open Rate</label><input type="text" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} /></div>
+                    <div><label className={labelClass}>Close Rate</label><input type="text" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} /></div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-lg bg-slate-800/30 border border-slate-700/50">
-                <div className="sm:col-span-3 text-xs font-black text-emerald-500 uppercase tracking-tighter mb-1">Prize Settings</div>
-                <div>
-                    <label className={labelClass}>Rate (2 Digit)</label>
-                    <input type="text" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} />
-                </div>
-                <div>
-                    <label className={labelClass}>Rate (Open)</label>
-                    <input type="text" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} />
-                </div>
-                <div>
-                    <label className={labelClass}>Rate (Close)</label>
-                    <input type="text" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-lg bg-slate-800/30 border border-slate-700/50">
-                <div className="sm:col-span-3 text-xs font-black text-cyan-500 uppercase tracking-tighter mb-1">Bet Limits</div>
-                <div>
-                    <label className={labelClass}>Limit (2D)</label>
-                    <input type="text" name="betLimits.twoDigit" value={formData.betLimits.twoDigit} onChange={handleChange} className={inputClass} />
-                </div>
-                <div>
-                    <label className={labelClass}>Limit (1D)</label>
-                    <input type="text" name="betLimits.oneDigit" value={formData.betLimits.oneDigit} onChange={handleChange} className={inputClass} />
-                </div>
-                <div>
-                    <label className={labelClass}>Per Draw</label>
-                    <input type="text" name="betLimits.perDraw" value={formData.betLimits.perDraw} onChange={handleChange} className={inputClass} />
-                </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2 border-t border-slate-700">
-                <button type="button" onClick={onCancel} className="flex-1 sm:flex-none px-6 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-sm transition-all">Cancel</button>
-                <button type="submit" disabled={isLoading} className="flex-[2] sm:flex-none px-10 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30">
-                    {isLoading ? <><div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> Processing...</> : user ? "Update Profile" : "Create User"}
+            <div className="flex gap-4">
+                <button type="button" onClick={onCancel} className="flex-1 py-4 bg-white/5 text-white font-bold rounded-xl uppercase tracking-widest text-[10px] hover:bg-white/10 active:scale-95 transition-all">Abort</button>
+                <button type="submit" disabled={isLoading} className="flex-[2] py-4 bg-emerald-600 text-white font-black rounded-xl tracking-[0.3em] uppercase text-[11px] hover:bg-emerald-500 shadow-xl shadow-emerald-500/10 flex items-center justify-center gap-3 active:scale-95 transition-all">
+                    {isLoading ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : (user ? "Update Terminal" : "Deploy Terminal")}
                 </button>
             </div>
         </form>
     );
 };
 
-const MoreOptionsDropdown: React.FC<{ 
-    user: User; 
-    onEdit: () => void; 
-    onLedger: () => void; 
-    onToggleStatus: () => void; 
-    onDelete: () => void;
-}> = ({ user, onEdit, onLedger, onToggleStatus, onDelete }) => {
+const MoreOptionsDropdown: React.FC<{ user: User, onEdit: () => void, onLedger: () => void, onToggleStatus: () => void, onDelete: () => void }> = ({ user, onEdit, onLedger, onToggleStatus, onDelete }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const clickOut = (e: MouseEvent) => { if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setIsOpen(false); };
-        document.addEventListener('mousedown', clickOut);
-        return () => document.removeEventListener('mousedown', clickOut);
-    }, []);
-
-    const btnClass = "w-full text-left px-4 py-2.5 text-xs font-bold uppercase tracking-wider hover:bg-slate-700 transition-colors flex items-center gap-3";
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => { const out = (e: any) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false); }; document.addEventListener('mousedown', out); return () => document.removeEventListener('mousedown', out); }, []);
 
     return (
-        <div className="relative inline-block" ref={dropdownRef}>
-            <button onClick={() => setIsOpen(!isOpen)} className="p-2 hover:bg-slate-700/50 rounded-lg transition-all text-slate-400 hover:text-white border border-transparent hover:border-slate-600">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+        <div className="relative" ref={ref}>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-slate-500 hover:text-white hover:border-white/10 transition-all active:scale-90">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
             </button>
-            {isOpen && (
-                <div className="absolute right-0 mt-2 w-44 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-[60] overflow-hidden animate-fade-in divide-y divide-slate-700/50">
-                    <button onClick={() => { onEdit(); setIsOpen(false); }} className={`${btnClass} text-sky-400`}>Edit Account</button>
-                    <button onClick={() => { onLedger(); setIsOpen(false); }} className={`${btnClass} text-emerald-400`}>Transaction Ledger</button>
-                    <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className={`${btnClass} ${user.isRestricted ? 'text-green-400' : 'text-amber-400'}`}>
-                        {user.isRestricted ? 'Unblock Access' : 'Restrict Access'}
-                    </button>
-                    <button onClick={() => { if(window.confirm(`Permanently delete ${user.name}? This cannot be undone.`)) onDelete(); setIsOpen(false); }} className={`${btnClass} text-red-500 hover:bg-red-950/30`}>Delete Account</button>
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div initial={{ opacity: 0, scale: 0.95, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -10 }} className="absolute right-0 mt-3 w-48 elite-card glass-panel rounded-2xl border border-white/10 z-50 overflow-hidden shadow-2xl">
+                        <div className="flex flex-col text-[10px] font-black uppercase tracking-widest">
+                            <button onClick={() => { onEdit(); setIsOpen(false); }} className="w-full text-left p-4 hover:bg-sky-500/10 text-sky-400 border-b border-white/5 transition-all">Config Terminal</button>
+                            <button onClick={() => { onLedger(); setIsOpen(false); }} className="w-full text-left p-4 hover:bg-emerald-500/10 text-emerald-400 border-b border-white/5 transition-all">Audit Ledger</button>
+                            <button onClick={() => { onToggleStatus(); setIsOpen(false); }} className="w-full text-left p-4 hover:bg-amber-500/10 text-amber-500 border-b border-white/5 transition-all">
+                                {user.isRestricted ? 'Authorize Access' : 'Restrict Access'}
+                            </button>
+                            <button onClick={() => { if(window.confirm(`Wipe ${user.name}? This is irreversible.`)) onDelete(); setIsOpen(false); }} className="w-full text-left p-4 hover:bg-rose-500/10 text-rose-500 transition-all">Purge Node</button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, onDeleteUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer, isLoaded = false }) => {
+    const [activeTab, setActiveTab] = useState('users');
+    const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
+    const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+    const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+    const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+    const filteredUsers = useMemo(() => {
+        return (users || []).filter(u => {
+            const q = searchQuery.toLowerCase();
+            return u.name.toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || u.area?.toLowerCase().includes(q);
+        });
+    }, [users, searchQuery]);
+
+    const showT = (msg: string, type: 'success' | 'error') => setToast({ msg, type });
+
+    return (
+        <div className="max-w-7xl mx-auto px-6 py-12 md:py-20 relative z-10">
+            <AnimatePresence>{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}</AnimatePresence>
+
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row justify-between items-end mb-20 gap-8">
+                <div className="border-l-4 border-emerald-500 pl-8">
+                    <h2 className="text-5xl md:text-7xl font-black text-white tracking-widest uppercase mb-4">Command Center</h2>
+                    <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px]">Dealer Authority: <span className="text-emerald-500">{dealer.name}</span></p>
                 </div>
+                <div className="bg-black/40 p-2 rounded-2xl border border-white/5 flex gap-2 overflow-x-auto no-scrollbar">
+                    {['users', 'terminal', 'wallet', 'history'].map(t => (
+                        <button key={t} onClick={() => setActiveTab(t)} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/10' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>
+                            {t}
+                        </button>
+                    ))}
+                </div>
+            </motion.div>
+
+            {activeTab === 'users' && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div className="relative flex-1 w-full">
+                            <input type="text" placeholder="FILTER NETWORK NODES..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold text-[11px] uppercase tracking-[0.2em] focus:border-emerald-500/50 outline-none transition-all" />
+                        </div>
+                        <button onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} className="w-full md:w-auto px-10 py-4 bg-emerald-600 shadow-xl shadow-emerald-500/10 text-white font-black rounded-2xl tracking-[0.3em] uppercase text-[11px] hover:bg-emerald-500 active:scale-95 transition-all">New Deployment</button>
+                    </div>
+
+                    <div className="elite-card rounded-3xl overflow-hidden glass-panel">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-white/[0.02] border-b border-white/5">
+                                    <tr>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Identity Hub</th>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Sector</th>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Liquidity</th>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-center">Node Rate</th>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-center">Status</th>
+                                        <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Ops</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {!isLoaded ? (
+                                        <tr><td colSpan={6} className="p-20 text-center text-slate-600 font-black text-[10px] uppercase tracking-[0.4em] animate-pulse">Scanning Secure Network...</td></tr>
+                                    ) : filteredUsers.length === 0 ? (
+                                        <tr><td colSpan={6} className="p-20 text-center text-slate-600 font-black text-[10px] uppercase tracking-[0.4em]">Zero Active Nodes Detected</td></tr>
+                                    ) : filteredUsers.map(u => (
+                                        <tr key={u.id} className="group hover:bg-emerald-500/[0.02] transition-all">
+                                            <td className="p-8">
+                                                <div className="text-white font-bold text-base tracking-tight">{u.name}</div>
+                                                <div className="text-[10px] text-slate-500 font-mono tracking-widest mt-1 uppercase">{u.id}</div>
+                                            </td>
+                                            <td className="p-8">
+                                                <div className="text-slate-300 font-bold text-sm tracking-tight">{u.area || '-'}</div>
+                                                <div className="text-[10px] text-slate-500 font-mono tracking-widest uppercase mt-1">{u.contact || '-'}</div>
+                                            </td>
+                                            <td className="p-8 text-right font-mono">
+                                                <div className="text-emerald-400 font-black text-lg">Rs {u.wallet.toLocaleString()}</div>
+                                                <div className="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Available Funds</div>
+                                            </td>
+                                            <td className="p-8 text-center"><span className="text-white font-black text-xs font-mono">{u.commissionRate}%</span></td>
+                                            <td className="p-8 text-center">
+                                                <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${u.isRestricted ? 'bg-rose-500/10 border-rose-500/20 text-rose-500' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'}`}>
+                                                    {u.isRestricted ? 'Restricted' : 'Operational'}
+                                                </span>
+                                            </td>
+                                            <td className="p-8 text-right"><MoreOptionsDropdown user={u} onEdit={() => { setSelectedUser(u); setIsUserModalOpen(true); }} onLedger={() => setViewingUserLedgerFor(u)} onToggleStatus={() => { toggleAccountRestriction(u.id, 'user'); showT("Node status updated.", "success"); }} onDelete={async () => { await onDeleteUser(u.id); showT("Node purged from database.", "success"); }} /></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div className="flex justify-center gap-6 pt-10">
+                        <button onClick={() => setIsTopUpModalOpen(true)} className="px-10 py-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black rounded-2xl tracking-[0.3em] uppercase text-[11px] hover:bg-emerald-500/20 active:scale-95 transition-all">Deposit Asset</button>
+                        <button onClick={() => setIsWithdrawalModalOpen(true)} className="px-10 py-4 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-black rounded-2xl tracking-[0.3em] uppercase text-[11px] hover:bg-amber-500/20 active:scale-95 transition-all">Withdraw Asset</button>
+                    </div>
+                </motion.div>
+            )}
+
+            {activeTab === 'terminal' && (
+                <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+                    <BettingTerminalView users={users || []} games={games} placeBetAsDealer={placeBetAsDealer} />
+                </motion.div>
+            )}
+            {activeTab === 'wallet' && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12"><div className="grid grid-cols-1 md:grid-cols-2 gap-8"><div className="elite-card p-10 rounded-3xl glass-panel text-center"><p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-2">My Total Yield</p><p className="text-5xl font-black text-emerald-400 font-mono tracking-tighter">Rs {dealer.wallet.toLocaleString()}</p></div><div className="elite-card p-10 rounded-3xl glass-panel text-center"><p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-2">Audit Trails</p><p className="text-5xl font-black text-white font-mono tracking-tighter">{dealer.ledger?.length || 0}</p></div></div><LedgerTable entries={dealer.ledger || []} /></motion.div>}
+            {activeTab === 'history' && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}><BetHistoryView bets={bets} games={games} users={users || []} /></motion.div>}
+
+            <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Node Configuration" : "Deploy Network Node"} themeColor="emerald">
+                <UserForm user={selectedUser} users={users || []} onSave={onSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerId={dealer.id} showToast={showT} />
+            </Modal>
+            <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Asset Deposit" themeColor="emerald">
+                <UserTransactionForm type="Top-Up" users={filteredUsers} onTransaction={async (u, a) => { await topUpUserWallet(u, a); showT("Liquidity injection successful.", "success"); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
+            </Modal>
+            <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Asset Withdrawal" themeColor="amber">
+                <UserTransactionForm type="Withdrawal" users={filteredUsers} onTransaction={async (u, a) => { await withdrawFromUserWallet(u, a); showT("Asset withdrawal cleared.", "success"); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
+            </Modal>
+            {viewingUserLedgerFor && (
+                <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger Trace: ${viewingUserLedgerFor.id}`} size="xl" themeColor="sky">
+                    <LedgerTable entries={viewingUserLedgerFor.ledger} />
+                </Modal>
             )}
         </div>
     );
 };
+
+const BettingTerminalView: React.FC<{ users: User[], games: Game[], placeBetAsDealer: (details: any) => Promise<void> }> = ({ users, games, placeBetAsDealer }) => {
+    const [uId, setUId] = useState('');
+    const [gId, setGId] = useState('');
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handle = async () => {
+        if (!uId || !gId || !input) return; setLoading(true);
+        try {
+            const groups: any[] = [];
+            input.split('\n').filter(l => l.trim()).forEach(l => {
+                const sMatch = l.match(/(?:rs|r)?\s*(\d+\.?\d*)$/i);
+                const stake = sMatch ? parseFloat(sMatch[1]) : 0; if (stake <= 0) return;
+                const nums = l.substring(0, sMatch!.index).trim().split(/[-.,\s]+/).filter(n => n.length > 0);
+                if (nums.length > 0) groups.push({ subGameType: SubGameType.TwoDigit, numbers: nums, amountPerNumber: stake });
+            });
+            if (groups.length === 0) throw new Error("Invalid Syntax");
+            await placeBetAsDealer({ userId: uId, gameId: gId, betGroups: groups });
+            setInput(''); alert("Batch deployment complete.");
+        } catch (e: any) { alert(e.message); } finally { setLoading(false); }
+    };
+
+    return (
+        <div className="elite-card glass-panel rounded-3xl p-10 border border-white/10 space-y-8">
+            <div className="flex items-center gap-4">
+                <div className="h-6 w-1 bg-emerald-500 rounded-full" />
+                <h3 className="text-xl font-bold text-white uppercase tracking-tighter">Encrypted Entry Terminal</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <select value={uId} onChange={e => setUId(e.target.value)} className="bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-[10px] uppercase tracking-widest outline-none focus:border-emerald-500/50">
+                    <option value="">SELECT TARGET NODE</option>
+                    {(users || []).filter(u => !u.isRestricted).map(u => <option key={u.id} value={u.id}>{u.name} ({u.id})</option>)}
+                </select>
+                <select value={gId} onChange={e => setGId(e.target.value)} className="bg-black/40 border border-white/10 p-4 rounded-xl text-white font-bold text-[10px] uppercase tracking-widest outline-none focus:border-emerald-500/50">
+                    <option value="">SELECT MARKET GATE</option>
+                    {games.filter(g => g.isMarketOpen).map(g => <option key={g.id} value={g.id}>{g.name} (DRAW @ {g.drawTime})</option>)}
+                </select>
+            </div>
+            <textarea rows={10} value={input} onChange={e => setInput(e.target.value)} placeholder={"BATCH ENTRY PROTOCOL:\n14, 25 100\n88, 91 500"} className="w-full bg-black/40 border border-white/10 rounded-2xl p-8 text-white font-mono text-base focus:border-emerald-500/50 outline-none resize-none" />
+            <div className="flex justify-end"><button onClick={handle} disabled={!uId || !gId || !input || loading} className="w-full md:w-auto px-12 py-5 bg-emerald-600 shadow-2xl shadow-emerald-500/20 text-white font-black rounded-2xl tracking-[0.3em] uppercase text-[11px] hover:bg-emerald-500 active:scale-95 transition-all disabled:opacity-50">{loading ? 'PROCESSING...' : 'INITIALIZE BATCH'}</button></div>
+        </div>
+    );
+};
+
+const UserTransactionForm: React.FC<{ users: User[], onTransaction: (u: string, a: number) => Promise<void>, onCancel: () => void, type: 'Top-Up' | 'Withdrawal' }> = ({ users, onTransaction, onCancel, type }) => {
+    const [uId, setUId] = useState('');
+    const [amt, setAmt] = useState<number | ''>('');
+    const theme = type === 'Top-Up' ? 'emerald' : 'amber';
+    const cls = `w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white font-bold outline-none focus:border-${theme}-500/50 mb-6`;
+    return (
+        <form onSubmit={async (e) => { e.preventDefault(); if (uId && amt) await onTransaction(uId, Number(amt)); }} className="space-y-2">
+            <select value={uId} onChange={e => setUId(e.target.value)} className={cls} required>
+                <option value="">SELECT TARGET ACCOUNT</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name} (PKR {u.wallet.toLocaleString()})</option>)}
+            </select>
+            <input type="number" value={amt} onChange={e => setAmt(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="TRANSACTION AMOUNT (RS)" className={cls} required step="1" />
+            <div className="flex gap-4">
+                <button type="button" onClick={onCancel} className="flex-1 py-4 bg-white/5 text-white font-bold rounded-xl text-[10px] uppercase tracking-widest hover:bg-white/10">Abort</button>
+                <button type="submit" className={`flex-1 py-4 bg-${theme}-600 text-white font-black rounded-xl text-[10px] uppercase tracking-[0.2em] hover:bg-${theme}-500 transition-all shadow-xl shadow-${theme}-500/10`}>{type}</button>
+            </div>
+        </form>
+    );
+};
+
+const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = ({ bets, games, users }) => {
+    const [start, setStart] = useState(getTodayDateString());
+    const [end, setEnd] = useState(getTodayDateString());
+    const [search, setSearch] = useState('');
+    const filtered = (bets || []).filter(b => {
+        const d = b.timestamp.toISOString().split('T')[0];
+        if (start && d < start) return false; if (end && d > end) return false;
+        if (search) {
+            const u = users.find(x => x.id === b.userId); const g = games.find(x => x.id === b.gameId);
+            const q = search.toLowerCase(); return u?.name.toLowerCase().includes(q) || g?.name.toLowerCase().includes(q) || u?.id.includes(q);
+        }
+        return true;
+    }).sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    return (
+        <div className="space-y-10">
+            <div className="flex items-center gap-4">
+                <div className="h-8 w-1 bg-sky-500 rounded-full" />
+                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Unified Activity Audit</h3>
+                <span className="text-[10px] font-bold text-sky-500 bg-sky-500/10 border border-sky-500/20 px-3 py-1 rounded-full uppercase tracking-widest ml-auto">System History</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-black/40 p-3 rounded-2xl border border-white/5">
+                <input type="date" value={start} onChange={e => setStart(e.target.value)} className="bg-transparent text-white p-3 rounded-xl border border-transparent focus:border-white/10 outline-none font-mono text-sm" />
+                <input type="date" value={end} onChange={e => setEnd(e.target.value)} className="bg-transparent text-white p-3 rounded-xl border border-transparent focus:border-white/10 outline-none font-mono text-sm" />
+                <input type="text" placeholder="FILTER BY ID / GAME..." value={search} onChange={e => setSearch(e.target.value)} className="bg-transparent text-white p-3 rounded-xl border border-transparent focus:border-white/10 outline-none font-black text-[10px] uppercase tracking-widest" />
+            </div>
+            <div className="elite-card rounded-3xl overflow-hidden glass-panel">
+                <div className="overflow-x-auto max-h-[40rem] no-scrollbar">
+                    <table className="w-full text-left">
+                        <thead className="sticky top-0 bg-[#0a0c10] z-20 border-b border-white/5 shadow-xl">
+                            <tr>
+                                <th className="p-8 text-[10px] text-slate-500 font-bold uppercase tracking-widest">Mark</th>
+                                <th className="p-8 text-[10px] text-slate-500 font-bold uppercase tracking-widest">Account Node</th>
+                                <th className="p-8 text-[10px] text-slate-500 font-bold uppercase tracking-widest">Manifest</th>
+                                <th className="p-8 text-[10px] text-slate-500 font-bold uppercase tracking-widest text-right">Stake Pack</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                            {filtered.map(b => (
+                                <tr key={b.id} className="hover:bg-white/[0.02]">
+                                    <td className="p-8 text-[10px] font-mono text-slate-600">{b.timestamp.toLocaleString()}</td>
+                                    <td className="p-8">
+                                        <div className="text-white font-bold text-sm tracking-tight">{users.find(u => u.id === b.userId)?.name || 'ERR'}</div>
+                                        <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">{b.userId}</div>
+                                    </td>
+                                    <td className="p-8">
+                                        <div className="text-sky-400 font-black text-xs uppercase tracking-tighter mb-1">{games.find(g => g.id === b.gameId)?.name || 'N/A'}</div>
+                                        <div className="text-[10px] text-slate-500 font-mono italic">{b.subGameType} / {b.numbers.join(', ')}</div>
+                                    </td>
+                                    <td className="p-8 text-right font-mono font-black text-white text-base">Rs {b.totalAmount.toLocaleString()}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default DealerPanel;
 
 interface DealerPanelProps {
   dealer: Dealer;
@@ -347,355 +482,3 @@ interface DealerPanelProps {
   placeBetAsDealer: (details: { userId: string; gameId: string; betGroups: any[] }) => Promise<void>;
   isLoaded?: boolean;
 }
-
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, onDeleteUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer, isLoaded = false }) => {
-  const [activeTab, setActiveTab] = useState('users');
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
-  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
-  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
-  const [viewingUserLedgerFor, setViewingUserLedgerFor] = useState<User | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-
-  const safeUsers = useMemo(() => Array.isArray(users) ? users : [], [users]);
-  const safeDealer = dealer || { id: '', name: '', prizeRates: {}, ledger: [], commissionRate: 0 };
-
-  const showToast = (msg: string, type: 'success' | 'error') => setToast({ msg, type });
-
-  const dealerUsers = useMemo(() => {
-        return safeUsers
-            .filter(user => {
-                if (!user) return false;
-                const query = searchQuery.toLowerCase();
-                return (user.name || '').toLowerCase().includes(query) || (user.id || '').toLowerCase().includes(query) || (user.area || '').toLowerCase().includes(query);
-            });
-  }, [safeUsers, searchQuery]);
-
-  const tabs = [
-    { id: 'users', label: 'Users', icon: Icons.userGroup },
-    { id: 'terminal', label: 'Terminal', icon: Icons.clipboardList },
-    { id: 'wallet', label: 'Wallet', icon: Icons.wallet },
-    { id: 'history', label: 'History', icon: Icons.bookOpen },
-  ];
-
-  if (!dealer) return <div className="p-8 text-center text-slate-400">Loading dealer profile...</div>;
-
-  return (
-    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto min-h-[85vh]">
-      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-8 gap-4">
-          <div className="flex flex-col">
-            <h2 className="text-2xl sm:text-3xl font-black text-emerald-400 uppercase tracking-tighter">Dealer Panel</h2>
-            <div className="flex items-center gap-2 mt-1">
-                <span className="bg-emerald-500/10 text-emerald-500 text-[10px] px-2 py-0.5 rounded border border-emerald-500/20 font-black uppercase tracking-widest">
-                    My Commission: {safeDealer.commissionRate}%
-                </span>
-            </div>
-          </div>
-          <div className="bg-slate-800/50 p-1 rounded-lg flex items-center space-x-1 border border-slate-700 w-full md:w-auto overflow-x-auto no-scrollbar">
-            {tabs.map(tab => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`shrink-0 flex items-center space-x-2 py-2 px-3 sm:px-4 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-md transition-all ${activeTab === tab.id ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-700 hover:text-white'}`}>
-                    {tab.icon} <span>{tab.label}</span>
-                </button>
-            ))}
-          </div>
-      </div>
-      
-      {activeTab === 'users' && (
-        <div className="animate-fade-in">
-           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-4 gap-3">
-            <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">Managed Users <span className="bg-slate-800 px-2 py-0.5 rounded text-xs text-emerald-400 font-mono">{dealerUsers.length}</span></h3>
-            <div className="flex gap-2">
-                <div className="relative flex-grow sm:w-64">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">{Icons.search}</span>
-                    <input type="text" placeholder="Search accounts..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-slate-800 p-2 pl-10 rounded-lg border border-slate-700 text-white w-full text-xs focus:ring-1 focus:ring-emerald-500" />
-                </div>
-                <button onClick={() => { setSelectedUser(undefined); setIsUserModalOpen(true); }} className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-lg font-black px-4 sm:px-6 transition-all shadow-xl shadow-emerald-900/20 whitespace-nowrap text-xs uppercase tracking-widest">New User</button>
-            </div>
-          </div>
-
-          <div className="bg-slate-800/40 rounded-xl overflow-hidden border border-slate-700 backdrop-blur-sm shadow-2xl">
-            <div className="overflow-x-auto mobile-scroll-x">
-                <table className="w-full text-left min-w-[900px]">
-                    <thead className="bg-slate-800/80 border-b border-slate-700">
-                        <tr>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Account Info</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Location</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Balance (PKR)</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Comm %</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Status</th>
-                            <th className="p-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                        {!isLoaded ? (
-                            <tr><td colSpan={6} className="p-12 text-center text-slate-500 font-bold animate-pulse text-xs uppercase tracking-widest">Synchronizing Encrypted Data...</td></tr>
-                        ) : dealerUsers.length === 0 ? (
-                            <tr><td colSpan={6} className="p-12 text-center text-slate-500 font-bold text-xs uppercase tracking-widest">No users found in your network.</td></tr>
-                        ) : dealerUsers.map(user => (
-                            <tr key={user.id} className="hover:bg-slate-700/20 transition-all">
-                                <td className="p-4">
-                                    <div className="font-bold text-white text-sm">{user.name}</div>
-                                    <div className="text-[10px] text-slate-500 font-mono tracking-tighter uppercase">{user.id}</div>
-                                </td>
-                                <td className="p-4">
-                                    <div className="text-xs text-slate-300 font-semibold">{user.area || '-'}</div>
-                                    <div className="text-[10px] text-slate-500 font-mono">{user.contact || '-'}</div>
-                                </td>
-                                <td className="p-4 text-right">
-                                    <div className="font-mono text-emerald-400 font-bold text-sm">{user.wallet.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                                    <div className="text-[9px] text-slate-500 uppercase tracking-tighter">Current Funds</div>
-                                </td>
-                                <td className="p-4 text-center">
-                                    <div className="font-bold text-white text-xs">{user.commissionRate}%</div>
-                                </td>
-                                <td className="p-4 text-center">
-                                    {user.isRestricted ? 
-                                        <span className="bg-red-500/10 text-red-500 text-[9px] px-2 py-0.5 rounded-full border border-red-500/20 font-black uppercase tracking-tighter">Locked</span> : 
-                                        <span className="bg-green-500/10 text-green-500 text-[9px] px-2 py-0.5 rounded-full border border-green-500/20 font-black uppercase tracking-tighter">Active</span>
-                                    }
-                                </td>
-                                <td className="p-4 text-right">
-                                    <MoreOptionsDropdown 
-                                        user={user} 
-                                        onEdit={() => { setSelectedUser(user); setIsUserModalOpen(true); }} 
-                                        onLedger={() => setViewingUserLedgerFor(user)} 
-                                        onToggleStatus={() => { toggleAccountRestriction(user.id, 'user'); showToast("Status updated.", "success"); }} 
-                                        onDelete={async () => { try { await onDeleteUser(user.id); showToast("Account deleted successfully.", "success"); } catch(e) { showToast("Error deleting account.", "error"); } }}
-                                    />
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-          </div>
-          <div className="mt-6 flex flex-wrap justify-end gap-3">
-                <button onClick={() => setIsTopUpModalOpen(true)} className="flex-1 sm:flex-none bg-slate-800 hover:bg-emerald-900/30 text-emerald-400 border border-emerald-500/30 p-3 px-6 rounded-xl font-black transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
-                    {Icons.plus} Deposit
-                </button>
-                <button onClick={() => setIsWithdrawalModalOpen(true)} className="flex-1 sm:flex-none bg-slate-800 hover:bg-amber-900/30 text-amber-400 border border-amber-500/30 p-3 px-6 rounded-xl font-black transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest">
-                    {Icons.minus} Withdraw
-                </button>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'terminal' && <div className="animate-fade-in"><BettingTerminalView users={safeUsers} games={games} placeBetAsDealer={placeBetAsDealer} /></div>}
-      {activeTab === 'wallet' && <div className="animate-fade-in"><WalletView dealer={safeDealer as Dealer} /></div>}
-      {activeTab === 'history' && <div className="animate-fade-in"><BetHistoryView bets={bets} games={games} users={safeUsers} /></div>}
-
-      <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Update Profile" : "Onboard New User"} themeColor="emerald">
-          <UserForm user={selectedUser} users={safeUsers} onSave={onSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={safeDealer.prizeRates as PrizeRates} dealerId={safeDealer.id} showToast={showToast} />
-      </Modal>
-
-      <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Fund User Account" themeColor="emerald">
-          <UserTransactionForm type="Top-Up" users={dealerUsers} onTransaction={async (userId, amount) => { await topUpUserWallet(userId, amount); showToast("✅ Funding completed!", "success"); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
-      </Modal>
-
-      <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Cash Out User Funds" themeColor="amber">
-          <UserTransactionForm type="Withdrawal" users={dealerUsers} onTransaction={async (userId, amount) => { await withdrawFromUserWallet(userId, amount); showToast("✅ Payout completed!", "success"); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
-      </Modal>
-
-      {viewingUserLedgerFor && (
-        <Modal isOpen={!!viewingUserLedgerFor} onClose={() => setViewingUserLedgerFor(null)} title={`Ledger: ${viewingUserLedgerFor.name}`} size="xl" themeColor="cyan">
-            <LedgerTable entries={viewingUserLedgerFor.ledger} />
-        </Modal>
-      )}
-    </div>
-  );
-};
-
-const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
-    if (!dealer) return null;
-    return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 flex flex-col items-center justify-center text-center">
-                    <p className="text-slate-500 uppercase text-[10px] font-black tracking-widest mb-1">Available Pool</p>
-                    <p className="text-3xl font-black text-emerald-400 font-mono">PKR {dealer.wallet.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                </div>
-                <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 flex flex-col items-center justify-center text-center">
-                    <p className="text-slate-500 uppercase text-[10px] font-black tracking-widest mb-1">Log Count</p>
-                    <p className="text-3xl font-black text-white font-mono">{dealer.ledger?.length || 0}</p>
-                </div>
-            </div>
-            <LedgerTable entries={dealer.ledger} />
-        </div>
-    );
-};
-
-const OpenGameOption: React.FC<{ game: Game }> = ({ game }) => {
-    const { status, text } = useCountdown(game.drawTime);
-    if (!game.isMarketOpen) return null;
-    return <option value={game.id}>{game.name} (Draw: {game.drawTime})</option>;
-};
-
-const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDealer: (details: any) => Promise<void> }> = ({ users, games, placeBetAsDealer }) => {
-    const [selectedUserId, setSelectedUserId] = useState('');
-    const [selectedGameId, setSelectedGameId] = useState('');
-    const [bulkInput, setBulkInput] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleProcessBets = async () => {
-        if (!selectedUserId || !selectedGameId || !bulkInput) return;
-        setIsLoading(true);
-        try {
-            const lines = bulkInput.split('\n').filter(l => l.trim());
-            const betGroups: any[] = [];
-            lines.forEach(line => {
-                // Support both "43 rs100" and shorthand "43 100"
-                const stakeMatch = line.match(/(?:rs|r)?\s*(\d+\.?\d*)$/i);
-                const stake = stakeMatch ? parseFloat(stakeMatch[1]) : 0;
-                if (stake <= 0) return;
-                const numbersPart = line.substring(0, stakeMatch!.index).trim();
-                const numbers = numbersPart.split(/[-.,\s]+/).filter(n => n.length > 0);
-                if (numbers.length > 0) {
-                    betGroups.push({ subGameType: SubGameType.TwoDigit, numbers, amountPerNumber: stake });
-                }
-            });
-            if (betGroups.length === 0) { alert("Invalid Format: use '14, 25 100'"); setIsLoading(false); return; }
-            await placeBetAsDealer({ userId: selectedUserId, gameId: selectedGameId, betGroups });
-            setBulkInput('');
-            alert("Bets confirmed successfully!");
-        } catch (error: any) {
-            alert(error.message || "Terminal processing error.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <div className="bg-slate-800/50 p-5 sm:p-6 rounded-2xl border border-slate-700 shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-5 flex items-center gap-2">Bulk Entry Terminal {Icons.clipboardList}</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} className="bg-slate-900 text-white p-3 rounded-xl border border-slate-700 text-xs font-bold uppercase tracking-wider">
-                    <option value="">-- Choose Account --</option>
-                    {Array.isArray(users) && users.filter(u => !u.isRestricted).map(u => <option key={u.id} value={u.id}>{u.name} ({u.id})</option>)}
-                </select>
-                <select value={selectedGameId} onChange={e => setSelectedGameId(e.target.value)} className="bg-slate-900 text-white p-3 rounded-xl border border-slate-700 text-xs font-bold uppercase tracking-wider">
-                    <option value="">-- Choose Market --</option>
-                    {Array.isArray(games) && games.map(g => <OpenGameOption key={g.id} game={g} />)}
-                </select>
-            </div>
-            <textarea rows={8} value={bulkInput} onChange={e => setBulkInput(e.target.value)} placeholder="Entry Format Example:&#10;14, 25 50&#10;88, 91 100" className="w-full bg-slate-900 text-white p-4 rounded-xl border border-slate-700 font-mono text-xs focus:ring-1 focus:ring-emerald-500" />
-            <div className="flex justify-end mt-4">
-                <button onClick={handleProcessBets} disabled={!selectedUserId || !selectedGameId || !bulkInput || isLoading} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 px-10 rounded-xl disabled:opacity-50 transition-all uppercase tracking-widest text-xs shadow-lg shadow-emerald-900/40">
-                    {isLoading ? 'PROCESSING...' : 'CONFIRM BULK ENTRIES'}
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const UserTransactionForm: React.FC<{ users: User[]; onTransaction: (userId: string, amount: number) => Promise<void>; onCancel: () => void; type: 'Top-Up' | 'Withdrawal' }> = ({ users, onTransaction, onCancel, type }) => {
-    const [selectedUserId, setSelectedUserId] = useState('');
-    const [amount, setAmount] = useState<number | ''>('');
-    const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
-    const inputClass = `w-full bg-slate-800 p-3 rounded-xl border border-slate-700 focus:ring-2 focus:ring-${themeColor}-500 text-white text-sm font-bold`;
-    return (
-        <form onSubmit={async (e) => { e.preventDefault(); if (selectedUserId && amount && amount > 0) { await onTransaction(selectedUserId, Number(amount)); } }} className="space-y-4">
-            <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className={inputClass} required>
-                <option value="">-- Choose User --</option>
-                {Array.isArray(users) && users.map(u => (
-                    <option key={u.id} value={u.id}>
-                        {u.name} ({u.id}) — Balance: PKR {u.wallet.toLocaleString(undefined, {minimumFractionDigits: 2})}
-                    </option>
-                ))}
-            </select>
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))} placeholder="Amount (PKR)" className={inputClass} min="0.01" required step="0.01" />
-            <div className="flex gap-3 pt-2">
-                <button type="button" onClick={onCancel} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-lg text-sm transition-all uppercase tracking-widest">Cancel</button>
-                <button type="submit" className={`flex-1 font-black py-2.5 rounded-lg text-white text-sm shadow-lg bg-${themeColor}-600 hover:bg-${themeColor}-500 transition-all uppercase tracking-widest`}>{type}</button>
-            </div>
-        </form>
-    );
-};
-
-const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = ({ bets, games, users }) => {
-    const [startDate, setStartDate] = useState(getTodayDateString());
-    const [endDate, setEndDate] = useState(getTodayDateString());
-    const [searchTerm, setSearchTerm] = useState('');
-    
-    const filteredBets = useMemo(() => {
-        if (!Array.isArray(bets)) return [];
-        return bets.filter(bet => {
-            const dateStr = new Date(bet.timestamp).toISOString().split('T')[0];
-            if (startDate && dateStr < startDate) return false;
-            if (endDate && dateStr > endDate) return false;
-            if (searchTerm.trim()) {
-                const user = users.find(u => u.id === bet.userId);
-                const game = games.find(g => g.id === bet.gameId);
-                return user?.name.toLowerCase().includes(searchTerm.toLowerCase()) || game?.name.toLowerCase().includes(searchTerm.toLowerCase()) || user?.id.toLowerCase().includes(searchTerm.toLowerCase());
-            }
-            return true;
-        }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [bets, games, users, startDate, endDate, searchTerm]);
-
-    return (
-        <div className="space-y-4">
-            <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest w-full" />
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest w-full" />
-                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Filter History..." className="bg-slate-900 text-white p-2 rounded-xl text-[10px] border border-slate-700 font-bold uppercase tracking-widest w-full" />
-                <button onClick={() => {setStartDate(''); setEndDate(''); setSearchTerm('');}} className="bg-slate-700 text-white p-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-600 transition-all w-full">Clear Filters</button>
-            </div>
-
-            {/* Mobile Card View */}
-            <div className="sm:hidden space-y-3">
-                {filteredBets.map(bet => (
-                    <div key={bet.id} className="bg-slate-800/40 p-4 rounded-xl border border-slate-700 shadow-lg">
-                        <div className="flex justify-between items-start mb-2">
-                            <div className="text-[10px] text-slate-500 font-mono">{new Date(bet.timestamp).toLocaleString()}</div>
-                            <div className="text-right font-mono text-emerald-400 font-bold text-sm">Rs {bet.totalAmount.toLocaleString()}</div>
-                        </div>
-                        <div className="flex justify-between items-center mb-2">
-                            <div className="text-sm font-bold text-white">{users.find(u => u.id === bet.userId)?.name || 'Unknown'}</div>
-                            <div className="text-xs font-bold text-sky-400">{games.find(g => g.id === bet.gameId)?.name || 'Game'}</div>
-                        </div>
-                        <div className="pt-2 border-t border-slate-700/50">
-                            <div className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">{bet.subGameType}</div>
-                            <div className="text-[10px] text-slate-500 font-mono break-words">{bet.numbers.join(', ')}</div>
-                        </div>
-                    </div>
-                ))}
-                {filteredBets.length === 0 && <div className="p-12 text-center text-slate-500 text-xs uppercase font-black">No records found.</div>}
-            </div>
-
-            {/* Desktop Table View */}
-            <div className="hidden sm:block bg-slate-800/40 rounded-2xl overflow-hidden border border-slate-700 shadow-2xl">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left min-w-[700px]">
-                        <thead className="bg-slate-800/80 border-b border-slate-700">
-                            <tr>
-                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Time</th>
-                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Player</th>
-                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Game</th>
-                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest">Details</th>
-                                <th className="p-4 text-[10px] text-slate-500 font-black uppercase tracking-widest text-right">Stake</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-800">
-                            {filteredBets.map(bet => (
-                                <tr key={bet.id} className="hover:bg-slate-700/20 transition-colors">
-                                    <td className="p-4 text-[10px] text-slate-400 whitespace-nowrap font-mono">{new Date(bet.timestamp).toLocaleString()}</td>
-                                    <td className="p-4 text-xs font-bold text-white">{users.find(u => u.id === bet.userId)?.name || 'Unknown'}</td>
-                                    <td className="p-4 text-xs font-bold text-sky-400">{games.find(g => g.id === bet.gameId)?.name || 'Game'}</td>
-                                    <td className="p-4">
-                                        <div className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">{bet.subGameType}</div>
-                                        <div className="text-[10px] text-slate-500 font-mono">{bet.numbers.join(', ')}</div>
-                                    </td>
-                                    <td className="p-4 text-right font-mono text-white text-xs font-bold">{bet.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default DealerPanel;

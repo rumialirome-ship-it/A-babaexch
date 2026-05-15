@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry, SubGameType, PrizeRates } from './types';
-import { Icons, GAME_LOGOS } from './constants';
+import { motion, AnimatePresence } from 'motion/react';
+import { Role, User, Dealer, Admin, Game, Bet, LedgerEntry } from './types';
+import { Icons } from './constants';
 import LandingPage from './components/LandingPage';
 import AdminPanel from './components/AdminPanel';
 import DealerPanel from './components/DealerPanel';
@@ -12,39 +13,59 @@ const Header: React.FC = () => {
     const { role, account, logout } = useAuth();
     if (!role || !account) return null;
 
-    const roleColors: { [key in Role]: string } = {
-        [Role.Admin]: 'bg-red-500/20 text-red-300 border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.5)]',
-        [Role.Dealer]: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.5)]',
-        [Role.User]: 'bg-sky-500/20 text-sky-300 border-sky-500/30 shadow-[0_0_10px_rgba(14,165,233,0.5)]',
+    const roleConfigs: { [key in Role]: { color: string; label: string } } = {
+        [Role.Admin]: { color: 'text-rose-400 bg-rose-500/10 border-rose-500/20', label: 'Systems Root' },
+        [Role.Dealer]: { color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', label: 'Agent Node' },
+        [Role.User]: { color: 'text-sky-400 bg-sky-500/10 border-sky-500/20', label: 'Terminal User' },
     };
 
+    const config = roleConfigs[role];
+
     return (
-        <header className="sticky top-0 z-40 bg-slate-900/50 backdrop-blur-lg border-b border-cyan-400/20">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-20">
-                <div className="flex items-center gap-4">
-                    {account.avatarUrl ? (
-                        <img src={account.avatarUrl} alt={account.name} className="w-12 h-12 rounded-full object-cover border-2 border-cyan-400/50" />
-                    ) : (
-                        <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-cyan-400/50 flex items-center justify-center">
-                            <span className="font-bold text-xl text-cyan-300">{account.name ? account.name.charAt(0) : '?'}</span>
+        <header className="sticky top-0 z-40 glass-panel border-b border-white/5">
+            <div className="max-w-7xl mx-auto px-6 flex justify-between items-center h-20">
+                <div className="flex items-center gap-6">
+                    <div className="flex flex-col">
+                        <span className="text-xl font-black text-white tracking-tighter leading-none">A-BABA.E</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Core Exchange</span>
+                    </div>
+                    
+                    <div className="hidden md:flex items-center gap-4 pl-6 border-l border-white/10">
+                        <div className="relative">
+                            {account.avatarUrl ? (
+                                <img src={account.avatarUrl} alt={account.name} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                            ) : (
+                                <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center font-bold text-sm text-sky-400">
+                                    {account.name?.charAt(0)}
+                                </div>
+                            )}
+                            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#05070a]" />
                         </div>
-                    )}
-                    <div>
-                        <h1 className="text-xl font-bold glitch-text hidden md:block" data-text="A-BABA EXCHANGE">A-BABA EXCHANGE</h1>
-                         <div className="flex items-center text-sm">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold mr-2 ${roleColors[role] || 'bg-slate-700'}`}>{role}</span>
-                            <span className="text-slate-300 font-semibold tracking-wider">{account.name || 'Account'}</span>
+                        <div>
+                            <div className="text-sm font-bold text-slate-100">{account.name}</div>
+                            <div className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${config.color}`}>
+                                {config.label}
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center space-x-4">
-                     { typeof account.wallet === 'number' && (
-                        <div className="hidden md:flex items-center bg-slate-800/50 px-4 py-2 rounded-md border border-slate-700 shadow-inner">
-                            {React.cloneElement(Icons.wallet, { className: "h-6 w-6 mr-3 text-cyan-400" })}
-                            <span className="font-semibold text-white text-lg tracking-wider">PKR {account.wallet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+
+                <div className="flex items-center gap-6">
+                    {typeof account.wallet === 'number' && (
+                        <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Available Balance</span>
+                            <span className="font-mono font-bold text-white tracking-tight">
+                                PKR {account.wallet.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
                         </div>
                     )}
-                    <button onClick={logout} className="bg-slate-700/50 border border-slate-600 hover:bg-red-500/30 hover:border-red-500/50 text-white font-bold py-2 px-4 rounded-md transition-all duration-300">Logout</button>
+                    
+                    <button 
+                        onClick={logout} 
+                        className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500 text-slate-400 transition-all"
+                    >
+                        {Icons.logout || 'Logout'}
+                    </button>
                 </div>
             </div>
         </header>
@@ -58,7 +79,6 @@ const AppContent: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
     const [hasInitialFetched, setHasInitialFetched] = useState(false);
-    
     const [activeReveal, setActiveReveal] = useState<{ name: string; number: string } | null>(null);
     const lastGamesRef = useRef<Game[]>([]);
 
@@ -74,11 +94,8 @@ const AppContent: React.FC = () => {
 
     const fetchPublicData = useCallback(async () => {
         try {
-            const gamesResponse = await fetch('/api/games');
-            if (gamesResponse.ok) {
-                const data = await gamesResponse.json();
-                setGames(data);
-            }
+            const res = await fetch('/api/games');
+            if (res.ok) setGames(await res.json());
         } catch (e) {
             console.error('Games fetch error:', e);
         }
@@ -141,151 +158,147 @@ const AppContent: React.FC = () => {
         lastGamesRef.current = games;
     }, [games]);
 
-    const placeBet = async (d: any) => { 
-        try {
-            await fetchWithAuth('/api/user/bets', { method: 'POST', body: JSON.stringify(d) }); 
-            fetchPrivateData(); 
-        } catch (err: any) { alert(err.message); }
-    };
-    
-    const placeBetAsDealer = async (d: any) => { 
-        try {
-            await fetchWithAuth('/api/dealer/bets/bulk', { method: 'POST', body: JSON.stringify(d) }); 
-            fetchPrivateData(); 
-        } catch (err: any) { alert(err.message); }
-    };
-    
-    const onSaveUser = async (u: any, o: any, i: any) => {
-        const method = o ? 'PUT' : 'POST';
-        const url = o ? `/api/dealer/users/${o}` : '/api/dealer/users';
-        const response = await fetchWithAuth(url, { method, body: JSON.stringify(o ? u : { userData: u, initialDeposit: i }) });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.message || 'Operation failed');
-        }
-        fetchPrivateData();
-    };
-
-    const onDeleteUser = async (uId: string) => {
-        try {
-            const response = await fetchWithAuth(`/api/dealer/users/${uId}`, { method: 'DELETE' });
-            if (!response.ok) throw new Error("Failed to delete user");
-            fetchPrivateData();
-        } catch (err: any) { alert(err.message); }
-    };
-
-    if (loading) return <div className="min-h-screen flex items-center justify-center text-cyan-400 text-xl font-bold">Synchronizing Session...</div>;
+    if (loading) return (
+        <div className="min-h-screen flex items-center justify-center bg-[#05070a]">
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-8 h-8 border-2 border-sky-500/20 border-t-sky-500 rounded-full animate-spin" />
+                <span className="text-[10px] font-bold text-sky-500 uppercase tracking-[0.3em] font-mono">Syncing Core...</span>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="min-h-screen flex flex-col">
-            {!role || !account ? (
-                <LandingPage games={games} />
-            ) : (
-                <>
-                    <Header />
-                    <main className="flex-grow">
-                        {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
-                        {role === Role.Dealer && (
-                            <DealerPanel 
-                                dealer={account as Dealer} users={users} 
-                                onSaveUser={onSaveUser} 
-                                onDeleteUser={onDeleteUser}
-                                topUpUserWallet={async (id, amt) => { 
-                                    try {
-                                        await fetchWithAuth('/api/dealer/topup/user', { method: 'POST', body: JSON.stringify({ userId: id, amount: amt }) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); throw err; }
-                                }} 
-                                withdrawFromUserWallet={async (id, amt) => { 
-                                    try {
-                                        await fetchWithAuth('/api/dealer/withdraw/user', { method: 'POST', body: JSON.stringify({ userId: id, amount: amt }) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); throw err; }
-                                }} 
-                                toggleAccountRestriction={async (id) => { 
-                                    try {
-                                        await fetchWithAuth(`/api/dealer/users/${id}/toggle-restriction`, { method: 'PUT' }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }} 
-                                bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} isLoaded={hasInitialFetched}
-                            />
-                        )}
-                        {role === Role.Admin && (
-                            <AdminPanel 
-                                admin={account as Admin} dealers={dealers} 
-                                onSaveDealer={async (d, o) => { 
-                                    try {
-                                        const url = o ? `/api/admin/dealers/${o}` : '/api/admin/dealers'; 
-                                        await fetchWithAuth(url, { method: o ? 'PUT' : 'POST', body: JSON.stringify(d) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }} 
-                                onUpdateAdmin={async (a) => { 
-                                    try {
-                                        await fetchWithAuth('/api/admin/profile', { method: 'PUT', body: JSON.stringify(a) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }}
-                                users={users} setUsers={setUsers} games={games} bets={bets} 
-                                declareWinner={async (id, num) => { 
-                                    try {
-                                        await fetchWithAuth(`/api/admin/games/${id}/declare-winner`, { method: 'POST', body: JSON.stringify({ winningNumber: num }) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }}
-                                updateWinner={async (id, num) => { 
-                                    try {
-                                        await fetchWithAuth(`/api/admin/games/${id}/update-winner`, { method: 'PUT', body: JSON.stringify({ newWinningNumber: num }) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }}
-                                approvePayouts={async (id) => { 
-                                    try {
-                                        await fetchWithAuth(`/api/admin/games/${id}/approve-payouts`, { method: 'POST' }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }}
-                                topUpDealerWallet={async (id, amt) => { 
-                                    try {
-                                        await fetchWithAuth('/api/admin/topup/dealer', { method: 'POST', body: JSON.stringify({ dealerId: id, amount: amt }) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }}
-                                withdrawFromDealerWallet={async (id, amt) => { 
-                                    try {
-                                        await fetchWithAuth('/api/admin/withdraw/dealer', { method: 'POST', body: JSON.stringify({ dealerId: id, amount: amt }) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }}
-                                toggleAccountRestriction={async (id, type) => { 
-                                    try {
-                                        await fetchWithAuth(`/api/admin/accounts/${type}/${id}/toggle-restriction`, { method: 'PUT' }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }}
-                                onPlaceAdminBets={async (d) => { 
-                                    try {
-                                        await fetchWithAuth('/api/admin/bulk-bet', { method: 'POST', body: JSON.stringify(d) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }}
-                                updateGameDrawTime={async (id, time) => { 
-                                    try {
-                                        await fetchWithAuth(`/api/admin/games/${id}/draw-time`, { method: 'PUT', body: JSON.stringify({ newDrawTime: time }) }); 
-                                        fetchPrivateData(); 
-                                    } catch (err: any) { alert(err.message); }
-                                }}
-                                onRefreshData={fetchPrivateData} 
-                            />
-                        )}
-                    </main>
-                </>
-            )}
+        <div className="min-h-screen flex flex-col relative overflow-x-hidden">
+            <div className="animated-bg"><div className="grid-overlay" /></div>
+            
+            <AnimatePresence mode="wait">
+                {!role || !account ? (
+                    <motion.div 
+                        key="landing"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        <LandingPage games={games} />
+                    </motion.div>
+                ) : (
+                    <motion.div 
+                        key="app"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex flex-col flex-grow"
+                    >
+                        <Header />
+                        <main className="flex-grow">
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={role}
+                                    initial={{ opacity: 0, scale: 0.98 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    {role === Role.User && (
+                                        <UserPanel 
+                                            user={account as User} 
+                                            games={games} 
+                                            bets={bets} 
+                                            placeBet={async (d) => {
+                                                try {
+                                                    await fetchWithAuth('/api/user/bets', { method: 'POST', body: JSON.stringify(d) }); 
+                                                    fetchPrivateData(); 
+                                                } catch (err: any) { alert(err.message); }
+                                            }} 
+                                        />
+                                    )}
+                                    {role === Role.Dealer && (
+                                        <DealerPanel 
+                                            dealer={account as Dealer} users={users} 
+                                            onSaveUser={async (u, o, i) => {
+                                                const method = o ? 'PUT' : 'POST';
+                                                const url = o ? `/api/dealer/users/${o}` : '/api/dealer/users';
+                                                const response = await fetchWithAuth(url, { method, body: JSON.stringify(o ? u : { userData: u, initialDeposit: i }) });
+                                                if (!response.ok) throw new Error((await response.json()).message || 'Failed');
+                                                fetchPrivateData();
+                                            }} 
+                                            onDeleteUser={async (uId) => {
+                                                try {
+                                                    await fetchWithAuth(`/api/dealer/users/${uId}`, { method: 'DELETE' });
+                                                    fetchPrivateData();
+                                                } catch (err: any) { alert(err.message); }
+                                            }}
+                                            topUpUserWallet={async (id, amt) => { 
+                                                await fetchWithAuth('/api/dealer/topup/user', { method: 'POST', body: JSON.stringify({ userId: id, amount: amt }) }); 
+                                                fetchPrivateData(); 
+                                            }} 
+                                            withdrawFromUserWallet={async (id, amt) => { 
+                                                await fetchWithAuth('/api/dealer/withdraw/user', { method: 'POST', body: JSON.stringify({ userId: id, amount: amt }) }); 
+                                                fetchPrivateData(); 
+                                            }} 
+                                            toggleAccountRestriction={async (id) => { 
+                                                await fetchWithAuth(`/api/dealer/users/${id}/toggle-restriction`, { method: 'PUT' }); 
+                                                fetchPrivateData(); 
+                                            }} 
+                                            bets={bets} games={games} 
+                                            placeBetAsDealer={async (d) => {
+                                                await fetchWithAuth('/api/dealer/bets/bulk', { method: 'POST', body: JSON.stringify(d) }); 
+                                                fetchPrivateData(); 
+                                            }} 
+                                            isLoaded={hasInitialFetched}
+                                        />
+                                    )}
+                                    {role === Role.Admin && (
+                                        <AdminPanel 
+                                            admin={account as Admin} 
+                                            dealers={dealers} 
+                                            users={users}
+                                            games={games}
+                                            bets={bets}
+                                            onSaveDealer={async (d, o) => { 
+                                                const url = o ? `/api/admin/dealers/${o}` : '/api/admin/dealers'; 
+                                                await fetchWithAuth(url, { method: o ? 'PUT' : 'POST', body: JSON.stringify(d) }); 
+                                                fetchPrivateData(); 
+                                            }} 
+                                            onUpdateAdmin={async (a) => { 
+                                                await fetchWithAuth('/api/admin/profile', { method: 'PUT', body: JSON.stringify(a) }); 
+                                                fetchPrivateData(); 
+                                            }}
+                                            declareWinner={async (id, num) => { 
+                                                await fetchWithAuth(`/api/admin/games/${id}/declare-winner`, { method: 'POST', body: JSON.stringify({ winningNumber: num }) }); 
+                                                fetchPrivateData(); 
+                                            }}
+                                            approvePayouts={async (id) => { 
+                                                await fetchWithAuth(`/api/admin/games/${id}/approve-payouts`, { method: 'POST' }); 
+                                                fetchPrivateData(); 
+                                            }}
+                                            topUpDealerWallet={async (id, amt) => { 
+                                                await fetchWithAuth('/api/admin/topup/dealer', { method: 'POST', body: JSON.stringify({ dealerId: id, amount: amt }) }); 
+                                                fetchPrivateData(); 
+                                            }}
+                                            withdrawFromDealerWallet={async (id, amt) => { 
+                                                await fetchWithAuth('/api/admin/withdraw/dealer', { method: 'POST', body: JSON.stringify({ dealerId: id, amount: amt }) }); 
+                                                fetchPrivateData(); 
+                                            }}
+                                            toggleAccountRestriction={async (id, type) => { 
+                                                await fetchWithAuth(`/api/admin/accounts/${type}/${id}/toggle-restriction`, { method: 'PUT' }); 
+                                                fetchPrivateData(); 
+                                            }}
+                                            onRefreshData={fetchPrivateData} 
+                                        />
+                                    )}
+                                </motion.div>
+                            </AnimatePresence>
+                        </main>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            
             {activeReveal && <ResultRevealOverlay gameName={activeReveal.name} winningNumber={activeReveal.number} onClose={() => setActiveReveal(null)} />}
         </div>
     );
 };
+
+function App() { return (<AuthProvider><AppContent /></AuthProvider>); }
+export default App;
 
 function App() { return (<div className="App bg-transparent text-slate-200 h-full"><AuthProvider><AppContent /></AuthProvider></div>); }
 export default App;
