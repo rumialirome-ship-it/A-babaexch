@@ -87,73 +87,66 @@ const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[], user: User }> =
     return (
         <motion.div 
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mb-32"
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-16"
         >
-            <div className="flex items-center gap-4 mb-10">
+            <div className="flex items-center gap-4 mb-8">
                 <div className="h-8 w-1 bg-sky-500 rounded-full" />
-                <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter">Mission Metrics</h3>
-                <span className="text-[10px] font-black text-sky-500 bg-sky-500/10 border border-sky-500/20 px-4 py-2 rounded-full uppercase tracking-[0.3em] ml-auto">Cycle Performance</span>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Mission Performance</h3>
+                <span className="text-[10px] font-bold text-sky-500 bg-sky-500/10 border border-sky-500/20 px-3 py-1 rounded-full uppercase tracking-widest ml-auto">Real-time Stats</span>
             </div>
 
-            <div className="elite-card rounded-[2.5rem] overflow-hidden glass-panel border-white/5">
+            <div className="elite-card rounded-3xl overflow-hidden glass-panel">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
-                            <tr className="bg-black/40 border-b border-white/5 text-bold">
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Game Origin</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Stake Value</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Yield (Prize)</th>
-                                <th className="p-8 text-[10px] font-black text-sky-500 uppercase tracking-[0.3em] text-right">Node Comms</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] text-right">Net Flow</th>
+                            <tr className="bg-black/40 border-b border-white/5">
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Game Origin</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] text-right">Stake Value</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] text-right">Yield (Prize)</th>
+                                <th className="p-6 text-[10px] font-bold text-sky-500 uppercase tracking-[0.2em] text-right">Node Comms</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] text-right">Net Liquidity</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {data.map(item => (
-                                <tr key={item.id} className="group hover:bg-sky-500/[0.03] transition-all">
-                                    <td className="p-8">
-                                        <div className="flex items-center gap-6">
-                                            <div className="relative">
-                                                <img src={item.logo} className="w-12 h-12 rounded-2xl border border-white/10 group-hover:border-sky-500/30 transition-all shadow-lg" alt="" />
-                                                <div className="absolute -inset-1 bg-sky-500/10 blur-md opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
-                                            </div>
+                                <tr key={item.id} className="group hover:bg-sky-500/5 transition-all">
+                                    <td className="p-6">
+                                        <div className="flex items-center gap-4">
+                                            <img src={item.logo} className="w-10 h-10 rounded-full border border-white/10 group-hover:border-sky-500/30 transition-all" alt="" />
                                             <div>
-                                                <div className="text-white font-black tracking-tight text-lg uppercase font-display">{item.name}</div>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em]">Auth Result:</span>
-                                                    <span className="text-[10px] text-sky-400 font-mono font-bold tracking-widest">{item.winningNumber || 'PENDING'}</span>
-                                                </div>
+                                                <div className="text-white font-bold tracking-tight text-base">{item.name}</div>
+                                                <div className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">{item.winningNumber || '---'}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-8 text-right font-mono text-slate-400 font-bold text-base">
+                                    <td className="p-6 text-right font-mono text-slate-400 font-bold">
                                         Rs {item.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </td>
-                                    <td className="p-8 text-right">
-                                        <div className={`font-mono font-black text-lg ${item.totalPrize > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
+                                    <td className="p-6 text-right">
+                                        <div className={`font-mono font-black ${item.totalPrize > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>
                                             Rs {item.totalPrize.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </div>
                                     </td>
-                                    <td className="p-8 text-right font-mono text-sky-400/80 font-bold">
+                                    <td className="p-6 text-right font-mono text-sky-400/80 font-bold">
                                         Rs {item.totalCommission.toFixed(2)}
                                     </td>
-                                    <td className="p-8 text-right">
-                                        <div className={`font-mono font-black text-lg ${item.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    <td className="p-6 text-right">
+                                        <div className={`font-mono font-black ${item.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                             {item.netProfit >= 0 ? '+' : ''}Rs {item.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </div>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
-                        <tfoot className="bg-white/[0.03] border-t-2 border-white/5">
+                        <tfoot className="bg-white/[0.02] border-t border-white/10">
                             <tr className="font-bold">
-                                <td className="p-10 text-[10px] text-slate-500 uppercase tracking-[0.4em] font-black">Aggregate Totals</td>
-                                <td className="p-10 text-right font-mono text-white text-xl font-black">Rs {totals.stake.toLocaleString()}</td>
-                                <td className="p-10 text-right font-mono text-emerald-400 text-xl font-black">Rs {totals.prize.toLocaleString()}</td>
-                                <td className="p-10 text-right font-mono text-sky-400 text-xl font-black">Rs {totals.commission.toFixed(2)}</td>
-                                <td className="p-10 text-right">
-                                    <div className={`font-mono text-3xl font-black ${totals.profit >= 0 ? 'text-emerald-400 drop-shadow-[0_0_20px_rgba(52,211,153,0.3)]' : 'text-rose-400'}`}>
+                                <td className="p-8 text-[10px] text-slate-500 uppercase tracking-[0.3em]">Aggregate Totals</td>
+                                <td className="p-8 text-right font-mono text-white text-lg font-black">Rs {totals.stake.toLocaleString()}</td>
+                                <td className="p-8 text-right font-mono text-emerald-400 text-lg font-black underline decoration-emerald-500/30 underline-offset-8">Rs {totals.prize.toLocaleString()}</td>
+                                <td className="p-8 text-right font-mono text-sky-400 text-lg font-black">Rs {totals.commission.toFixed(2)}</td>
+                                <td className="p-8 text-right">
+                                    <div className={`font-mono text-2xl font-black ${totals.profit >= 0 ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-rose-400'}`}>
                                         {totals.profit >= 0 ? '+' : ''}Rs {totals.profit.toLocaleString()}
                                     </div>
                                 </td>
@@ -182,52 +175,43 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
 
     return (
         <motion.div 
-            whileHover={{ y: -8, scale: 1.02 }}
-            className={`elite-card rounded-[2.5rem] p-8 flex flex-col justify-between transition-all duration-500 relative overflow-hidden group border-white/5 h-full ${!isPlayable ? 'opacity-60 saturate-50' : 'hover:border-sky-500/30 hover:shadow-2xl hover:shadow-black/50'}`}
+            whileHover={{ y: -4 }}
+            className={`elite-card rounded-2xl p-6 flex flex-col justify-between transition-all duration-500 relative overflow-hidden group ${!isPlayable ? 'opacity-60 saturate-50' : 'hover:border-sky-500/40 hover:shadow-2xl hover:shadow-sky-500/10'}`}
         >
-            <div className={`absolute inset-0 bg-gradient-to-b from-sky-500/[0.07] to-transparent transition-opacity duration-500 ${isPlayable ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'}`} />
+            <div className={`absolute inset-0 bg-gradient-to-b from-sky-500/5 to-transparent transition-opacity duration-500 ${isPlayable ? 'opacity-0 group-hover:opacity-100' : 'opacity-0'}`} />
             
             <div className="relative z-10">
-                <div className="flex items-center gap-5 mb-8">
+                <div className="flex items-center gap-4 mb-6">
                     <div className="relative">
-                        <div className="absolute -inset-1 bg-sky-500/20 blur-lg rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <img src={logo} alt={game.name} className="relative w-16 h-16 rounded-2xl object-cover border border-white/10 group-hover:border-sky-500/50 transition-all duration-500 shadow-xl" />
-                        {isPlayable && (
-                            <div className="absolute -top-1 -right-1 flex items-center justify-center">
-                                <div className="absolute inset-0 bg-emerald-500/50 animate-ping rounded-full" />
-                                <div className="relative w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[#0a0c10]" />
-                            </div>
-                        )}
+                        <img src={logo} alt={game.name} className="w-14 h-14 rounded-2xl object-cover border border-white/10 group-hover:border-sky-500/50 transition-all duration-500" />
+                        {isPlayable && <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#0a0c10]" />}
                     </div>
                     <div>
-                        <h3 className="text-2xl font-display font-black text-white tracking-tight uppercase group-hover:text-sky-300 transition-colors leading-[0.9]">{game.name}</h3>
-                        <div className="mt-2 flex items-center gap-2">
-                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest font-mono">GATE</span>
-                            <span className="text-[10px] font-black text-sky-400 uppercase tracking-widest font-mono">{formatTime12h(game.drawTime)}</span>
-                        </div>
+                        <h3 className="text-xl font-bold text-white tracking-tight uppercase group-hover:text-sky-300 transition-colors">{game.name}</h3>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">DRAW @ {formatTime12h(game.drawTime)}</p>
                     </div>
                 </div>
 
-                <div className="bg-black/30 backdrop-blur-md border border-white/5 rounded-[2rem] p-8 mb-10 flex flex-col justify-center items-center min-h-[140px] text-center group-hover:bg-black/40 transition-colors">
+                <div className="bg-black/30 border border-white/5 rounded-2xl p-5 mb-6 flex flex-col justify-center items-center min-h-[100px] text-center">
                     {hasFinalWinner ? (
-                        <div className="animate-in fade-in zoom-in duration-700">
-                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.4em] block mb-3">Cryptic Win</span>
-                            <span className="text-5xl font-mono font-black text-white drop-shadow-[0_0_20px_rgba(52,211,153,0.4)]">{game.winningNumber}</span>
+                        <div className="animate-in fade-in zoom-in duration-500">
+                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-[0.3em] block mb-2">Authenticated Result</span>
+                            <span className="text-4xl font-mono font-black text-white drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]">{game.winningNumber}</span>
                         </div>
                     ) : isMarketClosedForDisplay ? (
-                        <div className="space-y-2">
-                            <span className="text-[10px] font-black text-rose-400 uppercase tracking-[0.3em] block">Market Status</span>
-                            <span className="text-2xl font-black text-rose-500 tracking-tighter">RESTRICTED</span>
+                        <div>
+                            <span className="text-[10px] font-bold text-rose-400 uppercase tracking-[0.2em] block mb-1">Status</span>
+                            <span className="text-xl font-black text-rose-500/80">MARKET CLOSED</span>
                         </div>
                     ) : status === 'OPEN' ? (
-                        <div className="space-y-2">
-                            <span className="text-[10px] font-black text-sky-400 uppercase tracking-[0.4em] block">Sync Lock In</span>
-                            <span className="text-4xl font-mono font-black text-slate-100 tracking-tighter italic">{countdownText}</span>
+                        <div>
+                            <span className="text-[10px] font-bold text-sky-400 uppercase tracking-[0.3em] block mb-2">Gate Closes In</span>
+                            <span className="text-3xl font-mono font-black text-slate-100 italic">{countdownText}</span>
                         </div>
                     ) : (
-                        <div className="space-y-2">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block">Queueing</span>
-                            <span className="text-2xl font-mono font-black text-slate-500 uppercase tracking-widest">{countdownText}</span>
+                        <div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] block mb-1">Queueing</span>
+                            <span className="text-xl font-mono font-bold text-slate-500 uppercase">{countdownText}</span>
                         </div>
                     )}
                 </div>
@@ -236,10 +220,9 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
             <button 
                 onClick={() => onPlay(game)} 
                 disabled={!isPlayable} 
-                className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.4em] transition-all relative z-10 overflow-hidden shadow-2xl ${isPlayable ? 'bg-sky-600 text-white shadow-sky-500/20 hover:bg-sky-500 active:scale-[0.97]' : 'bg-white/5 text-slate-500 cursor-not-allowed border border-white/5'}`}
+                className={`w-full py-4 rounded-xl font-black text-[11px] uppercase tracking-[0.3em] transition-all relative z-10 ${isPlayable ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20 hover:bg-sky-400 active:scale-95' : 'bg-white/5 text-slate-500 cursor-not-allowed border border-white/5'}`}
             >
-                <span className="relative z-10">{isPlayable ? 'INITIALIZE' : (isRestricted ? 'LOCKED' : 'CLOSED')}</span>
-                {isPlayable && <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />}
+                {isPlayable ? 'Initialize Entry' : (isRestricted ? 'Account Locked' : 'Market Closed')}
             </button>
         </motion.div>
     );
@@ -435,148 +418,40 @@ const BettingModal: React.FC<{ game: Game | null, games: Game[], user: User, onC
                         </div>
                     ) : (
                         <div className="space-y-6">
-                            <div className="flex p-2 bg-black/40 rounded-[1.5rem] border border-white/5 overflow-x-auto no-scrollbar">
-                                {availableSubGameTabs.map(t => (
-                                    <button 
-                                        key={t} 
-                                        onClick={() => setSubGameType(t)} 
-                                        className={`flex-1 py-3 px-6 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all whitespace-nowrap ${subGameType === t ? 'bg-sky-600 text-white shadow-xl shadow-sky-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
-                                    >
-                                        {t}
-                                    </button>
-                                ))}
+                            <div className="flex p-1.5 bg-black/40 rounded-2xl border border-white/5 overflow-x-auto no-scrollbar">
+                                {availableSubGameTabs.map(t => (<button key={t} onClick={() => setSubGameType(t)} className={`flex-1 py-2 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${subGameType === t ? 'bg-sky-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>{t}</button>))}
                             </div>
-
                             {subGameType === SubGameType.Bulk ? (
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center px-1 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
-                                        <span>Protocol Input</span>
-                                        <span className="opacity-40">v4.0 ALPHA</span>
-                                    </div>
-                                    <textarea 
-                                        value={bulkInput} 
-                                        onChange={e => setBulkInput(e.target.value)} 
-                                        rows={10} 
-                                        placeholder={"BATCH PROTOCOL:\nAK 43,9x,x2 20\nLS3 k123 50"} 
-                                        className="w-full bg-black/40 border border-white/10 rounded-[1.5rem] p-8 text-white font-mono text-sm focus:border-sky-500/50 outline-none transition-all resize-none leading-relaxed"
-                                    />
-                                </div>
+                                <textarea value={bulkInput} onChange={e => setBulkInput(e.target.value)} rows={8} placeholder={"Format Guidelines:\nAK 43,9x,x2 20\nLS3 k123 50"} className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 text-white font-mono text-sm focus:border-sky-500/50 outline-none transition-all resize-none"/>
                             ) : subGameType === SubGameType.Combo ? (
-                                <div className="space-y-8">
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] ml-1">Sequence Seed</label>
-                                        <div className="flex gap-4">
-                                            <input 
-                                                type="text" 
-                                                value={comboDigitsInput} 
-                                                onChange={e => setComboDigitsInput(e.target.value)} 
-                                                placeholder="3-6 DIGIT SEED" 
-                                                className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-white font-mono text-lg focus:border-sky-500/50 outline-none tracking-tighter" 
-                                                maxLength={6}
-                                            />
-                                            <button onClick={handleGenerateCombos} className="px-8 bg-sky-600 text-white font-black rounded-2xl active:scale-95 transition-all shadow-lg shadow-sky-500/20 uppercase text-[10px] tracking-widest">Map</button>
-                                        </div>
+                                <div className="space-y-6">
+                                    <div className="flex gap-4">
+                                        <input type="text" value={comboDigitsInput} onChange={e => setComboDigitsInput(e.target.value)} placeholder="ENTER 3-6 DIGITS" className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-sm focus:border-sky-500/50 outline-none" maxLength={6}/>
+                                        <button onClick={handleGenerateCombos} className="px-6 py-3 bg-sky-600 text-white font-bold rounded-xl active:scale-95 transition-all">MAP</button>
                                     </div>
-                                    {generatedCombos.length > 0 && (
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between items-center px-1 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
-                                                <span>Permutations ({generatedCombos.length})</span>
-                                            </div>
-                                            <div className="max-h-64 overflow-y-auto pr-4 no-scrollbar space-y-3">
-                                                {generatedCombos.map((c, i) => (
-                                                    <div key={i} className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/5 group hover:bg-white/[0.08] transition-all">
-                                                        <div className="relative flex items-center justify-center w-6 h-6">
-                                                            <input 
-                                                                type="checkbox" 
-                                                                checked={c.selected} 
-                                                                onChange={e => setGeneratedCombos(p => p.map((x, j) => i === j ? {...x, selected: e.target.checked} : x))} 
-                                                                className="w-5 h-5 rounded-lg bg-black border-white/10 text-sky-500 checked:bg-sky-600 transition-all opacity-0 absolute inset-0 z-10 cursor-pointer"
-                                                            />
-                                                            <div className={`w-5 h-5 rounded-lg border-2 transition-all flex items-center justify-center ${c.selected ? 'bg-sky-600 border-sky-600' : 'border-white/20'}`}>
-                                                                {c.selected && <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M5 13l4 4L19 7"/></svg>}
-                                                            </div>
-                                                        </div>
-                                                        <span className="font-mono text-xl text-white font-black italic tracking-tighter flex-1">{c.number}</span>
-                                                        <div className="relative">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-600 uppercase">Rs</span>
-                                                            <input 
-                                                                type="number" 
-                                                                value={c.stake} 
-                                                                onChange={e => setGeneratedCombos(p => p.map((x, j) => i === j ? {...x, stake: e.target.value} : x))} 
-                                                                placeholder="0" 
-                                                                className="w-32 bg-black/40 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-right text-white font-mono text-base outline-none focus:border-sky-500/50" 
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                    {generatedCombos.length > 0 && (<div className="max-h-60 overflow-y-auto pr-4 no-scrollbar space-y-2">{generatedCombos.map((c, i) => (<div key={i} className="flex items-center gap-4 p-3 bg-white/5 rounded-xl border border-white/5"><input type="checkbox" checked={c.selected} onChange={e => setGeneratedCombos(p => p.map((x, j) => i === j ? {...x, selected: e.target.checked} : x))} className="w-4 h-4 rounded bg-black border-white/10 text-sky-500"/><span className="font-mono text-white flex-1">{c.number}</span><input type="number" value={c.stake} onChange={e => setGeneratedCombos(p => p.map((x, j) => i === j ? {...x, stake: e.target.value} : x))} placeholder="0" className="w-24 bg-black/40 border border-white/10 rounded-lg p-2 text-right text-white font-mono text-sm select-none"/></div>))}</div>)}
                                 </div>
                             ) : (
-                                <div className="space-y-8">
-                                    <div className="space-y-3">
+                                <div className="space-y-6">
+                                    <div className="space-y-2">
                                         <div className="flex justify-between items-center px-1">
-                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Payload Vectors</label>
-                                            <button onClick={handleAiLuckyPick} disabled={isAiLoading} className="text-[10px] font-black text-sky-500 uppercase tracking-[0.2em] flex items-center gap-3 active:scale-95 group transition-all">
-                                                {isAiLoading ? <div className="w-3.5 h-3.5 border-2 border-sky-400/20 border-t-sky-400 rounded-full animate-spin"/> : Icons.sparkles} 
-                                                <span className="group-hover:text-white">AI DECRYPTION</span>
-                                            </button>
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Entry Numbers</label>
+                                            <button onClick={handleAiLuckyPick} disabled={isAiLoading} className="text-[10px] font-black text-sky-500 uppercase tracking-widest flex items-center gap-2 active:scale-95 group">{isAiLoading ? <div className="w-3 h-3 border-2 border-sky-400/20 border-t-sky-400 rounded-full animate-spin"/> : Icons.sparkles} <span className="group-hover:underline">AI Predict</span></button>
                                         </div>
-                                        <textarea 
-                                            value={manualNumbersInput} 
-                                            onChange={handleManualNumberChange} 
-                                            rows={4} 
-                                            placeholder={subGameType === SubGameType.TwoDigit ? "e.g. 14, 05, 88" : "e.g. 1, 2, 9"} 
-                                            className="w-full bg-black/40 border border-white/10 rounded-[1.5rem] p-8 text-white font-mono text-2xl font-black italic tracking-tighter focus:border-sky-500/50 outline-none transition-all resize-none shadow-inner"
-                                        />
+                                        <textarea value={manualNumbersInput} onChange={handleManualNumberChange} rows={3} placeholder={subGameType === SubGameType.TwoDigit ? "e.g. 14, 05" : "e.g. 1, 2, 9"} className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 text-white font-mono text-lg focus:border-sky-500/50 outline-none transition-all resize-none"/>
                                     </div>
-                                    <div className="space-y-4">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] ml-1">Magnitude (Stake)</label>
-                                        <div className="relative group">
-                                            <span className="absolute left-6 top-1/2 -translate-y-1/2 text-sm font-black text-sky-500/50 group-focus-within:text-sky-500 transition-colors uppercase">Rs</span>
-                                            <input 
-                                                type="number" 
-                                                value={manualAmountInput} 
-                                                onChange={e => setManualAmountInput(e.target.value)} 
-                                                placeholder="100.00" 
-                                                className="w-full bg-black/40 border border-white/10 rounded-2xl py-6 pl-16 pr-8 text-white font-mono text-2xl font-black focus:border-sky-500/50 outline-none shadow-inner tracking-tighter"
-                                            />
-                                        </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Stake Per Unit</label>
+                                        <input type="number" value={manualAmountInput} onChange={e => setManualAmountInput(e.target.value)} placeholder="RS 100" className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-white font-mono text-xl focus:border-sky-500/50 outline-none"/>
                                     </div>
                                 </div>
                             )}
-
-                            <div className="bg-sky-500/5 p-8 rounded-[2rem] grid grid-cols-2 gap-8 border border-sky-500/10 text-center font-mono relative overflow-hidden group">
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-sky-500/[0.03] to-transparent -translate-x-full group-hover:animate-shimmer" />
-                                <div className="relative z-10 border-r border-white/5">
-                                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.3em] mb-2">Total Units</p>
-                                    <p className="text-3xl font-black text-white tracking-tighter italic">{finalCount}</p>
-                                </div>
-                                <div className="relative z-10">
-                                    <p className="text-[10px] text-emerald-500 uppercase font-black tracking-[0.3em] mb-2">Aggregate Price</p>
-                                    <p className="text-3xl font-black text-emerald-400 tracking-tighter italic">Rs {finalCost.toLocaleString()}</p>
-                                </div>
+                            <div className="bg-sky-500/5 p-6 rounded-2xl grid grid-cols-2 gap-4 border border-sky-500/10 text-center font-mono">
+                                <div><p className="text-[10px] text-slate-500 uppercase font-black mb-1">UNITS</p><p className="text-xl font-bold text-white">{finalCount}</p></div>
+                                <div><p className="text-[10px] text-rose-500 uppercase font-black mb-1">TOTAL COST</p><p className="text-xl font-bold text-rose-400">Rs {finalCost.toLocaleString()}</p></div>
                             </div>
-
-                            {error && (
-                                <motion.div 
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] p-5 rounded-2xl text-center uppercase tracking-[0.2em] font-black leading-relaxed"
-                                >
-                                    {error}
-                                </motion.div>
-                            )}
-
-                            <button 
-                                onClick={() => { if (finalCost > 0 && !error) setIsConfirming(true); }} 
-                                disabled={finalCost <= 0 || !!error} 
-                                className="w-full py-6 bg-sky-600 hover:bg-sky-500 text-white font-black rounded-[1.5rem] tracking-[0.5em] uppercase transition-all shadow-2xl shadow-sky-500/30 active:scale-[0.98] disabled:opacity-30 disabled:grayscale mt-4 relative overflow-hidden group"
-                            >
-                                <span className="relative z-10">Initialize Sync</span>
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
-                            </button>
+                            {error && <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] p-4 rounded-xl text-center uppercase tracking-widest font-black leading-relaxed">{error}</div>}
+                            <button onClick={() => { if (finalCost > 0 && !error) setIsConfirming(true); }} disabled={finalCost <= 0 || !!error} className="w-full py-5 bg-sky-600 hover:bg-sky-500 text-white font-black rounded-2xl tracking-[0.3em] uppercase transition-all shadow-xl shadow-sky-500/10 active:scale-[0.98] disabled:opacity-50 mt-4">INITIATE ENCRYPTION</button>
                         </div>
                     )}
                 </div>
@@ -605,67 +480,49 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
     }, [bets, games, startDate, endDate, searchTerm]);
 
     return (
-        <div className="space-y-10">
+        <div className="space-y-8">
             <div className="flex items-center gap-4">
                 <div className="h-8 w-1 bg-emerald-500 rounded-full" />
-                <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter text-left">Cipher Logs</h3>
-                <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-full uppercase tracking-[0.3em] ml-auto">Verified Trace</span>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tighter text-left">Deployment Log</h3>
+                <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full uppercase tracking-widest ml-auto">Bet History</span>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-black/40 p-3 rounded-[1.5rem] border border-white/5 backdrop-blur-md">
-                <div className="space-y-1">
-                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-3">Start Gate</span>
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-white/5 text-white p-3 rounded-xl outline-none focus:bg-white/10 border border-transparent focus:border-emerald-500/30 transition-all font-mono text-xs" />
-                </div>
-                <div className="space-y-1">
-                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-3">End Gate</span>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-white/5 text-white p-3 rounded-xl outline-none focus:bg-white/10 border border-transparent focus:border-emerald-500/30 transition-all font-mono text-xs" />
-                </div>
-                <div className="space-y-1">
-                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest ml-3">Filter Vector</span>
-                    <input type="text" placeholder="QUERY MARKET..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-white/5 text-white p-3 rounded-xl outline-none focus:bg-white/10 border border-transparent focus:border-emerald-500/30 transition-all font-black text-[9px] uppercase tracking-widest h-[42px]" />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-black/40 p-2 rounded-2xl border border-white/5">
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent text-white p-3 rounded-xl outline-none focus:bg-white/5 border border-transparent focus:border-white/10 transition-all font-mono text-sm" />
+                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent text-white p-3 rounded-xl outline-none focus:bg-white/5 border border-transparent focus:border-white/10 transition-all font-mono text-sm" />
+                <input type="text" placeholder="FILTER BY GAME..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-transparent text-white p-3 rounded-xl outline-none focus:bg-white/5 border border-transparent focus:border-white/10 transition-all font-bold text-[10px] uppercase tracking-widest" />
             </div>
 
-            <div className="elite-card rounded-[2.5rem] overflow-hidden glass-panel border-white/5 shadow-2xl">
-                <div className="overflow-x-auto max-h-[35rem] no-scrollbar">
+            <div className="elite-card rounded-3xl overflow-hidden glass-panel">
+                <div className="overflow-x-auto max-h-[30rem] no-scrollbar">
                     <table className="w-full text-left">
-                        <thead className="sticky top-0 bg-[#0a0c10] z-20">
+                        <thead className="sticky top-0 bg-[#0a0c10] z-20 shadow-xl">
                             <tr className="border-b border-white/5">
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">Timestamp</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Transaction Packet</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] text-right">Stake</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] text-right">Yield</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] text-right">Status</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Timestamp</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Entry</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Stake</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Payout</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Gate</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {[...filteredBets].reverse().map(bet => {
                                 const game = games.find(g => g.id === bet.gameId);
                                 const payout = calculateBetPayout(bet, game, user.prizeRates);
-                                const status = (!game?.winningNumber || game.winningNumber.includes('_')) ? 'PENDING' : (payout > 0 ? 'SUCCESS' : 'SETTLED');
+                                const status = (!game?.winningNumber || game.winningNumber.includes('_')) ? 'PENDING' : (payout > 0 ? 'WON' : 'LOST');
                                 return (
-                                    <tr key={bet.id} className="group hover:bg-white/[0.03] transition-all">
-                                        <td className="p-8">
-                                            <div className="text-[10px] font-mono text-slate-500">{bet.timestamp.toLocaleDateString()}</div>
-                                            <div className="text-[11px] font-mono text-slate-400 font-bold">{bet.timestamp.toLocaleTimeString()}</div>
+                                    <tr key={bet.id} className="group hover:bg-white/[0.02]">
+                                        <td className="p-6 text-[10px] font-mono text-slate-500 whitespace-nowrap">{bet.timestamp.toLocaleString()}</td>
+                                        <td className="p-6">
+                                            <div className="text-white font-bold text-sm tracking-tight">{game?.name}</div>
+                                            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">{bet.subGameType} / {bet.numbers.length} units</div>
                                         </td>
-                                        <td className="p-8">
-                                            <div className="text-white font-black text-lg tracking-tight font-display uppercase italic leading-none">{game?.name}</div>
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{bet.subGameType}</span>
-                                                <span className="w-1 h-1 rounded-full bg-slate-700" />
-                                                <span className="text-[9px] text-sky-400 font-mono font-bold tracking-widest">{bet.numbers.length} UNITS</span>
-                                            </div>
+                                        <td className="p-6 text-right font-mono text-rose-500/80 font-bold">Rs {bet.totalAmount.toFixed(0)}</td>
+                                        <td className="p-6 text-right">
+                                            <div className={`font-mono font-black ${payout > 0 ? 'text-emerald-400' : 'text-slate-600'}`}>{payout > 0 ? `+Rs ${payout.toLocaleString()}` : '---'}</div>
                                         </td>
-                                        <td className="p-8 text-right font-mono text-rose-500/80 font-black text-base italic">Rs {bet.totalAmount.toFixed(0)}</td>
-                                        <td className="p-8 text-right">
-                                            <div className={`font-mono font-black text-lg ${payout > 0 ? 'text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]' : 'text-slate-700'}`}>
-                                                {payout > 0 ? `+Rs ${payout.toLocaleString()}` : '---'}
-                                            </div>
-                                        </td>
-                                        <td className="p-8 text-right">
-                                            <span className={`text-[9px] font-black uppercase tracking-[0.3em] px-3 py-1.5 rounded-xl bg-black/40 border transition-all duration-500 ${status === 'SUCCESS' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5' : status === 'SETTLED' ? 'border-white/5 text-slate-600' : 'border-amber-500/30 text-amber-500 bg-amber-500/5 pulse-subtle'}`}>
+                                        <td className="p-6 text-right">
+                                            <span className={`text-[9px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded bg-black/40 border ${status === 'WON' ? 'border-emerald-500/30 text-emerald-400' : status === 'LOST' ? 'border-rose-500/30 text-rose-400' : 'border-amber-500/30 text-amber-500'}`}>
                                                 {status}
                                             </span>
                                         </td>
@@ -682,45 +539,33 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
 
 const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
     return (
-        <div className="space-y-10">
+        <div className="space-y-8">
             <div className="flex items-center gap-4">
                 <div className="h-8 w-1 bg-sky-500 rounded-full" />
-                <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter">Chain Ledger</h3>
-                <span className="text-[10px] font-black text-sky-500 bg-sky-500/10 border border-sky-500/20 px-4 py-2 rounded-full uppercase tracking-[0.3em] ml-auto">Auth History</span>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Financial Ledger</h3>
+                <span className="text-[10px] font-bold text-sky-500 bg-sky-500/10 border border-sky-500/20 px-3 py-1 rounded-full uppercase tracking-widest ml-auto">Balance Auth</span>
             </div>
 
-            <div className="elite-card rounded-[2.5rem] overflow-hidden glass-panel border-white/5 shadow-2xl">
-                <div className="overflow-x-auto max-h-[40rem] no-scrollbar">
+            <div className="elite-card rounded-3xl overflow-hidden glass-panel">
+                <div className="overflow-x-auto max-h-[34rem] no-scrollbar">
                     <table className="w-full text-left">
-                        <thead className="sticky top-0 bg-[#0a0c10] z-20">
+                        <thead className="sticky top-0 bg-[#0a0c10] z-20 shadow-xl">
                             <tr className="border-b border-white/5">
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">Execution Time</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Activity Vector</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] text-right">Delta</th>
-                                <th className="p-8 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] text-right">Final Index</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Event Time</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Transaction Descriptor</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Debit / Credit</th>
+                                <th className="p-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-right">Net Balance</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
                             {[...entries].reverse().map(e => (
-                                <tr key={e.id} className="hover:bg-white/[0.03] group transition-all">
-                                    <td className="p-8">
-                                        <div className="text-[10px] font-mono text-slate-500">{e.timestamp.toLocaleDateString()}</div>
-                                        <div className="text-[11px] font-mono text-sky-500/60 font-bold">{e.timestamp.toLocaleTimeString()}</div>
+                                <tr key={e.id} className="hover:bg-white/[0.02]">
+                                    <td className="p-6 text-[10px] font-mono text-slate-500">{e.timestamp.toLocaleString()}</td>
+                                    <td className="p-6 text-white font-bold text-sm tracking-tight">{e.description}</td>
+                                    <td className="p-6 text-right font-mono font-black">
+                                        {e.debit > 0 ? <span className="text-rose-500">-{e.debit.toFixed(0)}</span> : <span className="text-emerald-500">+{e.credit.toFixed(0)}</span>}
                                     </td>
-                                    <td className="p-8">
-                                        <div className="text-white font-black text-base tracking-tight uppercase font-display leading-tight">{e.description}</div>
-                                        <div className="text-[9px] text-slate-600 font-bold uppercase tracking-widest mt-1">Transaction Verified</div>
-                                    </td>
-                                    <td className="p-8 text-right font-mono font-black text-lg">
-                                        {e.debit > 0 ? (
-                                            <span className="text-rose-500 italic">-{e.debit.toFixed(0)}</span>
-                                        ) : (
-                                            <span className="text-emerald-400 italic">+{e.credit.toFixed(0)}</span>
-                                        )}
-                                    </td>
-                                    <td className="p-8 text-right font-mono font-black text-white text-xl tracking-tighter italic">
-                                        Rs {e.balance.toLocaleString()}
-                                    </td>
+                                    <td className="p-6 text-right font-mono font-black text-white italic">Rs {e.balance.toLocaleString()}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -735,22 +580,8 @@ const UserPanel: React.FC<{ user: User, games: Game[], bets: Bet[], placeBet: (d
     const [selectedGame, setSelectedGame] = useState<Game | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-    const stats = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
-        const todayBets = bets.filter(b => b.timestamp.toISOString().split('T')[0] === today);
-        const totalWinnings = todayBets.reduce((sum, b) => {
-            const game = games.find(g => g.id === b.gameId);
-            return sum + calculateBetPayout(b, game, user.prizeRates);
-        }, 0);
-        return {
-            todayStake: todayBets.reduce((sum, b) => sum + b.totalAmount, 0),
-            todayWinnings,
-            totalActiveGames: games.filter(g => g.isMarketOpen).length
-        };
-    }, [bets, games, user]);
-
     return (
-        <div className="max-w-7xl mx-auto px-8 py-16 md:py-24 relative z-10">
+        <div className="max-w-7xl mx-auto px-6 py-12 md:py-20 relative z-10">
             <AnimatePresence>
                 {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
             </AnimatePresence>
@@ -758,79 +589,29 @@ const UserPanel: React.FC<{ user: User, games: Game[], bets: Bet[], placeBet: (d
             <motion.div 
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-24"
+                className="flex flex-col md:flex-row justify-between items-end mb-24 gap-8"
             >
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-12">
-                    <div className="space-y-6">
-                        <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
-                            <span className="text-[10px] font-black text-sky-400 uppercase tracking-[0.3em]">Node Operational</span>
-                        </div>
-                        <div className="border-l-4 border-sky-600 pl-8">
-                            <h2 className="text-5xl md:text-8xl font-display font-black text-white tracking-tighter uppercase leading-[0.85] mb-4">
-                                Control <br />
-                                <span className="text-gradient-cyan">Center</span>
-                            </h2>
-                            <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-[10px]">Active Terminal: <span className="text-sky-500">{user.name}</span></p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full lg:w-auto">
-                        <div className="elite-card px-10 py-8 rounded-[2.5rem] glass-panel min-w-[320px] relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                                {Icons.wallet}
-                            </div>
-                            <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.4em] mb-4 opacity-60">Liquid Liquidity</p>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-sm font-bold text-sky-500 uppercase font-mono">Rs</span>
-                                <span className="text-5xl font-black text-white font-mono tracking-tighter italic drop-shadow-[0_0_20px_rgba(255,255,255,0.1)]">
-                                    {user.wallet.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="elite-card p-6 rounded-[2rem] bg-emerald-500/5 border-emerald-500/10">
-                                <p className="text-[9px] text-emerald-500/60 uppercase font-black tracking-widest mb-2">Today Win</p>
-                                <p className="text-xl font-black text-emerald-400 font-mono tracking-tighter">+{stats.todayWinnings.toLocaleString()}</p>
-                            </div>
-                            <div className="elite-card p-6 rounded-[2rem] bg-rose-500/5 border-rose-500/10">
-                                <p className="text-[9px] text-rose-500/60 uppercase font-black tracking-widest mb-2">Today Stake</p>
-                                <p className="text-xl font-black text-rose-400 font-mono tracking-tighter">-{stats.todayStake.toLocaleString()}</p>
-                            </div>
-                        </div>
-                    </div>
+                <div className="border-l-4 border-sky-500 pl-8">
+                    <h2 className="text-5xl md:text-7xl font-black text-white tracking-widest uppercase mb-4">Dashboard</h2>
+                    <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px]">Active Terminal Identity: <span className="text-sky-500">{user.name}</span></p>
+                </div>
+                <div className="elite-card px-10 py-6 rounded-3xl glass-panel text-right min-w-[280px]">
+                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-2 opacity-60">Liquidity Index</p>
+                    <p className="text-4xl font-black text-white font-mono tracking-tighter italic">Rs {user.wallet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                 </div>
             </motion.div>
 
             <GameStakeBreakdown games={games} bets={bets} user={user} />
 
-            <div className="mb-32">
-                <div className="flex items-center justify-between mb-12">
-                    <div className="flex items-center gap-4">
-                        <div className="h-8 w-1 bg-sky-500 rounded-full" />
-                        <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter">Active Markets</h3>
-                    </div>
-                    <div className="px-4 py-2 bg-white/5 rounded-2xl border border-white/10 text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">
-                        {stats.totalActiveGames} Synchronized
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
-                    {games.map((g, i) => (
-                        <motion.div 
-                            key={g.id} 
-                            initial={{ opacity: 0, y: 20 }} 
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: i * 0.1 }}
-                        >
-                            <GameCard game={g} onPlay={setSelectedGame} isRestricted={user.isRestricted} />
-                        </motion.div>
-                    ))}
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 mb-24">
+                {games.map((g, i) => (
+                    <motion.div key={g.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }}>
+                        <GameCard game={g} onPlay={setSelectedGame} isRestricted={user.isRestricted} />
+                    </motion.div>
+                ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20">
                 <BetHistoryView bets={bets} games={games} user={user} />
                 <LedgerView entries={user.ledger} />
             </div>
@@ -843,7 +624,7 @@ const UserPanel: React.FC<{ user: User, games: Game[], bets: Bet[], placeBet: (d
                         onPlaceBet={async (d) => {
                             try {
                                 await placeBet(d); 
-                                setToast({ msg: "Transaction synchronized successfully.", type: 'success' });
+                                setToast({ msg: "Transaction encrypted successfully.", type: 'success' });
                                 setSelectedGame(null);
                             } catch (e: any) { setToast({ msg: e.message, type: 'error' }); throw e; }
                         }} 

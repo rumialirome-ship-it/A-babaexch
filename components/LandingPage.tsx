@@ -21,51 +21,48 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
 
     return (
         <motion.button
-            whileHover={{ y: -8, scale: 1.02 }}
+            whileHover={{ y: -5, scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={onClick}
-            className="relative flex flex-col items-center p-8 text-center elite-card w-full overflow-hidden rounded-[2.5rem] group"
+            className={`relative flex flex-col items-center p-6 text-center elite-card w-full overflow-hidden rounded-2xl group`}
         >
-            <div className={`absolute inset-0 bg-gradient-to-br from-${themeColor}-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700`} />
+            <div className={`absolute inset-0 bg-gradient-to-b from-${themeColor}-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
             
             <div className="relative z-10 w-full flex flex-col h-full items-center">
-                <div className="relative mb-8 pt-2">
-                    <div className="absolute -inset-4 bg-white/5 rounded-full blur-xl scale-90 group-hover:scale-110 transition-transform duration-700" />
+                <div className="relative mb-6">
                     <img 
                         src={logo} 
                         alt={`${game.name} logo`} 
-                        className="w-28 h-28 rounded-full border border-white/10 group-hover:border-sky-400/30 transition-all duration-700 shadow-2xl relative z-10 object-cover p-1 bg-[#020617]" 
+                        className="w-24 h-24 rounded-full border-2 border-slate-700/50 group-hover:border-sky-400/50 transition-all duration-500 shadow-2xl relative z-10 object-cover" 
                     />
-                    <div className={`absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-[#020617] border border-white/10 flex items-center justify-center z-20`}>
-                        <div className={`w-2.5 h-2.5 rounded-full ${status === 'OPEN' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                    </div>
+                    <div className={`absolute -inset-2 bg-${themeColor}-400/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
                 </div>
                 
-                <h3 className="text-2xl font-display font-black text-white mb-1 tracking-tight group-hover:text-sky-300 transition-colors uppercase">{game.name}</h3>
-                <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em]">Market Close: {formatTime12h(game.drawTime)}</p>
+                <h3 className="text-xl font-bold text-slate-100 mb-1 tracking-tight group-hover:text-sky-300 transition-colors">{game.name}</h3>
+                <p className="text-slate-400 text-xs font-medium uppercase tracking-[0.2em]">Draw @ {formatTime12h(game.drawTime)}</p>
 
-                <div className="mt-8 w-full pt-8 border-t border-white/5 flex flex-col justify-center min-h-[110px]">
+                <div className="mt-6 w-full pt-6 border-t border-slate-700/50 flex flex-col justify-center min-h-[90px]">
                     {hasFinalWinner ? (
-                        <div className="animate-in fade-in slide-in-from-bottom-2 duration-700">
-                            <span className="text-[9px] font-black text-emerald-400 tracking-[0.4em] uppercase block mb-3 opacity-60">Final Outcome</span>
-                            <span className="text-6xl font-mono font-black text-white tracking-tighter text-gradient-cyan">
+                        <div className="animate-in fade-in zoom-in duration-700">
+                            <span className="text-[10px] font-black text-emerald-400 tracking-[0.4em] uppercase block mb-2">Authenticated Result</span>
+                            <span className="text-5xl font-mono font-bold text-white tracking-tighter drop-shadow-[0_0_15px_rgba(16,185,129,0.4)]">
                                 {game.winningNumber}
                             </span>
                         </div>
                     ) : isMarketClosedForDisplay ? (
-                        <div className="space-y-1">
-                            <span className="text-[9px] font-black text-slate-500 tracking-[0.4em] uppercase block">Operations status</span>
-                            <span className="text-xl font-display font-black text-rose-500/80 uppercase">Access Restricted</span>
+                        <div>
+                            <span className="text-[10px] font-bold text-slate-500 tracking-widest uppercase block mb-1">Status</span>
+                            <span className="text-xl font-bold text-rose-400/80">MARKET CLOSED</span>
                         </div>
                     ) : status === 'OPEN' ? (
                         <div>
-                            <span className="text-[9px] font-black text-sky-400/80 tracking-[0.4em] uppercase block mb-3">Time to Entry</span>
-                            <span className="text-4xl font-mono font-black text-slate-100 tracking-tighter">{countdownText}</span>
+                            <span className="text-[10px] font-bold text-sky-400/80 tracking-widest uppercase block mb-1">Entry Ends In</span>
+                            <span className="text-3xl font-mono font-bold text-slate-100 tracking-tight">{countdownText}</span>
                         </div>
                     ) : (
                         <div>
-                            <span className="text-[9px] font-black text-slate-500 tracking-[0.4em] uppercase block mb-2">Market Opening</span>
-                            <span className="text-2xl font-mono font-black text-slate-600">{countdownText}</span>
+                            <span className="text-[10px] font-bold text-slate-500 tracking-widest uppercase block mb-1">Wait for Entry</span>
+                            <span className="text-xl font-mono font-bold text-slate-500">{countdownText}</span>
                         </div>
                     )}
                 </div>
@@ -99,56 +96,56 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
     };
 
     return (
-        <div className="glass-panel rounded-[2.5rem] overflow-hidden shadow-2xl shadow-black/50 border-white/10">
-            <div className="flex p-3 bg-black/40 border-b border-white/5 gap-2">
+        <div className="glass-panel rounded-3xl overflow-hidden">
+            <div className="flex p-2 bg-black/20 border-b border-white/5">
                 <button 
                     onClick={() => setActiveTab('User')}
-                    className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.25em] rounded-2xl transition-all ${isUser ? 'bg-sky-600 text-white shadow-xl shadow-sky-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
+                    className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all ${isUser ? 'bg-sky-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                    Citizen Node
+                    User Portal
                 </button>
                 <button 
                     onClick={() => setActiveTab('Dealer')}
-                    className={`flex-1 py-4 text-[10px] font-black uppercase tracking-[0.25em] rounded-2xl transition-all ${!isUser ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
+                    className={`flex-1 py-3 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all ${!isUser ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                    Authorized Agent
+                    Dealer Access
                 </button>
             </div>
             
-            <div className="p-12">
-                <form onSubmit={handleLoginSubmit} className="space-y-8">
-                    <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] ml-1">Terminal Identity</label>
+            <div className="p-10">
+                <form onSubmit={handleLoginSubmit} className="space-y-6">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Terminal ID</label>
                         <input 
                             type="text" 
                             value={loginId} 
                             onChange={(e) => setLoginId(e.target.value)} 
-                            className="w-full bg-black/60 border border-white/10 p-5 rounded-2xl text-white focus:border-sky-500/50 outline-none transition-all font-mono"
+                            className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white focus:border-sky-500/50 outline-none transition-all"
                             placeholder="A-00000"
                         />
                     </div>
                     
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                         <div className="flex justify-between items-center ml-1">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Master Passkey</label>
-                            <button type="button" onClick={onForgotPassword} className="text-[10px] font-black text-sky-500 hover:text-sky-400 tracking-widest uppercase">Recovery</button>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Master Key</label>
+                            <button type="button" onClick={onForgotPassword} className="text-[10px] font-bold text-sky-500 hover:text-sky-400">Recovery?</button>
                         </div>
                         <div className="relative">
                             <input 
                                 type={isPasswordVisible ? 'text' : 'password'} 
                                 value={password} 
                                 onChange={(e) => setPassword(e.target.value)} 
-                                className="w-full bg-black/60 border border-white/10 p-5 rounded-2xl text-white focus:border-sky-500/50 outline-none transition-all pr-14 font-mono"
+                                className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white focus:border-sky-500/50 outline-none transition-all pr-12"
                                 placeholder="••••••••"
                             />
-                            <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                            <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
                                 {isPasswordVisible ? Icons.eyeOff : Icons.eye}
                             </button>
                         </div>
                     </div>
 
                     {error && (
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-[10px] font-black uppercase tracking-[0.15em] text-rose-400 bg-rose-500/10 p-5 rounded-2xl border border-rose-500/20 text-center">
+                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-rose-400 bg-rose-500/10 p-4 rounded-xl border border-rose-500/20 text-center">
                             {error}
                         </motion.div>
                     )}
@@ -156,9 +153,9 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
                     <button 
                         type="submit" 
                         disabled={isAuthenticating}
-                        className={`w-full py-5 rounded-[1.5rem] font-black text-white tracking-[0.35em] text-xs transition-all shadow-2xl disabled:opacity-50 active:scale-[0.98] ${isUser ? 'bg-sky-600 hover:bg-sky-500 shadow-sky-500/20' : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20'}`}
+                        className={`w-full py-4 rounded-xl font-bold text-white tracking-[0.2em] transition-all shadow-xl hover:shadow-sky-500/10 active:scale-[0.98] disabled:opacity-50 ${isUser ? 'bg-sky-600 hover:bg-sky-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}
                     >
-                        {isAuthenticating ? 'AUTHENTICATING...' : 'ESTABLISH LINK'}
+                        {isAuthenticating ? 'VERIFYING...' : 'LOGIN TO TERMINAL'}
                     </button>
                 </form>
             </div>
@@ -214,32 +211,32 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
     
     return (
         <ModalWrapper isOpen={isOpen} onClose={onClose}>
-            <div className="glass-panel rounded-[2.5rem] overflow-hidden border-rose-500/20">
-                <div className="flex justify-between items-center p-8 border-b border-white/5 bg-rose-500/5">
-                    <h3 className="text-[10px] font-black text-rose-400 uppercase tracking-[0.4em]">Restricted Protocol</h3>
-                    <button onClick={onClose} className="p-2 rounded-lg bg-white/5 text-slate-500 hover:text-white transition-colors">{Icons.close}</button>
+            <div className="glass-panel rounded-3xl overflow-hidden border-rose-500/20">
+                <div className="flex justify-between items-center p-6 border-b border-white/5 bg-rose-500/5">
+                    <h3 className="text-xs font-bold text-rose-400 uppercase tracking-[0.3em]">Restricted Access</h3>
+                    <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">{Icons.close}</button>
                 </div>
-                <div className="p-12">
-                    <form onSubmit={handleLoginSubmit} className="space-y-8">
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] ml-1">Admin Proxy ID</label>
-                            <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white outline-none focus:border-rose-500/50 transition-all font-mono" />
+                <div className="p-10">
+                    <form onSubmit={handleLoginSubmit} className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Admin Identity</label>
+                            <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white outline-none focus:border-rose-500/50 transition-all" />
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             <div className="flex justify-between items-center ml-1">
-                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Security Matrix</label>
-                                <button type="button" onClick={onForgotPassword} className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Recovery</button>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Security Token</label>
+                                <button type="button" onClick={onForgotPassword} className="text-[10px] font-bold text-rose-500">Recovery?</button>
                             </div>
                             <div className="relative">
-                                <input type={isPasswordVisible ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white outline-none focus:border-rose-500/50 transition-all pr-14 font-mono" />
-                                <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">
+                                <input type={isPasswordVisible ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white outline-none focus:border-rose-500/50 transition-all pr-12" />
+                                <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
                                     {isPasswordVisible ? Icons.eyeOff : Icons.eye}
                                 </button>
                             </div>
                         </div>
-                        {error && <div className="text-[10px] font-black uppercase tracking-widest text-rose-400 bg-rose-500/10 p-5 rounded-2xl border border-rose-500/20 text-center">{error}</div>}
-                        <button type="submit" disabled={isAuthenticating} className="w-full py-5 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-[1.5rem] tracking-[0.35em] text-xs transition-all shadow-2xl shadow-rose-500/20 active:scale-[0.98]">
-                            {isAuthenticating ? 'VERIFYING...' : 'AUTHORIZE LOGIN'}
+                        {error && <div className="text-xs text-rose-400 bg-rose-500/10 p-4 rounded-xl border border-rose-500/20 text-center">{error}</div>}
+                        <button type="submit" disabled={isAuthenticating} className="w-full py-4 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl tracking-[0.2em] transition-all shadow-xl shadow-rose-500/10">
+                            {isAuthenticating ? 'VERIFYING...' : 'AUTHORIZE ACCESS'}
                         </button>
                     </form>
                 </div>
@@ -274,30 +271,29 @@ const ResetPasswordModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = 
     
     return (
         <ModalWrapper isOpen={isOpen} onClose={onClose}>
-            <div className="glass-panel rounded-[2.5rem] overflow-hidden">
-                <div className="p-12 text-center text-slate-200">
-                    <h3 className="text-2xl font-display font-black text-white mb-3 uppercase tracking-tight">Key Regeneration</h3>
-                    <p className="text-slate-500 text-xs font-semibold mb-10 max-w-[280px] mx-auto uppercase tracking-widest leading-relaxed">Enter your node ID and contact signature to authorize key reset.</p>
+            <div className="glass-panel rounded-3xl overflow-hidden">
+                <div className="p-10 text-center">
+                    <h3 className="text-xl font-bold text-white mb-2">Credential Recovery</h3>
+                    <p className="text-slate-500 text-sm mb-8">Enter your terminal ID and contact signature to regenerate your key.</p>
                     
                     {success ? (
-                        <div className="space-y-6 animate-in fade-in zoom-in duration-500">
-                            <div className="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-400 text-[10px] font-black uppercase tracking-widest leading-loose">{success}</div>
-                            <button onClick={onClose} className="w-full py-5 bg-sky-600 text-white font-black rounded-2xl tracking-[0.3em] uppercase text-xs shadow-xl shadow-sky-500/20">RETURN TO TERMINAL</button>
+                        <div className="space-y-4">
+                            <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-sm">{success}</div>
+                            <button onClick={onClose} className="w-full py-4 bg-sky-600 text-white font-bold rounded-xl tracking-widest">RETURN TO LOGIN</button>
                         </div>
                     ) : (
-                        <form onSubmit={handleResetSubmit} className="space-y-5 text-left">
-                            <input type="text" placeholder="Terminal ID" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white outline-none focus:border-sky-500/50 font-mono" />
-                            <input type="text" placeholder="Contact Signature" value={contact} onChange={(e) => setContact(e.target.value)} className="w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white outline-none focus:border-sky-500/50 font-mono" />
+                        <form onSubmit={handleResetSubmit} className="space-y-4 text-left">
+                            <input type="text" placeholder="Terminal ID" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white outline-none focus:border-sky-500/50" />
+                            <input type="text" placeholder="Contact Signature" value={contact} onChange={(e) => setContact(e.target.value)} className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white outline-none focus:border-sky-500/50" />
                             <div className="relative">
-                                <input type={isNewPasswordVisible ? 'text' : 'password'} placeholder="New Master Pass" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white outline-none focus:border-sky-500/50 pr-14 font-mono" />
-                                <button type="button" onClick={() => setIsNewPasswordVisible(!isNewPasswordVisible)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors">{isNewPasswordVisible ? Icons.eyeOff : Icons.eye}</button>
+                                <input type={isNewPasswordVisible ? 'text' : 'password'} placeholder="New Master Key" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white outline-none focus:border-sky-500/50 pr-12" />
                             </div>
-                            <input type={isNewPasswordVisible ? 'text' : 'password'} placeholder="Confirm Pass" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full bg-black/40 border border-white/10 p-5 rounded-2xl text-white outline-none focus:border-sky-500/50 font-mono" />
+                            <input type={isNewPasswordVisible ? 'text' : 'password'} placeholder="Confirm Key" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-white outline-none focus:border-sky-500/50" />
                             
-                            {error && <div className="text-[10px] font-black uppercase text-rose-400 text-center tracking-widest">{error}</div>}
+                            {error && <div className="text-xs text-rose-400 text-center">{error}</div>}
                             
-                            <button type="submit" disabled={isLoading} className="w-full py-5 bg-sky-600 hover:bg-sky-500 text-white font-black rounded-2xl tracking-[0.3em] uppercase text-xs shadow-xl shadow-sky-500/20 mt-4 active:scale-95 transition-all">
-                                {isLoading ? 'PROCESSING...' : 'INITIALIZE RESET'}
+                            <button type="submit" disabled={isLoading} className="w-full py-4 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl tracking-[0.2em] mt-4">
+                                {isLoading ? 'REGENERATING...' : 'UPDATE MASTER KEY'}
                             </button>
                         </form>
                     )}
@@ -317,57 +313,46 @@ const LandingPage: React.FC<{ games: Game[] }> = ({ games }) => {
                 <div className="grid-overlay" />
             </div>
 
-            <main className="relative z-10 max-w-7xl mx-auto px-8 py-16 md:py-32">
+            <main className="relative z-10 max-w-7xl mx-auto px-6 py-12 md:py-24">
                 <motion.header 
-                    initial={{ opacity: 0, y: 40 }}
+                    initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                    className="text-center mb-32"
+                    className="text-center mb-24"
                 >
-                    <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-white/5 border border-white/10 text-sky-400 text-[10px] font-black uppercase tracking-[0.4em] mb-10 shadow-2xl">
-                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
-                        A-BABA PROTOCOL V4.0.5
+                    <div className="inline-block px-4 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-bold uppercase tracking-[0.3em] mb-6">
+                        Distributed Exchange Node v4.0.2
                     </div>
-                    <h1 className="text-7xl md:text-[8rem] font-display font-black text-white mb-10 tracking-tighter leading-[0.85] uppercase">
-                        Master <br className="hidden md:block" />
-                        <span className="text-gradient-cyan drop-shadow-[0_0_50px_rgba(56,189,248,0.2)]">Exchange</span>
+                    <h1 className="text-6xl md:text-9xl font-black text-white mb-8 tracking-tighter">
+                        A-BABA <br className="md:hidden" />
+                        <span className="text-sky-500 drop-shadow-[0_0_30px_rgba(14,165,233,0.3)]">EXCHANGE</span>
                     </h1>
-                    <p className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto font-medium leading-relaxed tracking-tight">
-                        The elite distributed lottery terminal. 
-                        Live cryptographic results, instant verification, and next-gen market management.
+                    <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto font-medium leading-relaxed">
+                        The ultimate high-fidelity digital lottery node. 
+                        Live results, instant verification, and secure terminal management.
                     </p>
                 </motion.header>
 
-                <section className="mb-48">
-                    <div className="flex flex-col md:flex-row justify-between items-center mb-16 gap-8">
-                        <div className="border-l-4 border-sky-600 pl-8">
-                            <h2 className="text-4xl font-display font-black text-white tracking-tighter uppercase mb-2">Live Markets</h2>
-                            <div className="flex items-center gap-4">
-                                <span className="text-emerald-400 text-[10px] font-black uppercase tracking-[0.3em]">Status: Operational</span>
-                                <div className="w-1 h-1 rounded-full bg-slate-700" />
-                                <span className="text-slate-500 text-[10px] font-mono tracking-widest">LATENCY: 8ms</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2 bg-black/40 px-6 py-3 rounded-2xl border border-white/5">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Global Sync Enabled</span>
+                <section className="mb-32">
+                    <div className="flex justify-between items-end mb-12 border-l-4 border-sky-500 pl-6">
+                        <div>
+                            <h2 className="text-3xl font-bold text-white tracking-tight mb-2 uppercase">Live Market Feed</h2>
+                            <p className="text-slate-500 text-sm font-mono tracking-wider">STATUS: ACTIVE | SYNC: OPTIMAL</p>
                         </div>
                     </div>
                     
                     {games.length === 0 ? (
-                        <div className="elite-card rounded-[3rem] p-32 text-center border-dashed border-white/10 bg-black/20">
-                            <div className="w-12 h-12 border-4 border-sky-500/20 border-t-sky-500 rounded-full animate-spin mx-auto mb-8 shadow-2xl shadow-sky-500/20"></div>
-                            <p className="text-sky-400 font-black tracking-[0.4em] text-[10px] uppercase">Retrieving Market Data...</p>
+                        <div className="glass-panel rounded-3xl p-24 text-center border-dashed border-white/10">
+                            <div className="w-10 h-10 border-2 border-sky-500/20 border-t-sky-500 rounded-full animate-spin mx-auto mb-6"></div>
+                            <p className="text-sky-400 font-bold tracking-[0.2em] text-xs uppercase">Syncing with Mainframe...</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {games.map((game, i) => (
                                 <motion.div
                                     key={game.id}
-                                    initial={{ opacity: 0, y: 30 }}
-                                    whileInView={{ opacity: 1, y: 0 }}
-                                    viewport={{ once: true }}
-                                    transition={{ delay: i * 0.1, duration: 0.6 }}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ delay: i * 0.05, type: 'spring', stiffness: 100 }}
                                 >
                                     <GameDisplayCard 
                                         game={game} 
@@ -379,30 +364,29 @@ const LandingPage: React.FC<{ games: Game[] }> = ({ games }) => {
                     )}
                 </section>
 
-                <div id="terminal" className="grid grid-cols-1 lg:grid-cols-2 gap-32 items-start scroll-mt-32 mb-48">
+                <div id="terminal" className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-start scroll-mt-24 mb-32">
                     <motion.div
-                        initial={{ opacity: 0, x: -60 }}
+                        initial={{ opacity: 0, x: -50 }}
                         whileInView={{ opacity: 1, x: 0 }}
                         viewport={{ once: true }}
-                        transition={{ duration: 0.8 }}
                     >
-                        <h2 className="text-5xl md:text-8xl font-display font-black text-white mb-12 leading-[0.9] tracking-tighter uppercase">
-                            Secure <br />
-                            <span className="text-gradient-cyan">Assets</span>
+                        <h2 className="text-4xl md:text-6xl font-black text-white mb-8 leading-tight tracking-tighter">
+                            Manage Your <br />
+                            <span className="text-sky-500">Assets</span>
                         </h2>
-                        <div className="space-y-12">
+                        <div className="space-y-10">
                             {[
-                                { title: 'Encrypted Integrity', desc: 'Every stake is cryptographically signed and archived on a high-frequency immutable ledger.' },
-                                { title: 'Quantum Audit', desc: 'Real-time result verification with millisecond latency across the entire exchange network.' },
-                                { title: 'Authorized Node Suite', desc: 'The most advanced terminal management interface for elite agents and regional controllers.' }
+                                { title: 'Encrypted Ledger', desc: 'Every transaction is cryptographically signed and stored on a tamper-proof distributed database.' },
+                                { title: 'Instant Draw Audit', desc: 'Winning numbers are verified against multiple data points to ensure fair play and transparency.' },
+                                { title: 'Elite Dealer Suite', desc: 'Comprehensive management tools for authorized agents to scale their lottery business.' }
                             ].map((item, i) => (
-                                <div key={i} className="flex gap-8 group">
-                                    <div className="w-16 h-16 rounded-[1.5rem] bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:bg-sky-500/20 transition-all duration-500 shadow-xl shadow-sky-500/5">
-                                        <span className="text-sky-500 font-black text-base font-display">0{i+1}</span>
+                                <div key={i} className="flex gap-6 group">
+                                    <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                                        <span className="text-sky-500 font-bold text-xs">0{i+1}</span>
                                     </div>
-                                    <div className="pt-2">
-                                        <h4 className="font-display font-black text-white mb-2 text-2xl uppercase tracking-tight">{item.title}</h4>
-                                        <p className="text-slate-400 text-base leading-relaxed tracking-tight">{item.desc}</p>
+                                    <div>
+                                        <h4 className="font-bold text-slate-100 mb-1 text-lg">{item.title}</h4>
+                                        <p className="text-slate-400 text-sm leading-relaxed">{item.desc}</p>
                                     </div>
                                 </div>
                             ))}
@@ -410,40 +394,37 @@ const LandingPage: React.FC<{ games: Game[] }> = ({ games }) => {
                     </motion.div>
 
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
+                        initial={{ opacity: 0, scale: 0.95 }}
                         whileInView={{ opacity: 1, scale: 1 }}
                         viewport={{ once: true }}
                         className="relative"
                     >
-                        <div className="absolute -inset-20 bg-sky-500/5 blur-[120px] rounded-full pointer-events-none animate-pulse" />
+                        <div className="absolute -inset-10 bg-sky-500/10 blur-[100px] rounded-full pointer-events-none" />
                         <LoginPanel onForgotPassword={() => setIsResetModalOpen(true)} />
                         
                         <button 
                             onClick={() => setIsAdminModalOpen(true)}
-                            className="w-full mt-10 py-6 rounded-[2rem] bg-white/5 border border-white/10 text-slate-500 font-black tracking-[0.4em] text-[10px] hover:bg-rose-500/5 hover:text-rose-400 hover:border-rose-500/30 transition-all uppercase shadow-2xl"
+                            className="w-full mt-8 py-5 rounded-3xl bg-white/5 border border-white/10 text-slate-400 font-bold tracking-[0.3em] text-[10px] hover:bg-white/10 hover:text-white transition-all uppercase"
                         >
-                            <span className="flex items-center justify-center gap-4">
-                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.5)]" />
-                                Restricted Root Access
+                            <span className="flex items-center justify-center gap-3">
+                                <div className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+                                Restricted Terminal Access
                             </span>
                         </button>
                     </motion.div>
                 </div>
 
-                <footer className="pt-24 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-12 pb-24">
-                    <div className="text-3xl font-display font-black text-white tracking-widest opacity-80 uppercase">A-BABA.E</div>
-                    <div className="flex gap-16">
-                        <div className="text-[10px] text-slate-500 uppercase tracking-[0.4em] text-center md:text-left font-black">
-                            <span className="block text-sky-500 mb-2">Protocol Status</span>
-                            Operational / 6ms
+                <footer className="pt-16 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8 pb-16 opacity-60">
+                    <div className="text-2xl font-black text-white tracking-widest">A-BABA.E</div>
+                    <div className="flex gap-12">
+                        <div className="text-[10px] text-slate-500 uppercase tracking-widest text-center md:text-left">
+                            <span className="block text-sky-500 font-bold mb-1">Network Status</span>
+                            Operational / 14ms
                         </div>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-[0.4em] text-center md:text-left font-black">
-                            <span className="block text-sky-500 mb-2">Current release</span>
-                            v4.0.5 / Stable
+                        <div className="text-[10px] text-slate-500 uppercase tracking-widest text-center md:text-left">
+                            <span className="block text-sky-500 font-bold mb-1">Version</span>
+                            4.0.2 Stable
                         </div>
-                    </div>
-                    <div className="text-[9px] text-slate-600 font-black uppercase tracking-[0.4em]">
-                        &copy; 2026 Core Mainframe
                     </div>
                 </footer>
             </main>
