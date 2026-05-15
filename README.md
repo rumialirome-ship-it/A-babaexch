@@ -1,13 +1,13 @@
-# A-Baba Exchange - Elite Production Deployment Guide
+# A-Baba Exchange - Production Deployment Guide
 
-This guide provides precise, step-by-step instructions to deploy the "Elite Edition" of A-Baba Exchange on an Ubuntu server. This version features an advanced UI path, high-frequency synchronization, and strict protocol management.
+This comprehensive guide provides step-by-step instructions to deploy the A-Baba Exchange full-stack application on a fresh Ubuntu 22.04 server.
 
 We will use:
--   **Vite**: Frontend optimization.
--   **SQLite**: Self-contained SQL engine.
--   **Nginx**: Elite reverse proxy & SSL termination.
--   **PM2**: High-availability process management.
--   **Port 3001**: Dedicated backend synchronization port.
+-   **Vite** to build the frontend into optimized static assets.
+-   **SQLite** as the SQL database engine.
+-   **Nginx** as a reverse proxy to serve the frontend and route API requests.
+-   **PM2** as a process manager to keep the Node.js backend running continuously.
+-   **Certbot (Let's Encrypt)** to secure the application with a free SSL certificate (HTTPS).
 
 ---
 
@@ -110,7 +110,7 @@ Now we install dependencies and build both the frontend and the backend bundle.
     ```
 
 4.  **Build the Application**:
-    This command builds the frontend (into `dist/`) and the backend server (into `dist/server.cjs`).
+    This command builds the frontend (into `dist/`) and the backend server (into `dist/server.mjs`).
     ```bash
     npm run build
     ```
@@ -137,7 +137,7 @@ Now, let's launch the bundled Node.js server.
 2.  **Start the Server with PM2**:
     We point PM2 to the bundled ESM server file.
     ```bash
-    pm2 start dist/server.cjs --name ababa-backend
+    pm2 start dist/server.mjs --name ababa-backend
     ```
 
 3.  **Configure PM2 to Start on Boot**:
