@@ -249,6 +249,12 @@ const AppContent: React.FC = () => {
                                     } catch (err: any) { alert(err.message); }
                                 }} 
                                 bets={bets} games={games} placeBetAsDealer={placeBetAsDealer} isLoaded={hasInitialFetched}
+                                onUpdateDealerProfile={async (updates: any) => {
+                                    try {
+                                        await fetchWithAuth('/api/dealer/profile', { method: 'PUT', body: JSON.stringify(updates) });
+                                        fetchPrivateData();
+                                    } catch (err: any) { alert(err.message); }
+                                }}
                             />
                         )}
                         {role === Role.Admin && (

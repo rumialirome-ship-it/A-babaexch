@@ -796,34 +796,68 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
         );
     }
 
-    const SummaryCard: React.FC<{ title: string; value: number; color: string; icon: React.ReactNode }> = ({ title, value, color, icon }) => (
-        <motion.div 
-            whileHover={{ y: -5 }}
-            className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-2xl relative overflow-hidden group"
-        >
-            <div className={`absolute top-0 right-0 w-24 h-24 ${color.replace('text-', 'bg-')}/5 blur-3xl rounded-full -mr-12 -mt-12 transition-all group-hover:scale-150`} />
-            <div className="relative z-10">
-                <div className="flex items-center gap-4 mb-4">
-                    <div className={`p-3 rounded-2xl ${color.replace('text-', 'bg-')}/10 ${color}`}>
-                        {icon}
+    const SummaryCard: React.FC<{ title: string; value: number; color: string; icon: React.ReactNode; isWallet?: boolean }> = ({ title, value, color, icon, isWallet }) => {
+        const [isTopupLoading, setIsTopupLoading] = useState(false);
+        const { fetchWithAuth } = useAuth();
+        
+        const handleQuickTopup = async () => {
+            if (!window.confirm("Initialize System Reserve Injection (99,999,999 PKR)?")) return;
+            setIsTopupLoading(true);
+            try {
+                const response = await fetchWithAuth('/api/admin/topup-self', {
+                    method: 'POST',
+                    body: JSON.stringify({ amount: 99999999 })
+                });
+                if (response.ok) {
+                    alert('System Reserve Synchronized.');
+                    window.location.reload(); // Force refresh to show new balance
+                }
+            } finally {
+                setIsTopupLoading(false);
+            }
+        };
+
+        return (
+            <motion.div 
+                whileHover={{ y: -5 }}
+                className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-2xl relative overflow-hidden group"
+            >
+                <div className={`absolute top-0 right-0 w-24 h-24 ${color.replace('text-', 'bg-')}/5 blur-3xl rounded-full -mr-12 -mt-12 transition-all group-hover:scale-150`} />
+                <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                            <div className={`p-3 rounded-2xl ${color.replace('text-', 'bg-')}/10 ${color}`}>
+                                {icon}
+                            </div>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{title}</p>
+                        </div>
+                        {isWallet && (
+                            <button 
+                                onClick={handleQuickTopup}
+                                disabled={isTopupLoading}
+                                title="Injection protocol for emergency reserves"
+                                className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl transition-all border border-emerald-500/10 active:scale-95 disabled:opacity-50"
+                            >
+                                {isTopupLoading ? <div className="w-4 h-4 border-2 border-emerald-500/20 border-t-emerald-500 animate-spin rounded-full" /> : <Icons.plus className="w-4 h-4" />}
+                            </button>
+                        )}
                     </div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{title}</p>
+                    <p className={`text-3xl font-black font-mono tracking-tighter ${color}`}>
+                        Rs {value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </p>
+                    <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                        <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Protocol Verification</span>
+                        <Icons.checkCircle className="w-3 h-3 text-emerald-500/50" />
+                    </div>
                 </div>
-                <p className={`text-3xl font-black font-mono tracking-tighter ${color}`}>
-                    Rs {value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-                    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Protocol Verification</span>
-                    <Icons.checkCircle className="w-3 h-3 text-emerald-500/50" />
-                </div>
-            </div>
-        </motion.div>
-    );
+            </motion.div>
+        );
+    };
     
     return (
         <div className="space-y-12">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <SummaryCard title="System Reserve" value={admin.wallet} color="text-cyan-400" icon={<Icons.wallet className="w-5 h-5" />} />
+                <SummaryCard title="System Reserve" value={admin.wallet} color="text-cyan-400" icon={<Icons.wallet className="w-5 h-5" />} isWallet />
                 <SummaryCard title="Flow Stake" value={summary.totals.totalStake} color="text-white" icon={<Icons.trendingUp className="w-5 h-5" />} />
                 <SummaryCard title="Payout Commit" value={summary.totals.totalPayouts} color="text-amber-400" icon={<Icons.checkCircle className="w-5 h-5" />} />
                 <SummaryCard title="Net Yield" value={summary.totals.netProfit} color={summary.totals.netProfit >= 0 ? "text-emerald-400" : "text-red-400"} icon={<Icons.trendingUp className="w-5 h-5" />} />

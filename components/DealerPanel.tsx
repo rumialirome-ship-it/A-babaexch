@@ -426,6 +426,7 @@ interface DealerPanelProps {
   users: User[];
   onSaveUser: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>;
   onDeleteUser: (uId: string) => Promise<void>;
+  onUpdateDealerProfile: (updates: any) => Promise<void>;
   topUpUserWallet: (userId: string, amount: number) => Promise<void>;
   withdrawFromUserWallet: (userId: string, amount: number) => Promise<void>;
   toggleAccountRestriction: (userId: string, userType: 'user') => void;
@@ -435,7 +436,11 @@ interface DealerPanelProps {
   isLoaded?: boolean;
 }
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, onDeleteUser, topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, bets, games, placeBetAsDealer, isLoaded = false }) => {
+const DealerPanel: React.FC<DealerPanelProps> = ({ 
+    dealer, users, onSaveUser, onDeleteUser, onUpdateDealerProfile, 
+    topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, 
+    bets, games, placeBetAsDealer, isLoaded = false 
+}) => {
   const [activeTab, setActiveTab] = useState('users');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
@@ -464,6 +469,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
     { id: 'terminal', label: 'Terminal', icon: <Icons.clipboardList className="w-4 h-4" /> },
     { id: 'wallet', label: 'Wallet', icon: <Icons.wallet className="w-4 h-4" /> },
     { id: 'history', label: 'History', icon: <Icons.bookOpen className="w-4 h-4" /> },
+    { id: 'settings', label: 'Settings', icon: <Icons.settings className="w-4 h-4" /> },
   ];
 
   if (!dealer) return <div className="p-8 text-center text-slate-400">Loading dealer profile...</div>;
@@ -677,6 +683,15 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
             {activeTab === 'terminal' && <BettingTerminalView users={safeUsers} games={games} placeBetAsDealer={placeBetAsDealer} />}
             {activeTab === 'wallet' && <WalletView dealer={safeDealer as Dealer} />}
             {activeTab === 'history' && <BetHistoryView bets={bets} games={games} users={safeUsers} />}
+            {activeTab === 'settings' && (
+                <NetworkSettingsView 
+                    dealer={safeDealer as Dealer} 
+                    onUpdate={async (updates) => {
+                        await onUpdateDealerProfile(updates);
+                        showToast("Network settings synchronized.", "success");
+                    }} 
+                />
+            )}
         </motion.div>
       </AnimatePresence>
 
@@ -1021,6 +1036,104 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
                             ))}
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const NetworkSettingsView: React.FC<{ dealer: Dealer; onUpdate: (updates: any) => Promise<void> }> = ({ dealer, onUpdate }) => {
+    const [isLoading, setIsLoading] = useState(false);
+    const [formData, setFormData] = useState({
+        prizeRates: {
+            twoDigit: (dealer.prizeRates?.twoDigit ?? 90).toString(),
+            oneDigitOpen: (dealer.prizeRates?.oneDigitOpen ?? 9.5).toString(),
+            oneDigitClose: (dealer.prizeRates?.oneDigitClose ?? 9.5).toString(),
+        }
+    });
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        if (name.startsWith('prizeRates.')) {
+            const field = name.split('.')[1];
+            setFormData(prev => ({
+                ...prev,
+                prizeRates: { ...prev.prizeRates, [field]: value }
+            }));
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        try {
+            await onUpdate({
+                prizeRates: {
+                    twoDigit: Number(formData.prizeRates.twoDigit),
+                    oneDigitOpen: Number(formData.prizeRates.oneDigitOpen),
+                    oneDigitClose: Number(formData.prizeRates.oneDigitClose),
+                }
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const inputClass = "w-full bg-slate-950/50 p-4 rounded-2xl border border-white/10 focus:ring-2 focus:ring-emerald-500/50 text-white text-sm font-bold shadow-inner transition-all";
+    const labelClass = "block text-[10px] uppercase font-black text-slate-500 mb-1.5 tracking-widest ml-1";
+
+    return (
+        <div className="max-w-2xl mx-auto glass-morphism p-8 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-3xl rounded-full" />
+            <div className="relative z-10">
+                <div className="flex items-center gap-4 mb-8">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-emerald-500">
+                        <Icons.settings className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-black text-white uppercase tracking-tighter">Network Configuration</h3>
+                        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">Global Payout Multipliers</p>
+                    </div>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        <div>
+                            <label className={labelClass}>2 Digit Payout</label>
+                            <input type="text" name="prizeRates.twoDigit" value={formData.prizeRates.twoDigit} onChange={handleChange} className={inputClass} />
+                        </div>
+                        <div>
+                            <label className={labelClass}>Open/Harf</label>
+                            <input type="text" name="prizeRates.oneDigitOpen" value={formData.prizeRates.oneDigitOpen} onChange={handleChange} className={inputClass} />
+                        </div>
+                        <div>
+                            <label className={labelClass}>Close/Harf</label>
+                            <input type="text" name="prizeRates.oneDigitClose" value={formData.prizeRates.oneDigitClose} onChange={handleChange} className={inputClass} />
+                        </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-white/5 flex justify-end">
+                        <motion.button 
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            type="submit" 
+                            disabled={isLoading}
+                            className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 px-12 rounded-2xl disabled:opacity-50 transition-all uppercase tracking-widest text-xs shadow-xl shadow-emerald-500/20"
+                        >
+                            {isLoading ? 'SYNCING...' : 'SYNC NETWORK DEFAULTS'}
+                        </motion.button>
+                    </div>
+                </form>
+
+                <div className="mt-8 p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <Icons.alertCircle className="w-3 h-3 text-emerald-500" />
+                        Management Insight
+                    </h4>
+                    <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                        These multipliers will act as the default fallback for all new user registrations in your network. 
+                        Individual user overrides in the Account Management section will still take precedence.
+                    </p>
                 </div>
             </div>
         </div>

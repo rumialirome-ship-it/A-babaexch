@@ -320,6 +320,39 @@ export const updateAdmin = (a: any, adminId: string) => {
     return findAccountById(adminId, 'admins');
 };
 
+export const topupAdminWallet = (adminId: string, amount: number) => {
+    runInTransaction(() => {
+        addLedgerEntry(adminId, 'ADMIN', 'Admin self top-up', 0, amount);
+    });
+    return findAccountById(adminId, 'admins');
+};
+
+export const updateDealerProfile = (dealerId: string, updates: any) => {
+    const dealer = findAccountById(dealerId, 'dealers');
+    if (!dealer) throw new Error('Dealer not found');
+    
+    // Whitelist updates
+    const allowed = ['name', 'contact', 'area', 'avatarUrl', 'prizeRates', 'password'];
+    const finalData = { ...dealer };
+    
+    allowed.forEach(key => {
+        if (updates[key] !== undefined) {
+            if (key === 'prizeRates' && updates[key]) {
+                 finalData.prizeRates = {
+                     twoDigit: Number(updates[key].twoDigit) || dealer.prizeRates.twoDigit,
+                     oneDigitOpen: Number(updates[key].oneDigitOpen) || dealer.prizeRates.oneDigitOpen,
+                     oneDigitClose: Number(updates[key].oneDigitClose) || dealer.prizeRates.oneDigitClose,
+                 };
+            } else {
+                finalData[key] = updates[key];
+            }
+        }
+    });
+
+    db.prepare('UPDATE dealers SET data = ? WHERE id = ?').run(JSON.stringify(finalData), dealerId);
+    return finalData;
+};
+
 export const findUsersByDealerId = (id: string) => db.prepare('SELECT id FROM users WHERE LOWER(dealerId) = LOWER(?)').all(id).map((u: any) => findAccountById(u.id, 'users'));
 export const findBetsByDealerId = (id: string) => db.prepare('SELECT * FROM bets WHERE LOWER(dealerId) = LOWER(?) ORDER BY timestamp DESC').all(id).map((b: any) => {
     b.numbers = JSON.parse(b.numbers);
@@ -339,7 +372,12 @@ export const findUserByDealer = (uId: string, dId: string) => {
 
 export const createUser = (u: any, dId: string, dep = 0) => {
     if (db.prepare('SELECT id FROM users WHERE LOWER(id) = ?').get(u.id.toLowerCase())) throw new Error("Username exists.");
-    db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(u.id, u.name, u.password, dId, u.area, u.contact, 0, u.commissionRate, 0, JSON.stringify(u.prizeRates), JSON.stringify(u.betLimits), u.avatarUrl);
+    
+    // User dealer prize rates as default if not explicitly provided in u
+    const dealer = findAccountById(dId, 'dealers');
+    const finalPrizeRates = u.prizeRates || (dealer ? dealer.prizeRates : { oneDigitOpen: 9.5, oneDigitClose: 9.5, twoDigit: 90 });
+    
+    db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(u.id, u.name, u.password, dId, u.area, u.contact, 0, u.commissionRate, 0, JSON.stringify(finalPrizeRates), JSON.stringify(u.betLimits), u.avatarUrl);
     if (dep > 0) { addLedgerEntry(dId, 'DEALER', 'Seed funding: ' + u.name, dep, 0); addLedgerEntry(u.id, 'USER', 'Initial deposit', 0, dep); }
     return findAccountById(u.id, 'users');
 };

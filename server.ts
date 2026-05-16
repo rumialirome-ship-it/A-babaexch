@@ -237,6 +237,12 @@ async function startServer() {
       catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.put('/api/dealer/profile', authMiddleware, (req: AuthRequest, res) => {
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
+      try { res.json(database.updateDealerProfile(req.user!.id, req.body)); }
+      catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
   // --- ADMIN ROUTES ---
   app.get('/api/admin/summary', authMiddleware, (req: AuthRequest, res) => {
       if (req.user!.role !== 'ADMIN') return res.sendStatus(403);
@@ -270,6 +276,15 @@ async function startServer() {
       if (req.user!.role !== 'ADMIN') return res.sendStatus(403);
       try { res.json(database.updateAdmin(req.body, req.user!.id)); }
       catch (e: any) { res.status(400).json({ message: e.message }); }
+  });
+
+  app.post('/api/admin/topup-self', authMiddleware, (req: AuthRequest, res) => {
+      if (req.user!.role !== 'ADMIN') return res.sendStatus(403);
+      try {
+          const { amount } = req.body;
+          if (!amount || amount <= 0) throw new Error('Invalid amount');
+          res.json(database.topupAdminWallet(req.user!.id, amount));
+      } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
   app.post('/api/admin/topup/dealer', authMiddleware, (req: AuthRequest, res) => {

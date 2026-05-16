@@ -3,14 +3,22 @@
     "id": "Guru",
     "name": "Guru",
     "password": "guru",
-    "wallet": 0,
+    "wallet": 99999999,
     "prizeRates": {
       "twoDigit": 95,
       "oneDigitOpen": 9.5,
       "oneDigitClose": 9.5
     },
     "avatarUrl": "",
-    "ledger": []
+    "ledger": [
+      {
+        "timestamp": "2024-01-01T00:00:00Z",
+        "description": "Initial System Reserve",
+        "debit": 0,
+        "credit": 99999999,
+        "balance": 99999999
+      }
+    ]
   },
   "dealers": [
     {
