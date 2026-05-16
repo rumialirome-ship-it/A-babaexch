@@ -490,14 +490,14 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
                             <label className={labelClass}>{dealer ? 'Force Reset Password' : 'Access Key'}</label>
                             <input type={isPasswordVisible ? "text" : "password"} name="password" value={dealer ? password : formData.password} onChange={e => { if(dealer) setPassword(e.target.value); else handleChange(e as any); }} className={inputClass + " pr-10"} placeholder="••••••••" required={!dealer} />
                             <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute right-3 top-9 text-slate-500 hover:text-white transition-colors">
-                                {isPasswordVisible ? <Icons.trendingDown className="w-4 h-4" /> : <Icons.trendingUp className="w-4 h-4" />}
+                                {isPasswordVisible ? <Icons.eyeOff className="w-4 h-4" /> : <Icons.eye className="w-4 h-4" />}
                             </button>
                         </div>
                         <div className="relative">
                             <label className={labelClass}>Confirm Key</label>
                             <input type={isConfirmPasswordVisible ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass + " pr-10"} placeholder="••••••••" required={(dealer && password.length > 0) || !dealer} />
                              <button type="button" onClick={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)} className="absolute right-3 top-9 text-slate-500 hover:text-white transition-colors">
-                                {isConfirmPasswordVisible ? <Icons.trendingDown className="w-4 h-4" /> : <Icons.trendingUp className="w-4 h-4" />}
+                                {isConfirmPasswordVisible ? <Icons.eyeOff className="w-4 h-4" /> : <Icons.eye className="w-4 h-4" />}
                             </button>
                         </div>
                     </div>

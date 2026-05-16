@@ -18,7 +18,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const parseAccountDates = (acc: any) => {
-    if (acc && acc.ledger) {
+    if (acc && acc.ledger && Array.isArray(acc.ledger)) {
         acc.ledger = acc.ledger.map((e: any) => ({ ...e, timestamp: new Date(e.timestamp) }));
     }
     return acc;

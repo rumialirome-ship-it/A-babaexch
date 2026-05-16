@@ -330,7 +330,9 @@ const AppContent: React.FC = () => {
 function App() { 
     return (
         <div className="App bg-transparent text-slate-200 h-full">
-            <AppContent />
+            <AuthProvider>
+                <AppContent />
+            </AuthProvider>
         </div>
     ); 
 }
