@@ -7,9 +7,13 @@ import { useAuth } from '../hooks/useAuth';
 
 // Helper function to format time to 12-hour AM/PM format
 const formatTime12h = (time24: string) => {
-    const [hours, minutes] = time24.split(':').map(Number);
+    if (!time24 || typeof time24 !== 'string' || !time24.includes(':')) return '--:--';
+    const parts = time24.split(':');
+    const hours = parseInt(parts[0]);
+    const minutes = parseInt(parts[1]);
+    if (isNaN(hours) || isNaN(minutes)) return '--:--';
     const ampm = hours >= 12 ? 'PM' : 'AM';
-    const hours12 = hours % 12 || 12; // Convert 0 to 12
+    const hours12 = hours % 12 || 12;
     return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
 };
 
@@ -17,7 +21,9 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
     const isMarketClosedForDisplay = !game.isMarketOpen;
-    const logo = GAME_LOGOS[game.name] || '';
+    const logo = (game && game.name) ? (GAME_LOGOS[game.name] || '') : '';
+
+    if (!game || !game.drawTime) return null;
 
     return (
         <motion.button
@@ -147,7 +153,7 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
                                 onClick={() => setIsPasswordVisible(!isPasswordVisible)}
                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
                             >
-                                {isPasswordVisible ? Icons.eyeOff : Icons.eye}
+                                {isPasswordVisible ? <Icons.eyeOff className="w-5 h-5" /> : <Icons.eye className="w-5 h-5" />}
                             </button>
                         </div>
                     </div>
@@ -274,7 +280,7 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
                                 onClick={() => setIsPasswordVisible(!isPasswordVisible)}
                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
                             >
-                                {isPasswordVisible ? Icons.eyeOff : Icons.eye}
+                                {isPasswordVisible ? <Icons.eyeOff className="w-5 h-5" /> : <Icons.eye className="w-5 h-5" />}
                             </button>
                         </div>
                     </div>

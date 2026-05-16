@@ -902,7 +902,9 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
     const filteredBets = useMemo(() => {
         if (!Array.isArray(bets)) return [];
         return bets.filter(bet => {
-            const dateStr = new Date(bet.timestamp).toISOString().split('T')[0];
+            const dateObj = new Date(bet.timestamp);
+            if (isNaN(dateObj.getTime())) return false;
+            const dateStr = dateObj.toISOString().split('T')[0];
             if (startDate && dateStr < startDate) return false;
             if (endDate && dateStr > endDate) return false;
             if (searchTerm.trim()) {

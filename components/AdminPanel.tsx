@@ -42,6 +42,7 @@ const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entr
     const filteredEntries = useMemo(() => {
         if (!startDate && !endDate) return entries;
         return entries.filter(entry => {
+            if (!(entry.timestamp instanceof Date)) return false;
             const entryDateStr = entry.timestamp.toISOString().split('T')[0];
             if (startDate && entryDateStr < startDate) return false;
             if (endDate && entryDateStr > endDate) return false;
@@ -258,6 +259,7 @@ const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers
         });
 
         return records.filter(r => {
+            if (!(r.timestamp instanceof Date)) return false;
             const dateStr = r.timestamp.toISOString().split('T')[0];
             const matchesDate = (!startDate || dateStr >= startDate) && (!endDate || dateStr <= endDate);
             const matchesSearch = !searchTerm.trim() || 

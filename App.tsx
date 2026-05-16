@@ -88,6 +88,19 @@ const Header: React.FC = () => {
     );
 };
 
+const parseAllDates = (data: any) => {
+    if (!data) return data;
+    const parseLedger = (ledger: LedgerEntry[]) => {
+        if (!Array.isArray(ledger)) return [];
+        return ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
+    };
+    if (data.users && Array.isArray(data.users)) data.users = data.users.map((u: User) => u ? ({...u, ledger: parseLedger(u.ledger)}) : null).filter(Boolean);
+    if (data.dealers && Array.isArray(data.dealers)) data.dealers = data.dealers.map((d: Dealer) => d ? ({...d, ledger: parseLedger(d.ledger)}) : null).filter(Boolean);
+    if (data.bets && Array.isArray(data.bets)) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
+    if (data.account && data.account.ledger) data.account.ledger = parseLedger(data.account.ledger);
+    return data;
+};
+
 const AppContent: React.FC = () => {
     const { role, account, loading, fetchWithAuth, verifyData, setAccount } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
@@ -98,16 +111,6 @@ const AppContent: React.FC = () => {
     
     const [activeReveal, setActiveReveal] = useState<{ name: string; number: string } | null>(null);
     const lastGamesRef = useRef<Game[]>([]);
-
-    const parseAllDates = (data: any) => {
-        if (!data) return data;
-        const parseLedger = (ledger: LedgerEntry[] = []) => ledger.map(e => ({...e, timestamp: new Date(e.timestamp)}));
-        if (data.users && Array.isArray(data.users)) data.users = data.users.map((u: User) => u ? ({...u, ledger: parseLedger(u.ledger)}) : null).filter(Boolean);
-        if (data.dealers && Array.isArray(data.dealers)) data.dealers = data.dealers.map((d: Dealer) => d ? ({...d, ledger: parseLedger(d.ledger)}) : null).filter(Boolean);
-        if (data.bets && Array.isArray(data.bets)) data.bets = data.bets.map((b: Bet) => ({...b, timestamp: new Date(b.timestamp)}));
-        if (data.account && data.account.ledger) data.account.ledger = parseLedger(data.account.ledger);
-        return data;
-    };
 
     const fetchPublicData = useCallback(async () => {
         try {
@@ -324,5 +327,11 @@ const AppContent: React.FC = () => {
     );
 };
 
-function App() { return (<div className="App bg-transparent text-slate-200 h-full"><AuthProvider><AppContent /></AuthProvider></div>); }
+function App() { 
+    return (
+        <div className="App bg-transparent text-slate-200 h-full">
+            <AppContent />
+        </div>
+    ); 
+}
 export default App;

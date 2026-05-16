@@ -8,6 +8,9 @@ export const useCountdown = (drawTime: string) => {
         const now = new Date();
         // PKT is UTC+5. Simulate PKT bias for logical calculations.
         const pktBias = new Date(now.getTime() + (5 * 60 * 60 * 1000));
+        if (!drawTime || typeof drawTime !== 'string' || !drawTime.includes(':')) {
+            return { openTime: new Date(), closeTime: new Date(), pktBias: new Date(), isCurrentlyOpen: false };
+        }
         const [drawHours, drawMinutes] = drawTime.split(':').map(Number);
         
         // 1. Calculate START (the most recent 4:00 PM PKT)

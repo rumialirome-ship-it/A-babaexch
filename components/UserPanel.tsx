@@ -211,6 +211,7 @@ const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
     const filteredEntries = useMemo(() => {
         if (!startDate && !endDate) return entries;
         return entries.filter(entry => {
+            if (!(entry.timestamp instanceof Date) || isNaN(entry.timestamp.getTime())) return false;
             const entryDateStr = entry.timestamp.toISOString().split('T')[0];
             if (startDate && entryDateStr < startDate) return false;
             if (endDate && entryDateStr > endDate) return false;
@@ -296,6 +297,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
 
     const filteredBets = useMemo(() => {
         return bets.filter(bet => {
+            if (!(bet.timestamp instanceof Date) || isNaN(bet.timestamp.getTime())) return false;
             const betDateStr = bet.timestamp.toISOString().split('T')[0];
             if (startDate && betDateStr < startDate) return false;
             if (endDate && betDateStr > endDate) return false;
@@ -397,7 +399,11 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
 };
 
 const formatTime12h = (time24: string) => {
-    const [hours, minutes] = time24.split(':').map(Number);
+    if (!time24 || typeof time24 !== 'string' || !time24.includes(':')) return '--:--';
+    const parts = time24.split(':');
+    const hours = parseInt(parts[0]);
+    const minutes = parseInt(parts[1]);
+    if (isNaN(hours) || isNaN(minutes)) return '--:--';
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hours12 = hours % 12 || 12;
     return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
