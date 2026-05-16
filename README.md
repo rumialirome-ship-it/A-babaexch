@@ -135,9 +135,9 @@ Now, let's launch the bundled Node.js server.
     Save and close (`Ctrl+X`, then `Y`, then `Enter`).
 
 2.  **Start the Server with PM2**:
-    We point PM2 to the bundled ESM server file.
+    We point PM2 to the bundled CJS server file.
     ```bash
-    pm2 start dist/server.mjs --name ababa-backend
+    pm2 start dist/server.cjs --name ababa-backend
     ```
 
 3.  **Configure PM2 to Start on Boot**:
@@ -267,10 +267,13 @@ If you see `PathError: Missing parameter name`, ensure your wildcard route in `s
 app.get(/^\/(?!api).*/, (req, res) => { ... });
 ```
 
-#### **4. Nginx 502 Bad Gateway**
-- Check PM2 status: `pm2 status`
-- Check logs: `pm2 logs ababa-backend`
-- Ensure PM2 is running on **3001** and Nginx matches.
+#### **4. Nginx 502 Bad Gateway / Port Mismatch**
+- **Symptom:** Nginx shows 502, or the app loads but games/login (+ API) fail.
+- **Cause:** Nginx expects the backend on one port (e.g., 3001), but the backend is listening on another (e.g., 3000).
+- **Check PM2 Port:** Run `pm2 logs ababa-backend` and look for `--- [SERVER] Port: XXXX ---`.
+- **Match Nginx:** If the port in PM2 logs is `3000`, update your Nginx config (`proxy_pass http://localhost:3000;`) OR set `PORT=3001` in your `.env` file and `pm2 restart ababa-backend --update-env`.
+
+#### **5. Express 5 Wildcard Errors**
 
 ---
 
