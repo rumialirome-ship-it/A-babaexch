@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Role, User, Dealer, Admin } from '../types';
 import { Icons } from '../constants';
 
@@ -91,7 +91,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, users, dealers, admin 
                       <Icons.userGroup className="w-6 h-6 text-emerald-400" />
                     </div>
                     <div>
-                      <p className="font-black text-[10px] text-emerald-400 uppercase tracking-widest mb-1">Regional Dealer Node</p>
+                      <p className="font-black text-[10px] text-emerald-400 uppercase tracking-widest mb-1">Regional Dealer</p>
                       <p className="text-white font-bold text-lg tracking-tight">{dealer.name}</p>
                     </div>
                   </div>
@@ -118,7 +118,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, users, dealers, admin 
                       <Icons.user className="w-6 h-6 text-cyan-400" />
                     </div>
                     <div>
-                      <p className="font-black text-[10px] text-cyan-400 uppercase tracking-widest mb-1">Terminal User Node</p>
+                      <p className="font-black text-[10px] text-cyan-400 uppercase tracking-widest mb-1">Terminal User</p>
                       <p className="text-white font-bold text-lg tracking-tight">{user.name}</p>
                     </div>
                   </div>

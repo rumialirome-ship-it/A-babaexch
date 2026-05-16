@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType } from '../types';
 import { Icons } from '../constants';
 import { useCountdown } from '../hooks/useCountdown';
@@ -578,7 +578,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
                                     <tr><td colSpan={6} className="p-24 text-center">
                                         <div className="flex flex-col items-center gap-4">
                                             <div className="w-10 h-10 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-                                            <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest">Decrypting User Nodes...</p>
+                                            <p className="text-slate-500 font-black text-[10px] uppercase tracking-widest">Decrypting User Accounts...</p>
                                         </div>
                                     </td></tr>
                                 ) : dealerUsers.length === 0 ? (
@@ -680,7 +680,7 @@ const DealerPanel: React.FC<DealerPanelProps> = ({ dealer, users, onSaveUser, on
         </motion.div>
       </AnimatePresence>
 
-      <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Modify Asset Identity" : "Onboard New Node"}>
+      <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Modify Asset Identity" : "Onboard New User"}>
           <UserForm user={selectedUser} users={safeUsers} onSave={onSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={safeDealer.prizeRates as PrizeRates} dealerId={safeDealer.id} showToast={showToast} />
       </Modal>
 
@@ -797,7 +797,7 @@ const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDe
                     <div className="flex flex-col gap-2">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Target Account</label>
                         <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} className={selClass}>
-                            <option value="">-- Discovered Nodes --</option>
+                            <option value="">-- Discovered Users --</option>
                             {Array.isArray(users) && users.filter(u => !u.isRestricted).map(u => <option key={u.id} value={u.id}>{u.name} ({u.id})</option>)}
                         </select>
                     </div>
@@ -863,7 +863,7 @@ const UserTransactionForm: React.FC<{ users: User[]; onTransaction: (userId: str
             <div>
                 <label className={labelClass}>Target Account Identifier</label>
                 <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)} className={inputClass} required>
-                    <option value="">-- Discovered User Nodes --</option>
+                    <option value="">-- Discovered User Accounts --</option>
                     {Array.isArray(users) && users.map(u => (
                         <option key={u.id} value={u.id}>
                             {u.name} ({u.id}) — Funds: Rs {u.wallet.toLocaleString()}
@@ -933,7 +933,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
                 </div>
                 <div className="w-full flex-grow relative group">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors"><Icons.search className="w-4 h-4" /></span>
-                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Filter history node..." className={inputClass + " pl-12 py-3.5"} />
+                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Filter history..." className={inputClass + " pl-12 py-3.5"} />
                 </div>
                 <button onClick={() => {setStartDate(''); setEndDate(''); setSearchTerm('');}} className="w-full lg:w-auto px-6 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest transition-all border border-white/10">Purge Filter</button>
             </div>
@@ -960,7 +960,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
                             <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
                                 <div className="flex flex-col">
                                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Player Entity</span>
-                                    <div className="text-sm font-black text-white tracking-tight">{users.find(u => u.id === bet.userId)?.name || 'Unknown Node'}</div>
+                                    <div className="text-sm font-black text-white tracking-tight">{users.find(u => u.id === bet.userId)?.name || 'Unknown User'}</div>
                                 </div>
                                 <div className="flex flex-col items-end text-right">
                                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Market Feed</span>
@@ -992,7 +992,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
                             <tr>
                                 <th className="p-5 text-[10px] text-slate-500 font-black uppercase tracking-widest">Entry Time</th>
                                 <th className="p-5 text-[10px] text-slate-500 font-black uppercase tracking-widest">Player Target</th>
-                                <th className="p-5 text-[10px] text-slate-500 font-black uppercase tracking-widest">Market Node</th>
+                                <th className="p-5 text-[10px] text-slate-500 font-black uppercase tracking-widest">Market</th>
                                 <th className="p-5 text-[10px] text-slate-500 font-black uppercase tracking-widest">Stake Details</th>
                                 <th className="p-5 text-[10px] text-slate-500 font-black uppercase tracking-widest text-right">Commit Amount</th>
                             </tr>

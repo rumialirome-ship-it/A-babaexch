@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
 import { Icons } from '../constants';
 import { useAuth } from '../hooks/useAuth';
@@ -296,7 +296,7 @@ const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers
                 </div>
                 <div className="w-full flex-grow relative group">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-emerald-500 transition-colors uppercase tracking-widest text-[8px]"><Icons.search className="w-3 h-3" /></span>
-                    <input type="text" placeholder="Filter by user or game node..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={inputClass + " pl-12 py-3.5"} />
+                    <input type="text" placeholder="Filter by user or game..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={inputClass + " pl-12 py-3.5"} />
                 </div>
                 <button onClick={() => { setStartDate(getTodayDateString()); setEndDate(getTodayDateString()); setSearchTerm(''); }} className="w-full lg:w-auto px-6 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest transition-all border border-white/10">Purge Filter</button>
             </div>
@@ -307,7 +307,7 @@ const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers
                         <thead className="bg-slate-950/50 border-b border-white/5">
                             <tr>
                                 <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Event Time</th>
-                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Player Node</th>
+                                <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Player Dealer</th>
                                 <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Dealer Origin</th>
                                 <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Market</th>
                                 <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Result</th>
@@ -562,7 +562,7 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
                     className="flex-grow py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2"
                 >
                     {isLoading ? <div className="w-4 h-4 border-2 border-slate-950/20 border-t-slate-950 animate-spin rounded-full" /> : <Icons.checkCircle className="w-4 h-4" />}
-                    {dealer ? 'Comit Identity Changes' : 'Initialize Dealer Node'}
+                    {dealer ? 'Comit Identity Changes' : 'Initialize Dealer'}
                 </motion.button>
             </div>
         </form>
@@ -754,7 +754,7 @@ const DealerTransactionForm: React.FC<{
                 <div>
                     <label className={labelClass}>Network Origin (Dealer)</label>
                     <select value={selectedDealerId} onChange={(e) => setSelectedDealerId(e.target.value)} className={inputClass} required>
-                        <option value="" disabled>-- Choose Dealer Node --</option>
+                        <option value="" disabled>-- Choose Dealer --</option>
                         {Array.isArray(dealers) && dealers.map(d => (
                             <option key={d.id} value={d.id}>
                                 {d.name} ({d.id}) — Pool: Rs {d.wallet.toLocaleString()}
@@ -840,7 +840,7 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
                         <table className="w-full text-left min-w-[900px]">
                             <thead className="bg-slate-950/50 border-b border-white/5">
                                 <tr>
-                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Market Node</th>
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Market</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Inflow Stake</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Payouts</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Dealer Margin</th>
@@ -939,7 +939,7 @@ const NumberLimitsView: React.FC = () => {
         e.preventDefault();
         const { gameType, numberValue, limitAmount } = formState;
         if (!numberValue.trim() || limitAmount <= 0) {
-            alert("Enter valid target and value nodes.");
+            alert("Enter valid target and value.");
             return;
         }
 
@@ -995,7 +995,7 @@ const NumberLimitsView: React.FC = () => {
                 <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-500/5 blur-3xl rounded-full -mr-24 -mt-24" />
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end relative z-10">
                     <div className="space-y-4">
-                        <label className={labelClass}>Market Node Type</label>
+                        <label className={labelClass}>Market Type</label>
                         <select name="gameType" value={formState.gameType} onChange={handleInputChange} className={inputClass}>
                             <option value="2-digit">2 Digit</option>
                             <option value="1-open">1 Digit Open</option>
@@ -1028,7 +1028,7 @@ const NumberLimitsView: React.FC = () => {
                     <table className="w-full text-left min-w-[800px]">
                         <thead className="bg-slate-950/50 border-b border-white/5">
                             <tr>
-                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Node Architecture</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Architecture</th>
                                 <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Defined Target</th>
                                 <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Max Capacity (PKR)</th>
                                 <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Operational Protocol</th>
@@ -1147,7 +1147,7 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
                 </h4>
                 <div className="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-4">
                     {data.length === 0 ? (
-                        <p className="text-slate-600 font-black text-[9px] uppercase tracking-widest text-center py-8">Awaiting Node Data...</p>
+                        <p className="text-slate-600 font-black text-[9px] uppercase tracking-widest text-center py-8">Awaiting Data...</p>
                     ) : data.map((item, index) => {
                         const name = 'name' in item ? item.name : item.type;
                         const amount = item.amount;
@@ -1203,16 +1203,16 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
                         onClick={() => setSelectedGameId(game.id)} 
                         className={`flex items-center gap-3 py-3 px-6 text-[10px] font-black rounded-2xl transition-all uppercase tracking-widest border whitespace-nowrap ${selectedGameId === game.id ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-xl shadow-cyan-500/20' : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-white'}`}
                     >
-                        <img src={game.logo} alt={game.name} className="w-5 h-5 rounded-lg object-cover shadow-lg" />
+                        <img src={GAME_LOGOS[game.name] || game.logo} alt={game.name} className="w-5 h-5 rounded-lg object-cover shadow-lg" />
                         <span>{game.name}</span>
                     </motion.button>
-                )) : <p className="text-slate-600 font-black text-[10px] p-4 uppercase tracking-[0.2em] w-full text-center">Global Market nodes Offline / Closed.</p>}
+                )) : <p className="text-slate-600 font-black text-[10px] p-4 uppercase tracking-[0.2em] w-full text-center">Global Markets Offline / Closed.</p>}
             </div>
 
             {!selectedGameId ? (
                 <div className="text-center p-24 glass-morphism rounded-[3rem] border border-white/5 shadow-2xl">
                     <Icons.activity className="w-16 h-16 text-slate-700 mx-auto mb-6 opacity-20" />
-                    <p className="text-slate-500 font-black text-xs uppercase tracking-[0.3em]">Awaiting node selection for traffic audit...</p>
+                    <p className="text-slate-500 font-black text-xs uppercase tracking-[0.3em]">Awaiting selection for traffic audit...</p>
                 </div>
             ) : bookingData ? (
                 <div className="space-y-8">
@@ -1237,7 +1237,7 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[500px]">
                         <BreakdownCard title="Regional Dealer Load" data={bookingData.dealerData} total={bookingData.totalStake} variant="cyan" />
                         <BreakdownCard title="Sub-Market Flow" data={bookingData.typeData} total={bookingData.totalStake} variant="emerald" />
-                        <BreakdownCard title="Primary User Nodes" data={bookingData.userData} total={bookingData.totalStake} variant="amber" />
+                        <BreakdownCard title="User Distribution" data={bookingData.userData} total={bookingData.totalStake} variant="amber" />
                     </div>
                 </div>
             ) : (
@@ -1427,7 +1427,7 @@ const NumberSummaryView: React.FC<{
                         <input type="date" name="date" value={filters.date} onChange={handleFilterChange} className="bg-slate-950/50 text-white p-4 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-xs font-bold transition-all shadow-inner w-full" />
                     </div>
                      <div className="space-y-4">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1 block">Market Node</label>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1 block">Market</label>
                         <select name="gameId" value={filters.gameId} onChange={handleFilterChange} className="bg-slate-950/50 text-white p-4 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-xs font-bold transition-all shadow-inner w-full">
                             <option value="">All Markets</option>
                             {games.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -1490,7 +1490,7 @@ const NumberSummaryView: React.FC<{
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <SummaryColumn title="2-Digit Node Stakes" data={finalSummary.twoDigit} color="text-cyan-400" />
+                    <SummaryColumn title="2-Digit Stakes" data={finalSummary.twoDigit} color="text-cyan-400" />
                     <SummaryColumn title="1-Digit Open Buffer" data={finalSummary.oneDigitOpen} color="text-amber-400" />
                     <SummaryColumn title="1-Digit Close Buffer" data={finalSummary.oneDigitClose} color="text-rose-400" />
                 </div>
@@ -1735,7 +1735,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
 
   const tabs = [
     { id: 'dashboard', label: 'Monitor', icon: <Icons.activity className="w-4 h-4" /> },
-    { id: 'dealers', label: 'Nodes', icon: <Icons.userGroup className="w-4 h-4" /> }, 
+    { id: 'dealers', label: 'Dealers', icon: <Icons.userGroup className="w-4 h-4" /> }, 
     { id: 'users', label: 'Clients', icon: <Icons.user className="w-4 h-4" /> },
     { id: 'games', label: 'Markets', icon: <Icons.gamepad className="w-4 h-4" /> },
     { id: 'winners', label: 'Rewards', icon: <Icons.star className="w-4 h-4" /> },
@@ -1916,13 +1916,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                   <div className="space-y-8">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                       <div className="space-y-1">
-                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Dealer Node Registry</h3>
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Dealer Registry</h3>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{sortedDealers.length} Active Operational Units</p>
                       </div>
                       <div className="flex w-full md:w-auto gap-4">
                         <div className="relative flex-grow md:w-64 group">
                           <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-cyan-500 transition-colors uppercase tracking-widest text-[8px]"><Icons.search className="w-3 h-3" /></span>
-                          <input type="text" placeholder="Search Node Identity..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-3.5 pl-10 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-white text-[10px] font-black uppercase tracking-widest transition-all placeholder:text-slate-700 shadow-inner" />
+                          <input type="text" placeholder="Search Dealer Identity..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-3.5 pl-10 rounded-2xl border border-white/5 focus:ring-2 focus:ring-cyan-500/50 text-white text-[10px] font-black uppercase tracking-widest transition-all placeholder:text-slate-700 shadow-inner" />
                         </div>
                         <motion.button 
                           whileHover={{ scale: 1.02 }}
@@ -1930,7 +1930,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                           onClick={() => { setSelectedDealer(undefined); setIsModalOpen(true); }} 
                           className="px-6 py-3.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-cyan-500/20 transition-all flex items-center gap-2 whitespace-nowrap"
                         >
-                          <Icons.plus className="w-4 h-4" /> Initialize Node
+                          <Icons.plus className="w-4 h-4" /> Initialize Dealer
                         </motion.button>
                       </div>
                     </div>
@@ -2000,7 +2000,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                       <div className="space-y-1">
                         <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Market Control Matrix</h3>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Winning Node Declaration Protocols</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Winning Dealer Declaration Protocols</p>
                       </div>
                       <div className="px-4 py-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 animate-pulse">
                         <div className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -2025,7 +2025,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform" />
                             
                             <div className="flex items-center gap-4 mb-8">
-                              <img src={game.logo} className="w-14 h-14 rounded-2xl object-cover shadow-2xl border border-white/10" alt={game.name} />
+                              <img src={GAME_LOGOS[game.name] || game.logo} className="w-14 h-14 rounded-2xl object-cover shadow-2xl border border-white/10" alt={game.name} />
                               <div>
                                 <h4 className="text-xl font-black text-white uppercase tracking-tighter">{game.name}</h4>
                                 <div className="flex items-center gap-2 mt-1">
@@ -2050,7 +2050,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                                     </div>
                                   ) : editingGame?.id === game.id ? (
                                     <div className="space-y-4">
-                                      <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Node Re-calibration</p>
+                                      <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Dealer Re-calibration</p>
                                       <div className="flex gap-2">
                                         <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" />
                                         <button onClick={() => handleUpdateWinner(game.id, game.name)} className="px-6 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20">Save</button>
@@ -2200,7 +2200,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
                       </div>
                       <div className="relative w-full md:w-64 group">
                           <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-500 group-focus-within:text-sky-500 transition-colors uppercase tracking-widest text-[8px]"><Icons.search className="w-3 h-3" /></span>
-                          <input type="text" placeholder="Identify Client Node..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-3.5 pl-10 rounded-2xl border border-white/5 focus:ring-2 focus:ring-sky-500/50 text-white text-[10px] font-black uppercase tracking-widest transition-all placeholder:text-slate-700 shadow-inner" />
+                          <input type="text" placeholder="Identify Client Dealer..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="w-full bg-slate-950/50 p-3.5 pl-10 rounded-2xl border border-white/5 focus:ring-2 focus:ring-sky-500/50 text-white text-[10px] font-black uppercase tracking-widest transition-all placeholder:text-slate-700 shadow-inner" />
                       </div>
                     </div>
 

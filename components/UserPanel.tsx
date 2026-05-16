@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { User, Game, SubGameType, LedgerEntry, Bet, PrizeRates, BetLimits } from '../types';
-import { Icons } from '../constants';
+import { Icons, GAME_LOGOS } from '../constants';
 import { useCountdown } from '../hooks/useCountdown';
 import { useAuth } from '../hooks/useAuth';
 
@@ -89,7 +89,7 @@ const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[], user: User }> =
             return {
                 id: game.id,
                 name: game.name,
-                logo: game.logo,
+                logo: GAME_LOGOS[game.name] || game.logo,
                 totalStake,
                 totalCommission,
                 totalPrize,
@@ -427,7 +427,7 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
                             transition={{ duration: 2, repeat: Infinity }}
                             className="absolute -inset-1 bg-cyan-500/20 rounded-full blur-sm"
                         />
-                        <img src={game.logo} alt={game.name} className="relative w-12 h-12 rounded-full border border-white/10" />
+                        <img src={GAME_LOGOS[game.name] || game.logo} alt={game.name} className="relative w-12 h-12 rounded-full border border-white/10" />
                     </div>
                     <div>
                         <h3 className="text-lg font-bold text-white uppercase tracking-tighter leading-none mb-1">{game.name}</h3>

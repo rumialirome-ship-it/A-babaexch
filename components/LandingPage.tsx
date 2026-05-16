@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Game } from '../types';
 import { useCountdown } from '../hooks/useCountdown';
 import { Icons, GAME_LOGOS } from '../constants';
@@ -21,7 +21,7 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
     const isMarketClosedForDisplay = !game.isMarketOpen;
-    const logo = (game && game.name) ? (GAME_LOGOS[game.name] || '') : '';
+    const logo = (game && game.name) ? (GAME_LOGOS[game.name] || game.logo || '') : '';
 
     if (!game || !game.drawTime) return null;
 
@@ -90,16 +90,33 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
     const [error, setError] = useState<string | null>(null);
     const [isAuthenticating, setIsAuthenticating] = useState(false);
 
+    // Clear credentials on tab switch
+    React.useEffect(() => {
+        setLoginId('');
+        setPassword('');
+        setError(null);
+    }, [activeTab]);
+
     const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!loginId.trim() || !password.trim()) { setError("ID and Password are required."); return; }
         setError(null);
         setIsAuthenticating(true);
+        
+        // Save values to use for login attempt
+        const idToTry = loginId;
+        const passToTry = password;
+
+        // Reset fields immediately upon clicking login as requested
+        setLoginId('');
+        setPassword('');
+
         try { 
-            await login(loginId, password); 
+            await login(idToTry, passToTry); 
         } catch (err) { 
             setError(err instanceof Error ? err.message : "An unknown login error occurred."); 
             setIsAuthenticating(false);
+            // Optionally restore if failed? Use says "remove", so I won't restore.
         }
     };
 
@@ -225,13 +242,30 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgot
     const [error, setError] = useState<string | null>(null);
     const [isAuthenticating, setIsAuthenticating] = useState(false);
 
+    // Clear credentials when modal opens/closes
+    React.useEffect(() => {
+        if (!isOpen) {
+            setLoginId('');
+            setPassword('');
+            setError(null);
+        }
+    }, [isOpen]);
+
     const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!loginId.trim() || !password.trim()) { setError("Access credentials required."); return; }
         setError(null);
         setIsAuthenticating(true);
+
+        const idToTry = loginId;
+        const passToTry = password;
+        
+        // Reset fields immediately upon clicking login as requested
+        setLoginId('');
+        setPassword('');
+
         try { 
-            await login(loginId, password); 
+            await login(idToTry, passToTry); 
         } catch (err) { 
             setError(err instanceof Error ? err.message : "Authentication failed."); 
             setIsAuthenticating(false);
