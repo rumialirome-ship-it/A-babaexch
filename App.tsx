@@ -137,6 +137,7 @@ const AppContent: React.FC = () => {
                     setUsers(parsedData.users); 
                     setDealers(parsedData.dealers); 
                     setBets(parsedData.bets); 
+                    setGames(parsedData.games);
                 }
                 else if (role === Role.Dealer) { 
                     setUsers(parsedData.users); 
