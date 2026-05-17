@@ -7,7 +7,7 @@ import { useCountdown } from '../hooks/useCountdown';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
-const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'emerald' }) => {
+const Modal = React.memo<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }>(({ isOpen, onClose, title, children, size = 'md', themeColor = 'emerald' }) => {
     const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-6xl' };
     
     return (
@@ -50,9 +50,9 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
             )}
         </AnimatePresence>
     );
-};
+});
 
-const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () => void }> = ({ message, type, onClose }) => {
+const Toast = React.memo<{ message: string; type: 'success' | 'error'; onClose: () => void }>(({ message, type, onClose }) => {
     useEffect(() => {
         const timer = setTimeout(onClose, 4000);
         return () => clearTimeout(timer);
@@ -79,9 +79,9 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
             </button>
         </motion.div>
     );
-};
+});
 
-const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
+const LedgerTable = React.memo<{ entries: LedgerEntry[] }>(({ entries }) => (
     <div className="space-y-4">
         {/* Mobile View */}
         <div className="sm:hidden space-y-3">
@@ -156,9 +156,9 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
             </div>
         </div>
     </div>
-);
+));
 
-export const UserForm: React.FC<{ 
+export const UserForm = React.memo<{ 
     user?: User; 
     users: User[]; 
     onSave: (user: User, originalId?: string, initialDeposit?: number) => Promise<void>; 
@@ -166,7 +166,7 @@ export const UserForm: React.FC<{
     dealerPrizeRates: PrizeRates, 
     dealerId: string;
     showToast: (msg: string, type: 'success' | 'error') => void 
-}> = ({ user, users, onSave, onCancel, dealerId, showToast }) => {
+}>(({ user, users, onSave, onCancel, dealerId, showToast }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [password, setPassword] = useState('');
@@ -371,15 +371,15 @@ export const UserForm: React.FC<{
             </div>
         </form>
     );
-};
+});
 
-const MoreOptionsDropdown: React.FC<{ 
+const MoreOptionsDropdown = React.memo<{ 
     user: User; 
     onEdit: () => void; 
     onLedger: () => void; 
     onToggleStatus: () => void; 
     onDelete: () => void;
-}> = ({ user, onEdit, onLedger, onToggleStatus, onDelete }) => {
+}>(({ user, onEdit, onLedger, onToggleStatus, onDelete }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -419,7 +419,7 @@ const MoreOptionsDropdown: React.FC<{
             </AnimatePresence>
         </div>
     );
-};
+});
 
 interface DealerPanelProps {
   dealer: Dealer;
@@ -436,7 +436,7 @@ interface DealerPanelProps {
   isLoaded?: boolean;
 }
 
-const DealerPanel: React.FC<DealerPanelProps> = ({ 
+const DealerPanel = React.memo<DealerPanelProps>(({ 
     dealer, users, onSaveUser, onDeleteUser, onUpdateDealerProfile, 
     topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, 
     bets, games, placeBetAsDealer, isLoaded = false 
@@ -714,9 +714,9 @@ const DealerPanel: React.FC<DealerPanelProps> = ({
       )}
     </div>
   );
-};
+});
 
-const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
+const WalletView = React.memo<{ dealer: Dealer }>(({ dealer }) => {
     if (!dealer) return null;
     return (
         <div className="space-y-8 max-w-5xl mx-auto">
@@ -751,15 +751,15 @@ const WalletView: React.FC<{ dealer: Dealer }> = ({ dealer }) => {
             </div>
         </div>
     );
-};
+});
 
-const OpenGameOption: React.FC<{ game: Game }> = ({ game }) => {
+const OpenGameOption = React.memo<{ game: Game }>(({ game }) => {
     const { status, text } = useCountdown(game.drawTime);
     if (!game.isMarketOpen) return null;
     return <option value={game.id}>{game.name} (Draw: {game.drawTime})</option>;
-};
+});
 
-const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDealer: (details: any) => Promise<void> }> = ({ users, games, placeBetAsDealer }) => {
+const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetAsDealer: (details: any) => Promise<void> }>(({ users, games, placeBetAsDealer }) => {
     const [selectedUserId, setSelectedUserId] = useState('');
     const [selectedGameId, setSelectedGameId] = useState('');
     const [bulkInput, setBulkInput] = useState('');
@@ -834,9 +834,7 @@ const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDe
                         placeholder="Format: NUMBERS [SPACE] STAKE&#10;Example: 14, 25 100" 
                         className="w-full bg-slate-950/50 text-emerald-400 p-6 rounded-2xl border border-white/5 font-mono text-sm focus:ring-2 focus:ring-emerald-500/50 shadow-inner placeholder:text-slate-700 custom-scrollbar" 
                     />
-                </div>
-
-                <div className="flex justify-end">
+                     <div className="flex justify-end">
                     <motion.button 
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
@@ -849,10 +847,11 @@ const BettingTerminalView: React.FC<{ users: User[]; games: Game[]; placeBetAsDe
                 </div>
             </div>
         </div>
-    );
-};
+    </div>
+);
+});
 
-const UserTransactionForm: React.FC<{ users: User[]; onTransaction: (userId: string, amount: number) => Promise<void>; onCancel: () => void; type: 'Top-Up' | 'Withdrawal' }> = ({ users, onTransaction, onCancel, type }) => {
+const UserTransactionForm = React.memo<{ users: User[]; onTransaction: (userId: string, amount: number) => Promise<void>; onCancel: () => void; type: 'Top-Up' | 'Withdrawal' }>(({ users, onTransaction, onCancel, type }) => {
     const [selectedUserId, setSelectedUserId] = useState('');
     const [amount, setAmount] = useState<number | ''>('');
     const [isLoading, setIsLoading] = useState(false);
@@ -907,9 +906,9 @@ const UserTransactionForm: React.FC<{ users: User[]; onTransaction: (userId: str
             </div>
         </form>
     );
-};
+});
 
-const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = ({ bets, games, users }) => {
+const BetHistoryView = React.memo<{ bets: Bet[], games: Game[], users: User[] }>(({ bets, games, users }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
@@ -1040,9 +1039,9 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], users: User[] }> = 
             </div>
         </div>
     );
-};
+});
 
-const NetworkSettingsView: React.FC<{ dealer: Dealer; onUpdate: (updates: any) => Promise<void> }> = ({ dealer, onUpdate }) => {
+const NetworkSettingsView = React.memo<{ dealer: Dealer; onUpdate: (updates: any) => Promise<void> }>(({ dealer, onUpdate }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState({
         prizeRates: {
@@ -1138,6 +1137,6 @@ const NetworkSettingsView: React.FC<{ dealer: Dealer; onUpdate: (updates: any) =
             </div>
         </div>
     );
-};
+});
 
 export default DealerPanel;

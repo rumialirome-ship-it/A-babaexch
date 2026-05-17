@@ -36,7 +36,7 @@ const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
 // --- HELPER COMPONENTS (DEFINED OUTSIDE TO PREVENT REMOUNTING) ---
 
-const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
+const StatefulLedgerTableWrapper = React.memo<{ entries: LedgerEntry[] }>(({ entries }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
 
@@ -70,16 +70,16 @@ const StatefulLedgerTableWrapper: React.FC<{ entries: LedgerEntry[] }> = ({ entr
             <LedgerTable entries={filteredEntries} />
         </div>
     );
-};
+});
 
-const SortableHeader: React.FC<{
-    label: string;
-    sortKey: SortKey;
-    currentSortKey: SortKey;
-    sortDirection: SortDirection;
+const SortableHeader = React.memo<{ 
+    label: string; 
+    sortKey: SortKey; 
+    currentSortKey: SortKey; 
+    sortDirection: SortDirection; 
     onSort: (key: SortKey) => void;
     className?: string;
-}> = ({ label, sortKey, currentSortKey, sortDirection, onSort, className }) => {
+}>(({ label, sortKey, currentSortKey, sortDirection, onSort, className }) => {
     const isActive = sortKey === currentSortKey;
     return (
         <th className={`p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 cursor-pointer hover:text-white transition-colors group ${className}`} onClick={() => onSort(sortKey)}>
@@ -91,9 +91,9 @@ const SortableHeader: React.FC<{
             </div>
         </th>
     );
-};
+});
 
-const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }> = ({ isOpen, onClose, title, children, size = 'md', themeColor = 'cyan' }) => {
+const Modal = React.memo<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; size?: 'md' | 'lg' | 'xl'; themeColor?: string }>(({ isOpen, onClose, title, children, size = 'md', themeColor = 'cyan' }) => {
     const sizeClasses: Record<string, string> = { md: 'max-w-md', lg: 'max-w-3xl', xl: 'max-w-6xl' };
     
     return (
@@ -133,9 +133,9 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
             )}
         </AnimatePresence>
     );
-};
+});
 
-const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
+const LedgerTable = React.memo<{ entries: LedgerEntry[] }>(({ entries }) => (
     <div className="glass-morphism rounded-3xl overflow-hidden border border-white/5 shadow-2xl relative">
         <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left min-w-[700px]">
@@ -181,7 +181,7 @@ const LedgerTable: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => (
             </table>
         </div>
     </div>
-);
+));
 
 // --- WINNERS VIEW COMPONENT ---
 interface WinnerRecord {
@@ -199,7 +199,7 @@ interface WinnerRecord {
     payoutApproved: boolean;
 }
 
-const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers: Dealer[] }> = ({ bets, games, users, dealers }) => {
+const WinnersView = React.memo<{ bets: Bet[], games: Game[], users: User[], dealers: Dealer[] }>(({ bets, games, users, dealers }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
@@ -361,9 +361,9 @@ const WinnersView: React.FC<{ bets: Bet[], games: Game[], users: User[], dealers
             </div>
         </div>
     );
-};
+});
 
-const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => Promise<void>; onCancel: () => void; adminPrizeRates: PrizeRates }> = ({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
+const DealerForm = React.memo<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer: Dealer, originalId?: string) => Promise<void>; onCancel: () => void; adminPrizeRates: PrizeRates }>(({ dealer, dealers, onSave, onCancel, adminPrizeRates }) => {
     // Keep internal state as strings to allow flexible typing (decimals, clearing)
     const [formData, setFormData] = useState(() => {
         if (dealer) {
@@ -567,9 +567,9 @@ const DealerForm: React.FC<{ dealer?: Dealer; dealers: Dealer[]; onSave: (dealer
             </div>
         </form>
     );
-};
+});
 
-const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Promise<void> }> = ({ admin, onSave }) => {
+const SystemSettingsForm = React.memo<{ admin: Admin, onSave: (admin: Admin) => Promise<void> }>(({ admin, onSave }) => {
     const [formData, setFormData] = useState({
         name: admin.name,
         avatarUrl: admin.avatarUrl || '',
@@ -718,14 +718,14 @@ const SystemSettingsForm: React.FC<{ admin: Admin, onSave: (admin: Admin) => Pro
             </form>
         </div>
     );
-};
+});
 
-const DealerTransactionForm: React.FC<{ 
+const DealerTransactionForm = React.memo<{ 
     dealers: Dealer[]; 
     onTransaction: (dealerId: string, amount: number) => Promise<void>; 
     onCancel: () => void;
     type: 'Top-Up' | 'Withdrawal';
-}> = ({ dealers, onTransaction, onCancel, type }) => {
+}>(({ dealers, onTransaction, onCancel, type }) => {
     const [selectedDealerId, setSelectedDealerId] = useState<string>('');
     const [amount, setAmount] = useState<number | ''>('');
     const [isLoading, setIsLoading] = useState(false);
@@ -784,9 +784,9 @@ const DealerTransactionForm: React.FC<{
             </div>
         </form>
     );
-};
+});
 
-const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }> = ({ summary, admin }) => {
+const DashboardView = React.memo<{ summary: FinancialSummary | null; admin: Admin }>(({ summary, admin }) => {
     if (!summary) {
         return (
             <div className="p-24 text-center">
@@ -921,9 +921,9 @@ const DashboardView: React.FC<{ summary: FinancialSummary | null; admin: Admin }
             </div>
         </div>
     );
-};
+});
 
-const NumberLimitsView: React.FC = () => {
+const NumberLimitsView = React.memo(() => {
     const [limits, setLimits] = useState<NumberLimit[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -1103,7 +1103,7 @@ const NumberLimitsView: React.FC = () => {
             </div>
         </div>
     );
-};
+});
 
 // --- IMPROVED LIVE BOOKING VIEW ---
 interface BookingData {
@@ -1114,7 +1114,7 @@ interface BookingData {
     userData: { name: string; amount: number }[];
 }
 
-const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[], bets: Bet[] }> = ({ games, users, dealers, bets }) => {
+const LiveBookingView = React.memo<{ games: Game[], users: User[], dealers: Dealer[], bets: Bet[] }>(({ games, users, dealers, bets }) => {
     const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
     
     const ongoingGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
@@ -1282,10 +1282,10 @@ const LiveBookingView: React.FC<{ games: Game[], users: User[], dealers: Dealer[
             )}
         </div>
     );
-};
+});
 
 // --- NUMBER SUMMARY VIEW ---
-const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: number }[]; color: string; }> = ({ title, data, color }) => {
+const SummaryColumn = React.memo<{ title: string; data: { number: string; stake: number }[]; color: string; }>(({ title, data, color }) => {
     const [copyStatus, setCopyStatus] = useState('Copy');
 
     const handleCopy = () => {
@@ -1357,15 +1357,15 @@ const SummaryColumn: React.FC<{ title: string; data: { number: string; stake: nu
             </div>
         </div>
     );
-};
+});
 
 
-const NumberSummaryView: React.FC<{
+const NumberSummaryView = React.memo<{
     games: Game[];
     dealers: Dealer[];
     users: User[];
     onPlaceAdminBets: AdminPanelProps['onPlaceAdminBets'];
-}> = ({ games, dealers, users, onPlaceAdminBets }) => {
+}>(({ games, dealers, users, onPlaceAdminBets }) => {
     const [filters, setFilters] = useState({ gameId: '', dealerId: '', date: getTodayDateString() });
     const [numberFilter, setNumberFilter] = useState('');
     const [summary, setSummary] = useState<{ twoDigit: any[], oneDigitOpen: any[], oneDigitClose: any[], gameBreakdown?: { gameId: string, stake: number }[] } | null>(null);
@@ -1531,7 +1531,7 @@ const NumberSummaryView: React.FC<{
             )}
         </div>
     );
-};
+});
 
 interface AdminPanelProps {
   admin: Admin; 
@@ -1557,7 +1557,7 @@ interface AdminPanelProps {
   onRefreshData?: () => Promise<void>;
 }
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData }) => {
+const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -2336,6 +2336,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ admin, dealers, onSaveDealer, o
 
     </div>
   );
-};
+});
 
 export default AdminPanel;

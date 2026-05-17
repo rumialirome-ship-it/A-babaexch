@@ -7,7 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
 
-const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () => void }> = ({ message, type, onClose }) => {
+const Toast = React.memo<{ message: string; type: 'success' | 'error'; onClose: () => void }>(({ message, type, onClose }) => {
     useEffect(() => {
         const timer = setTimeout(onClose, 4000);
         return () => clearTimeout(timer);
@@ -31,7 +31,7 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
             </button>
         </motion.div>
     );
-};
+});
 
 // Helper to calculate payout for a single bet (internal use)
 const calculateBetPayout = (bet: Bet, game: Game | undefined, userPrizeRates: PrizeRates) => {
@@ -71,7 +71,7 @@ const calculateBetPayout = (bet: Bet, game: Game | undefined, userPrizeRates: Pr
     return 0;
 };
 
-const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[], user: User }> = ({ games, bets, user }) => {
+const GameStakeBreakdown = React.memo<{ games: Game[], bets: Bet[], user: User }>(({ games, bets, user }) => {
     const data = useMemo(() => {
         return games.map(game => {
             const gameBets = bets.filter(b => b.gameId === game.id);
@@ -202,9 +202,9 @@ const GameStakeBreakdown: React.FC<{ games: Game[], bets: Bet[], user: User }> =
             </div>
         </section>
     );
-};
+});
 
-const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
+const LedgerView = React.memo<{ entries: LedgerEntry[] }>(({ entries }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
 
@@ -279,9 +279,9 @@ const LedgerView: React.FC<{ entries: LedgerEntry[] }> = ({ entries }) => {
             </div>
         </section>
     );
-};
+});
 
-const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ bets, games, user }) => {
+const BetHistoryView = React.memo<{ bets: Bet[], games: Game[], user: User }>(({ bets, games, user }) => {
     const [startDate, setStartDate] = useState(getTodayDateString());
     const [endDate, setEndDate] = useState(getTodayDateString());
     const [searchTerm, setSearchTerm] = useState('');
@@ -396,7 +396,7 @@ const BetHistoryView: React.FC<{ bets: Bet[], games: Game[], user: User }> = ({ 
             </div>
         </section>
     );
-};
+});
 
 const formatTime12h = (time24: string) => {
     if (!time24 || typeof time24 !== 'string' || !time24.includes(':')) return '--:--';
@@ -409,7 +409,7 @@ const formatTime12h = (time24: string) => {
     return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
 };
 
-const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }> = ({ game, onPlay, isRestricted }) => {
+const GameCard = React.memo<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }>(({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
     const isPlayable = !!game.isMarketOpen && !isRestricted;
@@ -469,7 +469,7 @@ const GameCard: React.FC<{ game: Game; onPlay: (game: Game) => void; isRestricte
             </motion.button>
         </motion.div>
     );
-};
+});
 
 interface BettingModalProps {
     game: Game | null;
@@ -479,7 +479,7 @@ interface BettingModalProps {
     onPlaceBet: (details: any) => Promise<void>;
 }
 
-const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose, onPlaceBet }) => {
+const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose, onPlaceBet }) => {
     const { fetchWithAuth } = useAuth();
     const [subGameType, setSubGameType] = useState<SubGameType>(SubGameType.TwoDigit);
     const [manualNumbersInput, setManualNumbersInput] = useState('');
@@ -926,7 +926,7 @@ const BettingModal: React.FC<BettingModalProps> = ({ game, games, user, onClose,
             </div>
         </AnimatePresence>
     );
-};
+});
 
 interface UserPanelProps {
   user: User;
@@ -935,7 +935,7 @@ interface UserPanelProps {
   placeBet: (details: any) => Promise<void>;
 }
 
-const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) => {
+const UserPanel = React.memo<UserPanelProps>(({ user, games, bets, placeBet }) => {
     const [selectedGame, setSelectedGame] = useState<Game | null>(null);
     const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
@@ -1018,6 +1018,6 @@ const UserPanel: React.FC<UserPanelProps> = ({ user, games, bets, placeBet }) =>
             </footer>
         </div>
     );
-};
+});
 
 export default UserPanel;

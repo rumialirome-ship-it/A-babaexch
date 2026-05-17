@@ -17,7 +17,7 @@ const formatTime12h = (time24: string) => {
     return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
 };
 
-const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, onClick }) => {
+const GameDisplayCard = React.memo<{ game: Game; onClick: () => void }>(({ game, onClick }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
     const isMarketClosedForDisplay = !game.isMarketOpen;
@@ -77,11 +77,11 @@ const GameDisplayCard: React.FC<{ game: Game; onClick: () => void }> = ({ game, 
             </div>
         </motion.button>
     );
-};
+});
 
 type LoginRole = 'User' | 'Dealer';
 
-const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPassword }) => {
+const LoginPanel = React.memo<{ onForgotPassword: () => void }>(({ onForgotPassword }) => {
     const { login } = useAuth();
     const [activeTab, setActiveTab] = useState<LoginRole>('User');
     const [loginId, setLoginId] = useState('');
@@ -205,9 +205,9 @@ const LoginPanel: React.FC<{ onForgotPassword: () => void }> = ({ onForgotPasswo
             </div>
         </motion.div>
     );
-};
+});
 
-const ModalWrapper: React.FC<{ isOpen: boolean; onClose: () => void; children: React.ReactNode; color?: string }> = ({ isOpen, onClose, children, color = "cyan" }) => {
+const ModalWrapper = React.memo<{ isOpen: boolean; onClose: () => void; children: React.ReactNode; color?: string }>(({ isOpen, onClose, children, color = "cyan" }) => {
     return (
         <AnimatePresence>
             {isOpen && (
@@ -232,7 +232,7 @@ const ModalWrapper: React.FC<{ isOpen: boolean; onClose: () => void; children: R
             )}
         </AnimatePresence>
     );
-};
+});
 
 const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void; onForgotPassword: () => void }> = ({ isOpen, onClose, onForgotPassword }) => {
     const { login } = useAuth();
