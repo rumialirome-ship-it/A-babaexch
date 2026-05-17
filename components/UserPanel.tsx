@@ -488,6 +488,7 @@ const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose
     const [error, setError] = useState<string | null>(null);
     const [isAiLoading, setIsAiLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
 
     const [comboDigitsInput, setComboDigitsInput] = useState('');
@@ -566,6 +567,8 @@ const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose
         }
     };
 
+    const [isCompleted, setIsCompleted] = useState(false);
+
     const parsedBulkBet = useMemo(() => {
         const result: any = { betsByGame: new Map(), grandTotalCost: 0, grandTotalNumbers: 0, errors: [] };
         if (!game || !bulkInput.trim()) return result;
@@ -635,7 +638,7 @@ const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose
         result.grandTotalCost = Array.from(result.betsByGame.values()).reduce((sum: number, g: any) => sum + g.totalCost, 0);
         result.grandTotalNumbers = Array.from(result.betsByGame.values()).reduce((sum: number, g: any) => sum + g.totalNumbers, 0);
         return result;
-    }, [bulkInput, games, game]);
+    }, [bulkInput, games, game.id]); // Use game.id instead of game object to avoid unnecessary re-memos
 
     const handleGenerateCombos = () => {
         setError(null);
@@ -720,7 +723,17 @@ const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose
                 if (totalCost > user.wallet) throw new Error(`Insufficient balance.`);
                 await onPlaceBet({ gameId: game.id, betGroups: [{ subGameType, numbers, amountPerNumber: stake }] });
             }
-        } catch (err: any) { setError(err.message); setIsConfirming(false); } finally { setIsSubmitting(false); }
+            setIsCompleted(true);
+            setIsSuccess(true);
+            setTimeout(() => {
+                onClose();
+            }, 1800);
+        } catch (err: any) { 
+            setError(err.message); 
+            setIsConfirming(false); 
+        } finally { 
+            setIsSubmitting(false); 
+        }
     };
 
     if (!game) return null;
@@ -760,7 +773,63 @@ const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose
                     </div>
 
                     <div className="p-6 overflow-y-auto no-scrollbar flex-grow">
-                        {isConfirming ? (
+                        {isSuccess ? (
+                            <motion.div 
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="flex flex-col items-center justify-center py-8 text-center"
+                            >
+                                <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6 relative">
+                                    <motion.div 
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1.5, opacity: 0 }}
+                                        transition={{ duration: 1, repeat: Infinity }}
+                                        className="absolute inset-0 bg-emerald-500/20 rounded-full"
+                                    />
+                                    <Icons.checkCircle className="w-10 h-10 text-emerald-400 relative z-10" />
+                                </div>
+                                <h4 className="text-2xl font-black text-white uppercase tracking-tighter mb-1">Played Successfully</h4>
+                                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-6">Your ticket has been confirmed</p>
+                                
+                                <div className="w-full space-y-3 mb-8">
+                                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
+                                        <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                            <span>Type</span>
+                                            <span className="text-cyan-400">{subGameType}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                            <span>Selections</span>
+                                            <span className="text-white">{totalSelectedNumbers} Numbers</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                                            <span>Total Investment</span>
+                                            <span className="text-emerald-400 font-mono">PKR {finalBetTotalCost}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2 text-left">Confirmed Numbers</p>
+                                        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto no-scrollbar">
+                                            {(subGameType === SubGameType.Bulk 
+                                                ? ["Bulk Entry List"] 
+                                                : subGameType === SubGameType.Combo 
+                                                    ? generatedCombos.filter(c => c.selected).map(c => c.number) 
+                                                    : parsedManualBet.numbers
+                                            ).map((num, i) => (
+                                                <span key={i} className="text-[10px] font-mono text-white/50 bg-white/5 px-1.5 py-0.5 rounded">{num}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    onClick={onClose}
+                                    className="w-full py-4 bg-white/5 hover:bg-white/10 text-white font-bold text-[10px] uppercase tracking-widest rounded-2xl border border-white/10 transition-all"
+                                >
+                                    Dismiss
+                                </button>
+                            </motion.div>
+                        ) : isConfirming ? (
                             <div className="space-y-6">
                                 <div className="bg-white/5 rounded-2xl border border-white/5 overflow-hidden">
                                     <div className="p-4 border-b border-white/5 flex justify-between items-center">
@@ -796,10 +865,18 @@ const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose
                                     <button onClick={() => setIsConfirming(false)} className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-bold text-[10px] uppercase tracking-widest rounded-2xl border border-white/10 transition-all">Back</button>
                                     <button 
                                         onClick={handleBet} 
-                                        disabled={isSubmitting}
-                                        className="flex-[2] py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2"
+                                        disabled={isSubmitting || isCompleted}
+                                        className={`flex-[2] py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest ${
+                                            isCompleted ? 'bg-emerald-500 text-slate-950' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+                                        }`}
                                     >
-                                        {isSubmitting ? <div className="w-4 h-4 border-2 border-slate-950/20 border-t-slate-950 rounded-full animate-spin" /> : "Authorize & Pay"}
+                                        {isSubmitting ? (
+                                            <div className="w-4 h-4 border-2 border-slate-950/20 border-t-slate-950 rounded-full animate-spin" />
+                                        ) : isCompleted ? (
+                                            <><Icons.checkCircle className="w-4 h-4" /> Finalized</>
+                                        ) : (
+                                            "Authorize & Pay"
+                                        )}
                                     </button>
                                 </div>
                             </div>

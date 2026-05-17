@@ -72,6 +72,26 @@ export const verifySchema = () => {
     }
 };
 
+// --- INTERNAL FAST LOOKUP (NO LEDGERS) ---
+const findAccountByIdInternal = (id: string, table: string) => {
+    try {
+        const stmt = db.prepare('SELECT * FROM ' + table + ' WHERE LOWER(id) = LOWER(?)');
+        const account = stmt.get(id) as any;
+        if (!account) return null;
+        
+        if (table === 'users' || table === 'dealers' || table === 'admins') {
+            account.commissionRate = Number(account.commissionRate) || 0;
+            if (account.prizeRates && typeof account.prizeRates === 'string') {
+                account.prizeRates = JSON.parse(account.prizeRates);
+            }
+        }
+        if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
+        return account;
+    } catch (e) {
+        return null;
+    }
+};
+
 export const findAccountById = (id: string, table: string) => {
     if (!id) return null;
     try {
@@ -198,9 +218,15 @@ export const declareWinnerForGame = (gameId: string, winningNumber: string) => {
     let finalGame;
     runInTransaction(() => {
         const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId) as any;
-        if (!game || game.winningNumber) throw new Error('Game already finalized.');
+        if (!game) throw new Error('Game not found.');
+        if (game.winningNumber && !game.winningNumber.endsWith('_')) throw new Error('Game already finalized.');
+        
         if (game.name === 'AK') {
-            db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber + '_', gameId);
+            if (!game.winningNumber) {
+                db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber + '_', gameId);
+            } else {
+                db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(game.winningNumber.slice(0, 1) + winningNumber, gameId);
+            }
         } else if (game.name === 'AKC') {
             db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
             const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get() as any;
@@ -225,7 +251,7 @@ export const approvePayoutsForGame = (gameId: string) => {
 
         const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
         const allDealers = Object.fromEntries(getAllFromTable('dealers').map(d => [d.id, d]));
-        const admin = findAccountById('Guru', 'admins');
+        const admin = findAccountByIdInternal('Guru', 'admins');
         const getMultiplier = (r: any, t: string) => t === "1 Digit Open" ? r.oneDigitOpen : t === "1 Digit Close" ? r.oneDigitClose : r.twoDigit;
         
         winningBets.forEach(bet => {
@@ -253,43 +279,84 @@ export const approvePayoutsForGame = (gameId: string) => {
 
 export const getFinancialSummary = () => {
     try {
-        const games = db.prepare('SELECT * FROM games WHERE winningNumber IS NOT NULL').all() as any[];
-        const allBets = db.prepare('SELECT * FROM bets').all() as any[];
-        allBets.forEach(b => { b.numbers = JSON.parse(b.numbers); });
-
+        const finalizedGames = db.prepare('SELECT * FROM games WHERE winningNumber IS NOT NULL AND winningNumber NOT LIKE "%\_"').all() as any[];
+        const partialGames = db.prepare('SELECT * FROM games WHERE winningNumber LIKE "%\_"').all() as any[];
+        const games = [...finalizedGames, ...partialGames];
+        
         const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
         const allDealers = Object.fromEntries(getAllFromTable('dealers').map(d => [d.id, d]));
         const getMultiplier = (r: any, t: string) => t === "1 Digit Open" ? r.oneDigitOpen : t === "1 Digit Close" ? r.oneDigitClose : r.twoDigit;
         
         const summary = games.map(game => {
-            const gameBets = allBets.filter(b => b.gameId === game.id);
-            const totalStake = gameBets.reduce((s, b) => s + b.totalAmount, 0);
-            let payouts = 0, dProfit = 0;
-            if (!game.winningNumber.endsWith('_')) {
+            // Get total stake using SQL SUM
+            const stakeRow = db.prepare('SELECT SUM(totalAmount) as total FROM bets WHERE gameId = ?').get(game.id) as any;
+            const totalStake = stakeRow ? (stakeRow.total || 0) : 0;
+            
+            let payouts = 0, dProfit = 0, comms = 0;
+            
+            // Only fetch bets and calculate payouts if the game is fully finalized
+            if (game.winningNumber && !game.winningNumber.endsWith('_')) {
+                const gameBets = db.prepare('SELECT * FROM bets WHERE gameId = ?').all(game.id) as any[];
                 gameBets.forEach(bet => {
-                    const wins = bet.numbers.filter((n: string) => {
-                        if (bet.subGameType === "1 Digit Open") return game.winningNumber.length === 2 && n === game.winningNumber[0];
-                        if (bet.subGameType === "1 Digit Close") return game.name === 'AKC' ? n === game.winningNumber : (game.winningNumber.length === 2 && n === game.winningNumber[1]);
-                        return n === game.winningNumber;
-                    });
-                    if (wins.length > 0) {
+                    try {
+                        const betNums = JSON.parse(bet.numbers);
+                        const wins = betNums.filter((n: string) => {
+                            if (bet.subGameType === "1 Digit Open") return game.winningNumber.length === 2 && n === game.winningNumber[0];
+                            if (bet.subGameType === "1 Digit Close") return game.name === 'AKC' ? n === game.winningNumber : (game.winningNumber.length === 2 && n === game.winningNumber[1]);
+                            return n === game.winningNumber;
+                        });
+                        
+                        if (wins.length > 0) {
+                            const u = allUsers[bet.userId], d = allDealers[bet.dealerId];
+                            if (u && d) {
+                                payouts += wins.length * bet.amountPerNumber * getMultiplier(u.prizeRates, bet.subGameType);
+                                dProfit += wins.length * bet.amountPerNumber * (getMultiplier(d.prizeRates, bet.subGameType) - getMultiplier(u.prizeRates, bet.subGameType));
+                            }
+                        }
+                        
                         const u = allUsers[bet.userId], d = allDealers[bet.dealerId];
                         if (u && d) {
-                            payouts += wins.length * bet.amountPerNumber * getMultiplier(u.prizeRates, bet.subGameType);
-                            dProfit += wins.length * bet.amountPerNumber * (getMultiplier(d.prizeRates, bet.subGameType) - getMultiplier(u.prizeRates, bet.subGameType));
+                            comms += (bet.totalAmount * (u.commissionRate / 100)) + (bet.totalAmount * ((d.commissionRate - u.commissionRate) / 100));
                         }
+                    } catch (e) {}
+                });
+            } else {
+                // For live games, we still need commissions
+                const gameBets = db.prepare('SELECT userId, dealerId, totalAmount FROM bets WHERE gameId = ?').all(game.id) as any[];
+                gameBets.forEach(bet => {
+                    const u = allUsers[bet.userId], d = allDealers[bet.dealerId];
+                    if (u && d) {
+                        comms += (bet.totalAmount * (u.commissionRate / 100)) + (bet.totalAmount * ((d.commissionRate - u.commissionRate) / 100));
                     }
                 });
             }
-            const comms = gameBets.reduce((s, b) => {
-                const u = allUsers[b.userId], d = allDealers[b.dealerId];
-                return u && d ? s + (b.totalAmount * (u.commissionRate / 100)) + (b.totalAmount * ((d.commissionRate - u.commissionRate) / 100)) : s;
-            }, 0);
-            return { gameName: game.name, winningNumber: game.winningNumber, totalStake, totalPayouts: payouts, totalDealerProfit: dProfit, totalCommissions: comms, netProfit: totalStake - payouts - dProfit - comms };
+
+            return { 
+                gameName: game.name, 
+                winningNumber: game.winningNumber, 
+                totalStake, 
+                totalPayouts: Math.round(payouts * 100) / 100, 
+                totalDealerProfit: Math.round(dProfit * 100) / 100, 
+                totalCommissions: Math.round(comms * 100) / 100, 
+                netProfit: Math.round((totalStake - payouts - dProfit - comms) * 100) / 100 
+            };
         });
         
-        const totals = summary.reduce((t, g) => { t.totalStake += g.totalStake; t.totalPayouts += g.totalPayouts; t.totalDealerProfit += g.totalDealerProfit; t.totalCommissions += g.totalCommissions; t.netProfit += g.netProfit; return t; }, { totalStake: 0, totalPayouts: 0, totalDealerProfit: 0, totalCommissions: 0, netProfit: 0 });
-        return { games: summary.sort((a,b) => a.gameName.localeCompare(b.gameName)), totals: totals, totalBets: allBets.length };
+        const totals = summary.reduce((t, g) => { 
+            t.totalStake += g.totalStake; 
+            t.totalPayouts += g.totalPayouts; 
+            t.totalDealerProfit += g.totalDealerProfit; 
+            t.totalCommissions += g.totalCommissions; 
+            t.netProfit += g.netProfit; 
+            return t; 
+        }, { totalStake: 0, totalPayouts: 0, totalDealerProfit: 0, totalCommissions: 0, netProfit: 0 });
+        
+        const betsCountRow = db.prepare('SELECT COUNT(*) as count FROM bets').get() as any;
+        return { 
+            games: summary.sort((a,b) => a.gameName.localeCompare(b.gameName)), 
+            totals: totals, 
+            totalBets: betsCountRow ? betsCountRow.count : 0 
+        };
     } catch (e) {
         logError('FINANCIAL_SUMMARY', e);
         return { games: [], totals: { totalStake: 0, totalPayouts: 0, totalDealerProfit: 0, totalCommissions: 0, netProfit: 0 }, totalBets: 0 };
@@ -358,10 +425,16 @@ export const findBetsByDealerId = (id: string) => db.prepare('SELECT * FROM bets
     b.numbers = JSON.parse(b.numbers);
     return b;
 });
-export const findBetsByUserId = (id: string) => db.prepare('SELECT * FROM bets WHERE LOWER(userId) = LOWER(?) ORDER BY timestamp DESC').all(id).map((b: any) => {
-    b.numbers = JSON.parse(b.numbers);
-    return b;
-});
+export const findBetsByUserId = (id: string, limit = 1000) => {
+    return db.prepare('SELECT * FROM bets WHERE LOWER(userId) = LOWER(?) ORDER BY timestamp DESC LIMIT ?').all(id, limit).map((b: any) => {
+        try {
+            b.numbers = JSON.parse(b.numbers);
+        } catch (e) {
+            b.numbers = [];
+        }
+        return b;
+    });
+};
 
 export const findUserByDealer = (uId: string, dId: string) => { 
     const stmt = db.prepare('SELECT id FROM users WHERE LOWER(id) = LOWER(?) AND LOWER(dealerId) = LOWER(?)');
@@ -468,15 +541,19 @@ export function getNumberStakeSummary(params: any) {
 export const placeBulkBets = (uId: string, gId: string, groups: any[]) => {
     let result = null;
     runInTransaction(() => {
-        const user = findAccountById(uId, 'users');
+        const user = findAccountByIdInternal(uId, 'users');
         if (!user || user.isRestricted) throw new Error('Access denied.');
-        const game = findAccountById(gId, 'games');
+        const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gId) as any;
         if (!game || !isGameOpen(game.drawTime)) throw new Error("Market is closed.");
-        const dealer = findAccountById(user.dealerId, 'dealers');
-        const requestTotal = groups.reduce((s, g) => s + g.numbers.length * g.amountPerNumber, 0);
+        const dealer = findAccountByIdInternal(user.dealerId, 'dealers');
+        if (!dealer) throw new Error('Dealer not found.');
+        const requestTotal = groups.reduce((s, g) => s + (g.numbers?.length || 0) * (g.amountPerNumber || 0), 0);
+        if (requestTotal <= 0) throw new Error('Invalid stake.');
         if (user.wallet < requestTotal) throw new Error('Balance too low.');
         
-        const admin = findAccountById('Guru', 'admins');
+        const admin = findAccountByIdInternal('Guru', 'admins');
+        if (!admin) throw new Error('System account missing.');
+        
         const userComm = Math.round(requestTotal * (user.commissionRate / 100) * 100) / 100;
         const dComm = Math.round(requestTotal * ((dealer.commissionRate - user.commissionRate) / 100) * 100) / 100;
         
@@ -490,22 +567,29 @@ export const placeBulkBets = (uId: string, gId: string, groups: any[]) => {
         }
 
         const created = [];
+        const insertStmt = db.prepare('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        const now = new Date().toISOString();
+        
         for (var i = 0; i < groups.length; i++) {
             var g = groups[i];
-            const b = { 
-                id: uuidv4(), userId: uId, dealerId: dealer.id, gameId: game.id, 
-                subGameType: g.subGameType, numbers: JSON.stringify(g.numbers), 
-                amountPerNumber: g.amountPerNumber, totalAmount: g.numbers.length * g.amountPerNumber, 
-                timestamp: new Date().toISOString() 
-            };
-            db.prepare('INSERT INTO bets (id, userId, dealerId, gameId, subGameType, numbers, amountPerNumber, totalAmount, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(b.id, b.userId, b.dealerId, b.gameId, b.subGameType, b.numbers, b.amountPerNumber, b.totalAmount, b.timestamp);
-            b.numbers = g.numbers;
-            created.push(b);
+            const betId = uuidv4();
+            const totalAmount = g.numbers.length * g.amountPerNumber;
+            const numbersJson = JSON.stringify(g.numbers);
+            
+            insertStmt.run(betId, uId, dealer.id, game.id, g.subGameType, numbersJson, g.amountPerNumber, totalAmount, now);
+            
+            created.push({
+                id: betId, userId: uId, dealerId: dealer.id, gameId: game.id,
+                subGameType: g.subGameType, numbers: g.numbers,
+                amountPerNumber: g.amountPerNumber, totalAmount: totalAmount,
+                timestamp: now
+            });
         }
         result = created;
     });
     return result;
 };
+
 
 export const updateWinningNumber = (gameId: string, newWinningNumber: string) => {
     runInTransaction(() => {
@@ -515,7 +599,11 @@ export const updateWinningNumber = (gameId: string, newWinningNumber: string) =>
         
         let finalNum = newWinningNumber;
         if (game.name === 'AK') {
-            finalNum = newWinningNumber + '_';
+            if (newWinningNumber.length === 1) {
+                finalNum = newWinningNumber + '_';
+            } else {
+                finalNum = newWinningNumber;
+            }
         }
         
         db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(finalNum, gameId);
