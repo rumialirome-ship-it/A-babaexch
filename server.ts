@@ -9,7 +9,7 @@ import * as database from "./server/database";
 import { authMiddleware, AuthRequest } from "./server/authMiddleware";
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function startServer() {
@@ -402,7 +402,7 @@ async function startServer() {
   });
 
   // --- API 404 FALLBACK ---
-  app.all('/api/*', (req, res) => {
+  app.all('/api/*all', (req, res) => {
     res.status(404).json({ error: `API Route ${req.method} ${req.url} not found` });
   });
 
