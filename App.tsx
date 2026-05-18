@@ -9,7 +9,7 @@ import UserPanel from './components/UserPanel';
 import ResultRevealOverlay from './components/ResultRevealOverlay';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 
-const Header = React.memo(() => {
+const Header = React.memo<{ isImpersonating?: boolean }>(({ isImpersonating }) => {
     const { role, account, logout } = useAuth();
     if (!role || !account) return null;
 
@@ -21,6 +21,12 @@ const Header = React.memo(() => {
 
     return (
         <header className="sticky top-0 z-40 bg-slate-900/40 backdrop-blur-xl border-b border-white/5">
+            {isImpersonating && (
+                <div className="bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-widest py-1 text-center flex items-center justify-center gap-2">
+                    <Icons.alertTriangle className="w-3 h-3" />
+                    ADMIN IMPERSONATION MODE — VIEWING DEALER DATA
+                </div>
+            )}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-20">
                 <motion.div 
                     initial={{ opacity: 0, x: -20 }}
@@ -102,12 +108,17 @@ const parseAllDates = (data: any) => {
 };
 
 const AppContent: React.FC = () => {
-    const { role, account, loading, fetchWithAuth, verifyData, setAccount } = useAuth();
+    const { role, account, loading, fetchWithAuth, verifyData, setAccount, setImpersonationId } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
     const [dealers, setDealers] = useState<Dealer[]>([]);
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
     const [hasInitialFetched, setHasInitialFetched] = useState(false);
+    const [impersonatingDealerId, setImpersonatingDealerId] = useState<string | null>(null);
+
+    useEffect(() => {
+        setImpersonationId(impersonatingDealerId);
+    }, [impersonatingDealerId, setImpersonationId]);
     
     const [activeReveal, setActiveReveal] = useState<{ name: string; number: string } | null>(null);
     const lastGamesRef = useRef<Game[]>([]);
@@ -328,7 +339,7 @@ const AppContent: React.FC = () => {
                 <LandingPage games={games} />
             ) : (
                 <>
-                    <Header />
+                    <Header isImpersonating={!!impersonatingDealerId} />
                     <main className="flex-grow">
                         {role === Role.User && <UserPanel user={account as User} games={games} bets={bets} placeBet={placeBet} />}
                         {role === Role.Dealer && (
@@ -343,7 +354,7 @@ const AppContent: React.FC = () => {
                                 onUpdateDealerProfile={onUpdateDealerProfile}
                             />
                         )}
-                        {role === Role.Admin && (
+                        {role === Role.Admin && !impersonatingDealerId && (
                             <AdminPanel 
                                 admin={account as Admin} dealers={dealers} 
                                 onSaveDealer={onSaveDealer} 
@@ -358,8 +369,46 @@ const AppContent: React.FC = () => {
                                 onPlaceAdminBets={onPlaceAdminBets}
                                 updateGameDrawTime={updateGameDrawTime}
                                 onRefreshData={fetchPrivateData} 
+                                onImpersonateDealer={setImpersonatingDealerId}
                             />
                         )}
+                        {role === Role.Admin && impersonatingDealerId && (() => {
+                            const dealer = dealers.find(d => d.id === impersonatingDealerId);
+                            if (!dealer) { 
+                                setImpersonatingDealerId(null);
+                                return null;
+                            }
+                            // Filter users and bets for this dealer
+                            const dealerUsers = users.filter(u => u.dealerId === dealer.id);
+                            const dealerBets = bets.filter(b => b.dealerId === dealer.id);
+
+                            return (
+                                <div className="relative">
+                                    <div className="sticky top-20 z-30 flex justify-center pointer-events-none">
+                                        <button 
+                                            onClick={() => { setImpersonatingDealerId(null); }}
+                                            className="mt-4 pointer-events-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] px-8 py-3 rounded-2xl shadow-2xl shadow-amber-500/20 transition-all flex items-center gap-2"
+                                        >
+                                            <Icons.x className="w-4 h-4" /> Exit Dealer View
+                                        </button>
+                                    </div>
+                                    <DealerPanel 
+                                        dealer={dealer} 
+                                        users={dealerUsers} 
+                                        onSaveUser={onSaveUser} 
+                                        onDeleteUser={onDeleteUser}
+                                        topUpUserWallet={topUpUserWallet} 
+                                        withdrawFromUserWallet={withdrawFromUserWallet} 
+                                        toggleAccountRestriction={toggleAccountRestriction} 
+                                        bets={dealerBets} 
+                                        games={games} 
+                                        placeBetAsDealer={placeBetAsDealer} 
+                                        isLoaded={hasInitialFetched}
+                                        onUpdateDealerProfile={onUpdateDealerProfile}
+                                    />
+                                </div>
+                            );
+                        })()}
                     </main>
                 </>
             )}

@@ -13,6 +13,7 @@ interface AuthContextType {
     setAccount: React.Dispatch<React.SetStateAction<User | Dealer | Admin | null>>;
     resetPassword: (id: string, contact: string, newPass: string) => Promise<string>;
     fetchWithAuth: (url: string, options?: RequestInit) => Promise<Response>;
+    setImpersonationId: (id: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,9 +31,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [token, setToken] = useState<string | null>(localStorage.getItem('authToken'));
     const [loading, setLoading] = useState<boolean>(true);
     const [verifyData, setVerifyData] = useState<any>(null);
+    const [impersonationId, setImpersonationId] = useState<string | null>(null);
 
     const logout = useCallback(() => {
-        setRole(null); setAccount(null); setToken(null); setVerifyData(null);
+        setRole(null); setAccount(null); setToken(null); setVerifyData(null); setImpersonationId(null);
         localStorage.removeItem('authToken');
     }, []);
     
@@ -40,6 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const headers = new Headers(options.headers || {});
         const currentToken = token || localStorage.getItem('authToken');
         if (currentToken) headers.append('Authorization', `Bearer ${currentToken}`);
+        if (impersonationId) headers.append('X-Impersonate-Dealer-Id', impersonationId);
         if (!headers.has('Content-Type') && !(options.body instanceof FormData)) headers.append('Content-Type', 'application/json');
         
         const response = await fetch(url, { ...options, headers });
@@ -94,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     
     return (
-        <AuthContext.Provider value={{ role, account, token, loading, verifyData, login, logout, setAccount, resetPassword: async (id, c, p) => "Reset logic stub", fetchWithAuth }}>
+        <AuthContext.Provider value={{ role, account, token, loading, verifyData, login, logout, setAccount, resetPassword: async (id, c, p) => "Reset logic stub", fetchWithAuth, setImpersonationId }}>
             {children}
         </AuthContext.Provider>
     );

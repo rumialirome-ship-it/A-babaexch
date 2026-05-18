@@ -64,6 +64,15 @@ export const verifySchema = () => {
             console.error('--- [DATABASE] Please run: npm run setup-db ---');
             process.exit(1);
         }
+
+        // --- MIGRATIONS ---
+        const tableInfo = db.prepare("PRAGMA table_info(games)").all();
+        const hasDeclaredBy = tableInfo.some((col: any) => col.name === 'declaredBy');
+        if (!hasDeclaredBy) {
+            console.error('--- [DATABASE] Adding declaredBy column to games table... ---');
+            db.prepare("ALTER TABLE games ADD COLUMN declaredBy TEXT").run();
+        }
+
         const gamesCount = (db.prepare('SELECT COUNT(*) as count FROM games').get() as any).count;
         console.error('[DEBUG] Games count in existing DB: ' + gamesCount);
     } catch (error) {
@@ -214,7 +223,7 @@ export const addLedgerEntry = (accountId: string, accountType: string, descripti
     db.prepare('UPDATE ' + table + ' SET wallet = ? WHERE LOWER(id) = LOWER(?)').run(newBalance, accountId);
 };
 
-export const declareWinnerForGame = (gameId: string, winningNumber: string) => {
+export const declareWinnerForGame = (gameId: string, winningNumber: string, declaredBy?: string) => {
     let finalGame;
     runInTransaction(() => {
         const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId) as any;
@@ -223,18 +232,18 @@ export const declareWinnerForGame = (gameId: string, winningNumber: string) => {
         
         if (game.name === 'AK') {
             if (!game.winningNumber) {
-                db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber + '_', gameId);
+                db.prepare('UPDATE games SET winningNumber = ?, declaredBy = ? WHERE id = ?').run(winningNumber + '_', declaredBy, gameId);
             } else {
-                db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(game.winningNumber.slice(0, 1) + winningNumber, gameId);
+                db.prepare('UPDATE games SET winningNumber = ?, declaredBy = ? WHERE id = ?').run(game.winningNumber.slice(0, 1) + winningNumber, declaredBy, gameId);
             }
         } else if (game.name === 'AKC') {
-            db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
+            db.prepare('UPDATE games SET winningNumber = ?, declaredBy = ? WHERE id = ?').run(winningNumber, declaredBy, gameId);
             const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get() as any;
             if (akGame && akGame.winningNumber && akGame.winningNumber.endsWith('_')) {
-                db.prepare("UPDATE games SET winningNumber = ? WHERE name = 'AK'").run(akGame.winningNumber.slice(0, 1) + winningNumber);
+                db.prepare("UPDATE games SET winningNumber = ?, declaredBy = ? WHERE name = 'AK'").run(akGame.winningNumber.slice(0, 1) + winningNumber, declaredBy);
             }
         } else {
-            db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(winningNumber, gameId);
+            db.prepare('UPDATE games SET winningNumber = ?, declaredBy = ? WHERE id = ?').run(winningNumber, declaredBy, gameId);
         }
         finalGame = findAccountById(gameId, 'games');
     });
@@ -279,8 +288,8 @@ export const approvePayoutsForGame = (gameId: string) => {
 
 export const getFinancialSummary = () => {
     try {
-        const finalizedGames = db.prepare('SELECT * FROM games WHERE winningNumber IS NOT NULL AND winningNumber NOT LIKE "%\_"').all() as any[];
-        const partialGames = db.prepare('SELECT * FROM games WHERE winningNumber LIKE "%\_"').all() as any[];
+        const finalizedGames = db.prepare("SELECT * FROM games WHERE winningNumber IS NOT NULL AND winningNumber NOT LIKE '%|_' ESCAPE '|'").all() as any[];
+        const partialGames = db.prepare("SELECT * FROM games WHERE winningNumber LIKE '%|_' ESCAPE '|'").all() as any[];
         const games = [...finalizedGames, ...partialGames];
         
         const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
@@ -591,7 +600,7 @@ export const placeBulkBets = (uId: string, gId: string, groups: any[]) => {
 };
 
 
-export const updateWinningNumber = (gameId: string, newWinningNumber: string) => {
+export const updateWinningNumber = (gameId: string, newWinningNumber: string, declaredBy?: string) => {
     runInTransaction(() => {
         const game = db.prepare('SELECT * FROM games WHERE id = ?').get(gameId) as any;
         if (!game) throw new Error('Game not found.');
@@ -606,13 +615,13 @@ export const updateWinningNumber = (gameId: string, newWinningNumber: string) =>
             }
         }
         
-        db.prepare('UPDATE games SET winningNumber = ? WHERE id = ?').run(finalNum, gameId);
+        db.prepare('UPDATE games SET winningNumber = ?, declaredBy = ? WHERE id = ?').run(finalNum, declaredBy, gameId);
         
         // If it's AKC, we might need to update the AK game too if it's currently in "_" state
         if (game.name === 'AKC') {
             const akGame = db.prepare("SELECT * FROM games WHERE name = 'AK'").get() as any;
             if (akGame && akGame.winningNumber && akGame.winningNumber.endsWith('_')) {
-                db.prepare("UPDATE games SET winningNumber = ? WHERE name = 'AK'").run(akGame.winningNumber.slice(0, 1) + finalNum);
+                db.prepare("UPDATE games SET winningNumber = ?, declaredBy = ? WHERE name = 'AK'").run(akGame.winningNumber.slice(0, 1) + finalNum, declaredBy);
             }
         }
     });

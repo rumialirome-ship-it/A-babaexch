@@ -263,9 +263,12 @@ const WinnersView = React.memo<{ bets: Bet[], games: Game[], users: User[], deal
             if (!(r.timestamp instanceof Date)) return false;
             const dateStr = r.timestamp.toISOString().split('T')[0];
             const matchesDate = (!startDate || dateStr >= startDate) && (!endDate || dateStr <= endDate);
+            const lowerSearchTerm = searchTerm.toLowerCase();
+            const numbersMatch = r.selectedNumbers.some(n => n.includes(lowerSearchTerm));
             const matchesSearch = !searchTerm.trim() || 
-                r.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                r.gameName.toLowerCase().includes(searchTerm.toLowerCase());
+                r.userName.toLowerCase().includes(lowerSearchTerm) ||
+                r.gameName.toLowerCase().includes(lowerSearchTerm) ||
+                numbersMatch;
             return matchesDate && matchesSearch;
         }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     }, [bets, games, users, dealers, startDate, endDate, searchTerm]);
@@ -1555,9 +1558,10 @@ interface AdminPanelProps {
   }) => Promise<void>;
   updateGameDrawTime: (gameId: string, newDrawTime: string) => Promise<void>;
   onRefreshData?: () => Promise<void>;
+  onImpersonateDealer: (dealerId: string) => void;
 }
 
-const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData }) => {
+const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData, onImpersonateDealer }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -2013,8 +2017,9 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                 </td>
                                   <td className="p-6">
                                   <div className="flex items-center justify-center gap-2">
-                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5"><Icons.edit className="w-4 h-4" /></button>
-                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10"><Icons.bookOpen className="w-4 h-4" /></button>
+                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5" title="Edit Dealer"><Icons.edit className="w-4 h-4" /></button>
+                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10" title="Ledger"><Icons.bookOpen className="w-4 h-4" /></button>
+                                    <button onClick={() => onImpersonateDealer(dealer.id)} className="w-10 h-10 rounded-xl bg-cyan-500/5 hover:bg-cyan-500/10 text-cyan-400 flex items-center justify-center transition-all border border-cyan-500/10" title="View Dealer Panel"><Icons.layoutDashboard className="w-4 h-4" /></button>
                                     <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${dealer.isRestricted ? 'bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 hover:bg-red-500/10 text-red-400 border-red-500/10'}`}>
                                       {dealer.isRestricted ? <Icons.checkCircle className="w-4 h-4" /> : <Icons.close className="w-4 h-4" />}
                                     </button>
@@ -2077,6 +2082,9 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                       <div>
                                         <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Audit Complete</p>
                                         <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
+                                        {game.declaredBy && (
+                                          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Declared by: {game.declaredBy}</p>
+                                        )}
                                       </div>
                                       <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
                                         <Icons.checkCircle className="w-6 h-6" />
@@ -2097,6 +2105,9 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                         <div>
                                           <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">{isAKPending ? 'Open Vector Declared' : 'Verification Required'}</p>
                                           <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
+                                          {game.declaredBy && (
+                                            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Declared by: {game.declaredBy}</p>
+                                          )}
                                         </div>
                                         <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="text-slate-500 hover:text-white transition-colors"><Icons.edit className="w-4 h-4" /></button>
                                       </div>
