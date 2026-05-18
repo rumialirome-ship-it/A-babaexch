@@ -79,7 +79,9 @@ async function startServer() {
           const account = database.findAccountById(user.id, table);
           if (!account) return res.status(404).json({ message: 'User not found.' });
           
-          let extra: any = {};
+          let extra: any = {
+              games: database.getAllFromTable('games')
+          };
           if (role === 'DEALER') {
               extra.users = database.findUsersByDealerId(user.id);
               extra.bets = database.findBetsByDealerId(user.id);
@@ -141,6 +143,7 @@ async function startServer() {
       res.json({ 
           account: database.findAccountById(dId, 'dealers'), 
           users: database.findUsersByDealerId(dId), 
+          games: database.getAllFromTable('games'),
           bets: database.findBetsByDealerId(dId) 
       });
   });

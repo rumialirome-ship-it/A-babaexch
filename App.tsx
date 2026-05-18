@@ -148,7 +148,6 @@ const AppContent: React.FC = () => {
                     setUsers(parsedData.users); 
                     setDealers(parsedData.dealers); 
                     setBets(parsedData.bets); 
-                    setGames(parsedData.games);
                 }
                 else if (role === Role.Dealer) { 
                     setUsers(parsedData.users); 
@@ -157,6 +156,7 @@ const AppContent: React.FC = () => {
                 else { 
                     setBets(parsedData.bets); 
                 }
+                if (parsedData.games) setGames(parsedData.games);
                 setHasInitialFetched(true);
             }
         } catch (error) {
@@ -170,6 +170,7 @@ const AppContent: React.FC = () => {
             if (parsed.users) setUsers(parsed.users);
             if (parsed.dealers) setDealers(parsed.dealers);
             if (parsed.bets) setBets(parsed.bets);
+            if (parsed.games) setGames(parsed.games);
             setHasInitialFetched(true);
         }
     }, [loading, verifyData]);
