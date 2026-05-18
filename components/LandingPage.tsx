@@ -454,11 +454,6 @@ const LandingPage: React.FC<{ games: Game[]; fetchError?: string | null }> = ({ 
     
     return (
         <div className="min-h-screen bg-mesh text-slate-200 overflow-x-hidden">
-            <div className="fixed top-0 left-0 z-[9999] bg-black/80 text-[10px] p-1 font-mono text-cyan-400 border-b border-cyan-500/30 w-full flex gap-4">
-                <span>Games: {games.length}</span>
-                <span>Err: {fetchError || 'None'}</span>
-                <span>Time: {new Date().toLocaleTimeString()}</span>
-            </div>
             <AdminLoginModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} onForgotPassword={() => { setIsAdminModalOpen(false); setIsAdminResetModalOpen(true); }} />
             <ResetPasswordModal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} />
             <AdminResetInfoModal isOpen={isAdminResetModalOpen} onClose={() => setIsAdminResetModalOpen(false)} />
