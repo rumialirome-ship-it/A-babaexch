@@ -2113,7 +2113,7 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                       {isAKPending && (
                                         <div className="space-y-4 pt-4 border-t border-white/5">
                                           <p className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Complete Declaration (Close)</p>
-                                          <div className="flex gap-2">
+                                          <div className="flex flex-col sm:flex-row gap-2">
                                             <input 
                                               type="text" 
                                               maxLength={1} 
@@ -2124,7 +2124,7 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                             />
                                             <button 
                                               onClick={() => handleDeclareWinner(game.id, game.name)} 
-                                              className="px-6 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 active:scale-95 transition-transform"
+                                              className="py-4 sm:px-8 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
                                             >
                                               Commit Close
                                             </button>
