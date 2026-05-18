@@ -2088,9 +2088,20 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                   ) : editingGame?.id === game.id ? (
                                     <div className="space-y-4">
                                       <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Dealer Re-calibration</p>
-                                      <div className="flex gap-2">
-                                        <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" />
-                                        <button onClick={() => handleUpdateWinner(game.id, game.name)} className="px-6 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20">Save</button>
+                                      <div className="flex flex-col sm:flex-row gap-2">
+                                        <input 
+                                          type="text" 
+                                          maxLength={isSingleDigitGame ? 1 : 2} 
+                                          value={editingGame.number} 
+                                          onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} 
+                                          className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
+                                        />
+                                        <button 
+                                          onClick={() => handleUpdateWinner(game.id, game.name)} 
+                                          className="py-4 sm:px-8 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-center"
+                                        >
+                                          Save
+                                        </button>
                                       </div>
                                       <button onClick={() => setEditingGame(null)} className="w-full py-3 rounded-2xl bg-white/5 text-slate-500 font-black text-[10px] uppercase tracking-widest border border-white/5">Discard</button>
                                     </div>
