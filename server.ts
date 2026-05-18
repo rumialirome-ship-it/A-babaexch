@@ -9,18 +9,20 @@ import * as database from "./server/database";
 import { authMiddleware, AuthRequest } from "./server/authMiddleware";
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV === "production" || !process.env.VITE_DEV_SERVER;
   
-  console.error(`--- [SERVER] Starting on PORT: ${PORT} ---`);
-  console.error(`--- [SERVER] NODE_ENV: ${process.env.NODE_ENV} ---`);
-  console.error(`--- [SERVER] isProd: ${isProd} ---`);
+  console.error('--- [SERVER] Initializing... ---');
+  console.error('--- [SERVER] Port: ' + PORT + ' ---');
+  console.error('--- [SERVER] NODE_ENV: ' + process.env.NODE_ENV + ' ---');
+  console.error('--- [SERVER] Mode: ' + (isProd ? 'PRODUCTION' : 'DEVELOPMENT') + ' ---');
+  console.error('--- [SERVER] CWD: ' + process.cwd() + ' ---');
 
   // --- AUTOMATIC GAME RESET SCHEDULER ---
   const PKT_OFFSET_HOURS = 5;
@@ -77,9 +79,7 @@ async function startServer() {
           const account = database.findAccountById(user.id, table);
           if (!account) return res.status(404).json({ message: 'User not found.' });
           
-          let extra: any = {
-              games: database.getAllFromTable('games')
-          };
+          let extra: any = {};
           if (role === 'DEALER') {
               extra.users = database.findUsersByDealerId(user.id);
               extra.bets = database.findBetsByDealerId(user.id);
@@ -100,15 +100,10 @@ async function startServer() {
   app.get('/api/games', (req, res) => {
       try {
           const data = database.getAllFromTable('games');
-          console.error(`--- [SERVER] GET /api/games | Count: ${data ? data.length : 0} ---`);
-          if (data && data.length > 0) {
-              console.error(`--- [SERVER] First Game ID: ${data[0].id}, Name: ${data[0].name} ---`);
-          } else {
-              console.error(`--- [SERVER] WARNING: No games found in database! ---`);
-          }
+          console.error(`--- [SERVER] GET /api/games | Found: ${data ? data.length : 0} games ---`);
           res.json(data || []);
       } catch (e: any) {
-          console.error(`--- [SERVER] GET /api/games CRASH: ${e.message} ---`);
+          console.error(`--- [SERVER] GET /api/games ERROR: ${e.message} ---`);
           res.status(500).json({ error: 'DB Error' });
       }
   });
@@ -146,7 +141,6 @@ async function startServer() {
       res.json({ 
           account: database.findAccountById(dId, 'dealers'), 
           users: database.findUsersByDealerId(dId), 
-          games: database.getAllFromTable('games'),
           bets: database.findBetsByDealerId(dId) 
       });
   });
@@ -399,11 +393,6 @@ async function startServer() {
           const r = await model.generateContent(p);
           res.json({ luckyNumbers: r.response.text() });
       } catch (e) { res.status(500).json({ message: "AI error" }); }
-  });
-
-  // --- API 404 FALLBACK ---
-  app.all('/api/*all', (req, res) => {
-    res.status(404).json({ error: `API Route ${req.method} ${req.url} not found` });
   });
 
   // Vite middleware for development

@@ -447,7 +447,7 @@ const AdminResetInfoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
     );
 };
 
-const LandingPage: React.FC<{ games: Game[]; fetchError?: string | null }> = ({ games, fetchError }) => {
+const LandingPage: React.FC<{ games: Game[] }> = ({ games }) => {
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
@@ -509,18 +509,8 @@ const LandingPage: React.FC<{ games: Game[]; fetchError?: string | null }> = ({ 
                             
                             {games.length === 0 ? (
                                 <div className="h-64 flex flex-col items-center justify-center glass rounded-3xl border border-white/5">
-                                    {fetchError ? (
-                                        <div className="text-center p-4">
-                                            <Icons.alertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-                                            <p className="text-sm font-bold text-red-400 uppercase tracking-tighter">Connection Failed</p>
-                                            <p className="text-[10px] text-slate-500 font-mono mt-1">{fetchError}</p>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="w-10 h-10 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
-                                            <p className="text-xs font-bold tracking-widest text-slate-500 uppercase">Connecting to Feed...</p>
-                                        </>
-                                    )}
+                                    <div className="w-10 h-10 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
+                                    <p className="text-xs font-bold tracking-widest text-slate-500 uppercase">Connecting to Feed...</p>
                                 </div>
                             ) : (
                                 <motion.div 

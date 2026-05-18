@@ -114,7 +114,6 @@ const AppContent: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
     const [hasInitialFetched, setHasInitialFetched] = useState(false);
-    const [fetchError, setFetchError] = useState<string | null>(null);
     const [impersonatingDealerId, setImpersonatingDealerId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -129,15 +128,10 @@ const AppContent: React.FC = () => {
             const gamesResponse = await fetch('/api/games');
             if (gamesResponse.ok) {
                 const data = await gamesResponse.json();
-                console.log('[DEBUG] Games received:', data.length);
                 setGames(data);
-                setFetchError(null);
-            } else {
-                setFetchError(`HTTP ${gamesResponse.status}`);
             }
-        } catch (e: any) {
+        } catch (e) {
             console.error('Games fetch error:', e);
-            setFetchError(e.message || 'Unknown network error');
         }
     }, []);
 
@@ -154,6 +148,7 @@ const AppContent: React.FC = () => {
                     setUsers(parsedData.users); 
                     setDealers(parsedData.dealers); 
                     setBets(parsedData.bets); 
+                    setGames(parsedData.games);
                 }
                 else if (role === Role.Dealer) { 
                     setUsers(parsedData.users); 
@@ -162,7 +157,6 @@ const AppContent: React.FC = () => {
                 else { 
                     setBets(parsedData.bets); 
                 }
-                if (parsedData.games) setGames(parsedData.games);
                 setHasInitialFetched(true);
             }
         } catch (error) {
@@ -176,7 +170,6 @@ const AppContent: React.FC = () => {
             if (parsed.users) setUsers(parsed.users);
             if (parsed.dealers) setDealers(parsed.dealers);
             if (parsed.bets) setBets(parsed.bets);
-            if (parsed.games) setGames(parsed.games);
             setHasInitialFetched(true);
         }
     }, [loading, verifyData]);
@@ -343,7 +336,7 @@ const AppContent: React.FC = () => {
     return (
         <div className="min-h-screen flex flex-col">
             {!role || !account ? (
-                <LandingPage games={games} fetchError={fetchError} />
+                <LandingPage games={games} />
             ) : (
                 <>
                     <Header isImpersonating={!!impersonatingDealerId} />

@@ -288,8 +288,8 @@ export const approvePayoutsForGame = (gameId: string) => {
 
 export const getFinancialSummary = () => {
     try {
-        const finalizedGames = db.prepare("SELECT * FROM games WHERE winningNumber IS NOT NULL AND winningNumber NOT LIKE '%|_' ESCAPE '|'").all() as any[];
-        const partialGames = db.prepare("SELECT * FROM games WHERE winningNumber LIKE '%|_' ESCAPE '|'").all() as any[];
+        const finalizedGames = db.prepare('SELECT * FROM games WHERE winningNumber IS NOT NULL AND winningNumber NOT LIKE "%\_"').all() as any[];
+        const partialGames = db.prepare('SELECT * FROM games WHERE winningNumber LIKE "%\_"').all() as any[];
         const games = [...finalizedGames, ...partialGames];
         
         const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
@@ -425,8 +425,7 @@ export const updateDealerProfile = (dealerId: string, updates: any) => {
         }
     });
 
-    db.prepare('UPDATE dealers SET name = ?, contact = ?, area = ?, avatarUrl = ?, prizeRates = ?, password = ? WHERE id = ?')
-      .run(finalData.name, finalData.contact, finalData.area, finalData.avatarUrl, JSON.stringify(finalData.prizeRates), finalData.password, dealerId);
+    db.prepare('UPDATE dealers SET data = ? WHERE id = ?').run(JSON.stringify(finalData), dealerId);
     return finalData;
 };
 
