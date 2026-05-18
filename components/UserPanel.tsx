@@ -307,8 +307,7 @@ const BetHistoryView = React.memo<{ bets: Bet[], games: Game[], user: User }>(({
                 const lowerSearchTerm = searchTerm.trim().toLowerCase();
                 const gameNameMatch = game?.name.toLowerCase().includes(lowerSearchTerm);
                 const subGameTypeMatch = bet.subGameType.toLowerCase().includes(lowerSearchTerm);
-                const numbersMatch = bet.numbers.some(n => n.includes(lowerSearchTerm));
-                if (!gameNameMatch && !subGameTypeMatch && !numbersMatch) return false;
+                if (!gameNameMatch && !subGameTypeMatch) return false;
             }
             return true;
         });
@@ -375,12 +374,11 @@ const BetHistoryView = React.memo<{ bets: Bet[], games: Game[], user: User }>(({
                                     </td>
                                     <td className="p-4">
                                         <div className="text-[10px] font-black uppercase text-slate-400 mb-1">{bet.subGameType}</div>
-                                        <div className="flex flex-wrap gap-1 max-w-[200px] max-h-[60px] overflow-y-auto no-scrollbar py-1">
-                                            {bet.numbers.map((n, i) => (
-                                                <span key={i} className="text-[10px] font-mono text-white/70 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded shadow-sm">
-                                                    {n}
-                                                </span>
+                                        <div className="flex flex-wrap gap-1">
+                                            {bet.numbers.slice(0, 5).map((n, i) => (
+                                                <span key={i} className="text-[10px] font-mono text-slate-500 bg-white/5 border border-white/5 px-1 rounded">{n}</span>
                                             ))}
+                                            {bet.numbers.length > 5 && <span className="text-[10px] text-slate-600">+{bet.numbers.length - 5}</span>}
                                         </div>
                                     </td>
                                     <td className="p-4 text-right text-xs text-white font-mono">Rs {bet.totalAmount.toFixed(2)}</td>

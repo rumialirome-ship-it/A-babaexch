@@ -263,12 +263,9 @@ const WinnersView = React.memo<{ bets: Bet[], games: Game[], users: User[], deal
             if (!(r.timestamp instanceof Date)) return false;
             const dateStr = r.timestamp.toISOString().split('T')[0];
             const matchesDate = (!startDate || dateStr >= startDate) && (!endDate || dateStr <= endDate);
-            const lowerSearchTerm = searchTerm.toLowerCase();
-            const numbersMatch = r.selectedNumbers.some(n => n.includes(lowerSearchTerm));
             const matchesSearch = !searchTerm.trim() || 
-                r.userName.toLowerCase().includes(lowerSearchTerm) ||
-                r.gameName.toLowerCase().includes(lowerSearchTerm) ||
-                numbersMatch;
+                r.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                r.gameName.toLowerCase().includes(searchTerm.toLowerCase());
             return matchesDate && matchesSearch;
         }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     }, [bets, games, users, dealers, startDate, endDate, searchTerm]);
@@ -2088,69 +2085,29 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                   ) : editingGame?.id === game.id ? (
                                     <div className="space-y-4">
                                       <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Dealer Re-calibration</p>
-                                      <div className="flex flex-col sm:flex-row gap-2">
-                                        <input 
-                                          type="text" 
-                                          maxLength={isSingleDigitGame ? 1 : 2} 
-                                          value={editingGame.number} 
-                                          onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} 
-                                          className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
-                                        />
-                                        <button 
-                                          onClick={() => handleUpdateWinner(game.id, game.name)} 
-                                          className="py-4 sm:px-8 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-center"
-                                        >
-                                          Save
-                                        </button>
+                                      <div className="flex gap-2">
+                                        <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" />
+                                        <button onClick={() => handleUpdateWinner(game.id, game.name)} className="px-6 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20">Save</button>
                                       </div>
                                       <button onClick={() => setEditingGame(null)} className="w-full py-3 rounded-2xl bg-white/5 text-slate-500 font-black text-[10px] uppercase tracking-widest border border-white/5">Discard</button>
                                     </div>
                                   ) : (
                                     <div className="space-y-6">
-                                      <div className="flex items-end justify-between gap-4">
+                                      <div className="flex items-end justify-between">
                                         <div>
                                           <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">{isAKPending ? 'Open Vector Declared' : 'Verification Required'}</p>
                                           <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
                                         </div>
-                                        <button 
-                                          onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} 
-                                          className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-500 hover:text-white flex items-center justify-center transition-all border border-white/5"
-                                          title="Edit Declaration"
-                                        >
-                                          <Icons.edit className="w-5 h-5" />
-                                        </button>
+                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="text-slate-500 hover:text-white transition-colors"><Icons.edit className="w-4 h-4" /></button>
                                       </div>
-                                      
-                                      {isAKPending && (
-                                        <div className="space-y-4 pt-4 border-t border-white/5">
-                                          <p className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Complete Declaration (Close)</p>
-                                          <div className="flex flex-col sm:flex-row gap-2">
-                                            <input 
-                                              type="text" 
-                                              maxLength={1} 
-                                              value={winningNumbers[game.id] || ''} 
-                                              onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} 
-                                              className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
-                                              placeholder="0" 
-                                            />
-                                            <button 
-                                              onClick={() => handleDeclareWinner(game.id, game.name)} 
-                                              className="py-4 sm:px-8 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
-                                            >
-                                              Commit Close
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
-
                                       {!isAKPending && (
                                         <motion.button 
                                           whileHover={{ scale: 1.02 }}
                                           whileTap={{ scale: 0.98 }}
                                           onClick={() => { if (window.confirm(`Commit Payout protocol for ${game.name}?`)) { approvePayouts(game.id); } }} 
-                                          className="w-full py-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2"
+                                          className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2"
                                         >
-                                          <Icons.checkCircle className="w-5 h-5" />
+                                          <Icons.checkCircle className="w-4 h-4" />
                                           Liquidate Payouts
                                         </motion.button>
                                       )}
@@ -2159,23 +2116,14 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                 </div>
                               ) : (
                                 <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5 space-y-4">
-                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
-                                    {isAK ? 'Declare Result (Open Digit)' : 'Declare Game Result'}
-                                  </p>
-                                  <div className="flex flex-col sm:flex-row gap-2">
-                                    <input 
-                                      type="text" 
-                                      maxLength={isSingleDigitGame ? 1 : 2} 
-                                      value={winningNumbers[game.id] || ''} 
-                                      onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} 
-                                      className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
-                                      placeholder={isSingleDigitGame ? '0' : '00'} 
-                                    />
+                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Declare Game Result</p>
+                                  <div className="flex gap-2">
+                                    <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" placeholder={isSingleDigitGame ? '0' : '00'} />
                                     <motion.button 
                                       whileHover={{ scale: 1.05 }}
                                       whileTap={{ scale: 0.95 }}
                                       onClick={() => handleDeclareWinner(game.id, game.name)} 
-                                      className="py-4 sm:px-8 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+                                      className="px-6 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20"
                                     >
                                       Commit
                                     </motion.button>

@@ -924,13 +924,9 @@ const BetHistoryView = React.memo<{ bets: Bet[], games: Game[], users: User[] }>
             if (searchTerm.trim()) {
                 const user = users.find(u => u.id === bet.userId);
                 const game = games.find(g => g.id === bet.gameId);
-                const lowerSearchTerm = searchTerm.toLowerCase();
-                const numbersMatch = bet.numbers.some(n => n.includes(lowerSearchTerm));
-                
-                return user?.name.toLowerCase().includes(lowerSearchTerm) || 
-                       game?.name.toLowerCase().includes(lowerSearchTerm) || 
-                       user?.id.toLowerCase().includes(lowerSearchTerm) ||
-                       numbersMatch;
+                return user?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                       game?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                       user?.id.toLowerCase().includes(searchTerm.toLowerCase());
             }
             return true;
         }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -987,7 +983,7 @@ const BetHistoryView = React.memo<{ bets: Bet[], games: Game[], users: User[] }>
                             </div>
                             <div className="space-y-1">
                                 <div className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">{bet.subGameType} Array</div>
-                                <div className="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto no-scrollbar py-1">
+                                <div className="flex flex-wrap gap-1.5">
                                     {bet.numbers.map((n, i) => (
                                         <span key={i} className="text-[10px] text-white font-mono bg-white/5 px-2 py-0.5 rounded border border-white/5">{n}</span>
                                     ))}
@@ -1032,13 +1028,7 @@ const BetHistoryView = React.memo<{ bets: Bet[], games: Game[], users: User[] }>
                                     <td className="p-5 text-xs font-black text-sky-400 uppercase tracking-tighter">{games.find(g => g.id === bet.gameId)?.name || 'DELETED_FEED'}</td>
                                     <td className="p-5">
                                         <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{bet.subGameType}</div>
-                                        <div className="flex flex-wrap gap-1 max-w-[200px] max-h-[60px] overflow-y-auto no-scrollbar py-1">
-                                            {bet.numbers.map((n, i) => (
-                                                <span key={i} className="text-[10px] text-white/70 font-mono bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/5">
-                                                    {n}
-                                                </span>
-                                            ))}
-                                        </div>
+                                        <div className="text-[10px] text-white/70 font-mono bg-white/[0.03] p-2 rounded-lg border border-white/5 max-w-[200px] truncate">{bet.numbers.join(', ')}</div>
                                     </td>
                                     <td className="p-5 text-right font-mono text-emerald-400 text-sm font-black group-hover:scale-105 transition-transform origin-right">Rs {bet.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                                 </motion.tr>
