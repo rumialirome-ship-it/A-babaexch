@@ -114,6 +114,7 @@ const AppContent: React.FC = () => {
     const [games, setGames] = useState<Game[]>([]);
     const [bets, setBets] = useState<Bet[]>([]);
     const [hasInitialFetched, setHasInitialFetched] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [impersonatingDealerId, setImpersonatingDealerId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -128,10 +129,15 @@ const AppContent: React.FC = () => {
             const gamesResponse = await fetch('/api/games');
             if (gamesResponse.ok) {
                 const data = await gamesResponse.json();
+                console.log('[DEBUG] Games received:', data.length);
                 setGames(data);
+                setFetchError(null);
+            } else {
+                setFetchError(`HTTP ${gamesResponse.status}`);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Games fetch error:', e);
+            setFetchError(e.message || 'Unknown network error');
         }
     }, []);
 
@@ -337,7 +343,7 @@ const AppContent: React.FC = () => {
     return (
         <div className="min-h-screen flex flex-col">
             {!role || !account ? (
-                <LandingPage games={games} />
+                <LandingPage games={games} fetchError={fetchError} />
             ) : (
                 <>
                     <Header isImpersonating={!!impersonatingDealerId} />

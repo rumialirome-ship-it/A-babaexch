@@ -9,20 +9,18 @@ import * as database from "./server/database";
 import { authMiddleware, AuthRequest } from "./server/authMiddleware";
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  const isProd = process.env.NODE_ENV === "production" || !process.env.VITE_DEV_SERVER;
+  const isProd = process.env.NODE_ENV === "production";
   
-  console.error('--- [SERVER] Initializing... ---');
-  console.error('--- [SERVER] Port: ' + PORT + ' ---');
-  console.error('--- [SERVER] NODE_ENV: ' + process.env.NODE_ENV + ' ---');
-  console.error('--- [SERVER] Mode: ' + (isProd ? 'PRODUCTION' : 'DEVELOPMENT') + ' ---');
-  console.error('--- [SERVER] CWD: ' + process.cwd() + ' ---');
+  console.error(`--- [SERVER] Starting on PORT: ${PORT} ---`);
+  console.error(`--- [SERVER] NODE_ENV: ${process.env.NODE_ENV} ---`);
+  console.error(`--- [SERVER] isProd: ${isProd} ---`);
 
   // --- AUTOMATIC GAME RESET SCHEDULER ---
   const PKT_OFFSET_HOURS = 5;
@@ -102,10 +100,15 @@ async function startServer() {
   app.get('/api/games', (req, res) => {
       try {
           const data = database.getAllFromTable('games');
-          console.error(`--- [SERVER] GET /api/games | Found: ${data ? data.length : 0} games ---`);
+          console.error(`--- [SERVER] GET /api/games | Count: ${data ? data.length : 0} ---`);
+          if (data && data.length > 0) {
+              console.error(`--- [SERVER] First Game ID: ${data[0].id}, Name: ${data[0].name} ---`);
+          } else {
+              console.error(`--- [SERVER] WARNING: No games found in database! ---`);
+          }
           res.json(data || []);
       } catch (e: any) {
-          console.error(`--- [SERVER] GET /api/games ERROR: ${e.message} ---`);
+          console.error(`--- [SERVER] GET /api/games CRASH: ${e.message} ---`);
           res.status(500).json({ error: 'DB Error' });
       }
   });

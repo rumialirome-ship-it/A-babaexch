@@ -447,13 +447,18 @@ const AdminResetInfoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
     );
 };
 
-const LandingPage: React.FC<{ games: Game[] }> = ({ games }) => {
+const LandingPage: React.FC<{ games: Game[]; fetchError?: string | null }> = ({ games, fetchError }) => {
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
     
     return (
         <div className="min-h-screen bg-mesh text-slate-200 overflow-x-hidden">
+            <div className="fixed top-0 left-0 z-[9999] bg-black/80 text-[10px] p-1 font-mono text-cyan-400 border-b border-cyan-500/30 w-full flex gap-4">
+                <span>Games: {games.length}</span>
+                <span>Err: {fetchError || 'None'}</span>
+                <span>Time: {new Date().toLocaleTimeString()}</span>
+            </div>
             <AdminLoginModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} onForgotPassword={() => { setIsAdminModalOpen(false); setIsAdminResetModalOpen(true); }} />
             <ResetPasswordModal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} />
             <AdminResetInfoModal isOpen={isAdminResetModalOpen} onClose={() => setIsAdminResetModalOpen(false)} />
@@ -509,8 +514,18 @@ const LandingPage: React.FC<{ games: Game[] }> = ({ games }) => {
                             
                             {games.length === 0 ? (
                                 <div className="h-64 flex flex-col items-center justify-center glass rounded-3xl border border-white/5">
-                                    <div className="w-10 h-10 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
-                                    <p className="text-xs font-bold tracking-widest text-slate-500 uppercase">Connecting to Feed...</p>
+                                    {fetchError ? (
+                                        <div className="text-center p-4">
+                                            <Icons.alertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                                            <p className="text-sm font-bold text-red-400 uppercase tracking-tighter">Connection Failed</p>
+                                            <p className="text-[10px] text-slate-500 font-mono mt-1">{fetchError}</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="w-10 h-10 border-2 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin mb-4" />
+                                            <p className="text-xs font-bold tracking-widest text-slate-500 uppercase">Connecting to Feed...</p>
+                                        </>
+                                    )}
                                 </div>
                             ) : (
                                 <motion.div 

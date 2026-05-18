@@ -425,7 +425,8 @@ export const updateDealerProfile = (dealerId: string, updates: any) => {
         }
     });
 
-    db.prepare('UPDATE dealers SET data = ? WHERE id = ?').run(JSON.stringify(finalData), dealerId);
+    db.prepare('UPDATE dealers SET name = ?, contact = ?, area = ?, avatarUrl = ?, prizeRates = ?, password = ? WHERE id = ?')
+      .run(finalData.name, finalData.contact, finalData.area, finalData.avatarUrl, JSON.stringify(finalData.prizeRates), finalData.password, dealerId);
     return finalData;
 };
 
