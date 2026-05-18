@@ -26,9 +26,7 @@ import {
   ArrowUpRight,
   Settings,
   Edit2,
-  AlertTriangle,
-  LayoutDashboard,
-  XCircle
+  AlertTriangle
 } from 'lucide-react';
 
 export const GAME_LOGOS: {[key: string]: string} = {
@@ -69,8 +67,5 @@ export const Icons = {
     moveUpRight: ArrowUpRight,
     settings: Settings,
     edit: Edit2,
-    alertTriangle: AlertTriangle,
-    layoutDashboard: LayoutDashboard,
-    x: X,
-    xCircle: XCircle
+    alertTriangle: AlertTriangle
 };

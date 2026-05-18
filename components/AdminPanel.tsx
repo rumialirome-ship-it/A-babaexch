@@ -1558,10 +1558,9 @@ interface AdminPanelProps {
   }) => Promise<void>;
   updateGameDrawTime: (gameId: string, newDrawTime: string) => Promise<void>;
   onRefreshData?: () => Promise<void>;
-  onImpersonateDealer: (dealerId: string) => void;
 }
 
-const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData, onImpersonateDealer }) => {
+const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -2017,9 +2016,8 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                 </td>
                                   <td className="p-6">
                                   <div className="flex items-center justify-center gap-2">
-                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5" title="Edit Dealer"><Icons.edit className="w-4 h-4" /></button>
-                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10" title="Ledger"><Icons.bookOpen className="w-4 h-4" /></button>
-                                    <button onClick={() => onImpersonateDealer(dealer.id)} className="w-10 h-10 rounded-xl bg-cyan-500/5 hover:bg-cyan-500/10 text-cyan-400 flex items-center justify-center transition-all border border-cyan-500/10" title="View Dealer Panel"><Icons.layoutDashboard className="w-4 h-4" /></button>
+                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5"><Icons.edit className="w-4 h-4" /></button>
+                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10"><Icons.bookOpen className="w-4 h-4" /></button>
                                     <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${dealer.isRestricted ? 'bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 hover:bg-red-500/10 text-red-400 border-red-500/10'}`}>
                                       {dealer.isRestricted ? <Icons.checkCircle className="w-4 h-4" /> : <Icons.close className="w-4 h-4" />}
                                     </button>
@@ -2082,9 +2080,6 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                       <div>
                                         <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Audit Complete</p>
                                         <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
-                                        {game.declaredBy && (
-                                          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Declared by: {game.declaredBy}</p>
-                                        )}
                                       </div>
                                       <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
                                         <Icons.checkCircle className="w-6 h-6" />
@@ -2101,24 +2096,50 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                     </div>
                                   ) : (
                                     <div className="space-y-6">
-                                      <div className="flex items-end justify-between">
+                                      <div className="flex items-end justify-between gap-4">
                                         <div>
                                           <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">{isAKPending ? 'Open Vector Declared' : 'Verification Required'}</p>
                                           <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
-                                          {game.declaredBy && (
-                                            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Declared by: {game.declaredBy}</p>
-                                          )}
                                         </div>
-                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="text-slate-500 hover:text-white transition-colors"><Icons.edit className="w-4 h-4" /></button>
+                                        <button 
+                                          onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} 
+                                          className="w-12 h-12 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-500 hover:text-white flex items-center justify-center transition-all border border-white/5"
+                                          title="Edit Declaration"
+                                        >
+                                          <Icons.edit className="w-5 h-5" />
+                                        </button>
                                       </div>
+                                      
+                                      {isAKPending && (
+                                        <div className="space-y-4 pt-4 border-t border-white/5">
+                                          <p className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Complete Declaration (Close)</p>
+                                          <div className="flex gap-2">
+                                            <input 
+                                              type="text" 
+                                              maxLength={1} 
+                                              value={winningNumbers[game.id] || ''} 
+                                              onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} 
+                                              className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
+                                              placeholder="0" 
+                                            />
+                                            <button 
+                                              onClick={() => handleDeclareWinner(game.id, game.name)} 
+                                              className="px-6 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 active:scale-95 transition-transform"
+                                            >
+                                              Commit Close
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+
                                       {!isAKPending && (
                                         <motion.button 
                                           whileHover={{ scale: 1.02 }}
                                           whileTap={{ scale: 0.98 }}
                                           onClick={() => { if (window.confirm(`Commit Payout protocol for ${game.name}?`)) { approvePayouts(game.id); } }} 
-                                          className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2"
+                                          className="w-full py-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2"
                                         >
-                                          <Icons.checkCircle className="w-4 h-4" />
+                                          <Icons.checkCircle className="w-5 h-5" />
                                           Liquidate Payouts
                                         </motion.button>
                                       )}
@@ -2127,14 +2148,23 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                 </div>
                               ) : (
                                 <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5 space-y-4">
-                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Declare Game Result</p>
-                                  <div className="flex gap-2">
-                                    <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" placeholder={isSingleDigitGame ? '0' : '00'} />
+                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                                    {isAK ? 'Declare Result (Open Digit)' : 'Declare Game Result'}
+                                  </p>
+                                  <div className="flex flex-col sm:flex-row gap-2">
+                                    <input 
+                                      type="text" 
+                                      maxLength={isSingleDigitGame ? 1 : 2} 
+                                      value={winningNumbers[game.id] || ''} 
+                                      onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} 
+                                      className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
+                                      placeholder={isSingleDigitGame ? '0' : '00'} 
+                                    />
                                     <motion.button 
                                       whileHover={{ scale: 1.05 }}
                                       whileTap={{ scale: 0.95 }}
                                       onClick={() => handleDeclareWinner(game.id, game.name)} 
-                                      className="px-6 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20"
+                                      className="py-4 sm:px-8 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
                                     >
                                       Commit
                                     </motion.button>

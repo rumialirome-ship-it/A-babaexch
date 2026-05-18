@@ -66,7 +66,6 @@ export interface Game {
   winningNumber?: string;
   payoutsApproved?: boolean;
   isMarketOpen?: boolean;
-  declaredBy?: string;
 }
 
 export enum SubGameType {

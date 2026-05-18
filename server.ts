@@ -108,13 +108,6 @@ async function startServer() {
       }
   });
 
-  const getDealerId = (req: AuthRequest) => {
-      if (req.user!.role === 'ADMIN' && req.headers['x-impersonate-dealer-id']) {
-          return req.headers['x-impersonate-dealer-id'] as string;
-      }
-      return req.user!.id;
-  };
-
   app.get('/api/health', (req, res) => {
       const stats = database.getStats();
       res.json({ 
@@ -136,12 +129,11 @@ async function startServer() {
   });
 
   app.get('/api/dealer/data', authMiddleware, (req: AuthRequest, res) => {
-      if (req.user!.role !== 'DEALER' && req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      const dId = getDealerId(req);
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
       res.json({ 
-          account: database.findAccountById(dId, 'dealers'), 
-          users: database.findUsersByDealerId(dId), 
-          bets: database.findBetsByDealerId(dId) 
+          account: database.findAccountById(req.user!.id, 'dealers'), 
+          users: database.findUsersByDealerId(req.user!.id), 
+          bets: database.findBetsByDealerId(req.user!.id) 
       });
   });
 
@@ -186,43 +178,38 @@ async function startServer() {
   });
 
   app.post('/api/dealer/bets/bulk', authMiddleware, (req: AuthRequest, res) => {
-      if (req.user!.role !== 'DEALER' && req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      const dId = getDealerId(req);
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
       try { res.status(201).json(database.placeBulkBets(req.body.userId, req.body.gameId, req.body.betGroups)); }
       catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
   app.post('/api/dealer/users', authMiddleware, (req: AuthRequest, res) => {
-      if (req.user!.role !== 'DEALER' && req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      const dId = getDealerId(req);
-      try { res.status(201).json(database.createUser(req.body.userData, dId, req.body.initialDeposit)); }
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
+      try { res.status(201).json(database.createUser(req.body.userData, req.user!.id, req.body.initialDeposit)); }
       catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.put('/api/dealer/users/:id', authMiddleware, (req: AuthRequest, res) => {
-      if (req.user!.role !== 'DEALER' && req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      const dId = getDealerId(req);
-      try { res.json(database.updateUser(req.body, req.params.id, dId)); }
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
+      try { res.json(database.updateUser(req.body, req.params.id, req.user!.id)); }
       catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.delete('/api/dealer/users/:id', authMiddleware, (req: AuthRequest, res) => {
-      if (req.user!.role !== 'DEALER' && req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      const dId = getDealerId(req);
-      try { database.deleteUserByDealer(req.params.id, dId); res.sendStatus(204); }
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
+      try { database.deleteUserByDealer(req.params.id, req.user!.id); res.sendStatus(204); }
       catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.post('/api/dealer/topup/user', authMiddleware, (req: AuthRequest, res) => {
-      if (req.user!.role !== 'DEALER' && req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      const dId = getDealerId(req);
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
       try {
           const { userId, amount } = req.body;
-          const user = database.findUserByDealer(userId, dId);
+          const user = database.findUserByDealer(userId, req.user!.id);
           if (!user) throw new Error('User not found in your network.');
 
           database.runInTransaction(() => {
-              database.addLedgerEntry(dId, 'DEALER', 'User funding: ' + userId, amount, 0);
+              database.addLedgerEntry(req.user!.id, 'DEALER', 'User funding: ' + userId, amount, 0);
               database.addLedgerEntry(userId, 'USER', 'Wallet refill', 0, amount);
           });
           res.json({ message: "Success" });
@@ -230,32 +217,29 @@ async function startServer() {
   });
 
   app.post('/api/dealer/withdraw/user', authMiddleware, (req: AuthRequest, res) => {
-      if (req.user!.role !== 'DEALER' && req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      const dId = getDealerId(req);
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
       try {
           const { userId, amount } = req.body;
-          const user = database.findUserByDealer(userId, dId);
+          const user = database.findUserByDealer(userId, req.user!.id);
           if (!user) throw new Error('User not found in your network.');
           
           database.runInTransaction(() => {
               database.addLedgerEntry(userId, 'USER', 'Withdrawal by Dealer', amount, 0);
-              database.addLedgerEntry(dId, 'DEALER', 'User withdrawal credit: ' + userId, 0, amount);
+              database.addLedgerEntry(req.user!.id, 'DEALER', 'User withdrawal credit: ' + userId, 0, amount);
           });
           res.json({ message: "Success" });
       } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
   app.put('/api/dealer/users/:id/toggle-restriction', authMiddleware, (req: AuthRequest, res) => {
-      if (req.user!.role !== 'DEALER' && req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      const dId = getDealerId(req);
-      try { res.json(database.toggleUserRestrictionByDealer(req.params.id, dId)); }
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
+      try { res.json(database.toggleUserRestrictionByDealer(req.params.id, req.user!.id)); }
       catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   app.put('/api/dealer/profile', authMiddleware, (req: AuthRequest, res) => {
-      if (req.user!.role !== 'DEALER' && req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      const dId = getDealerId(req);
-      try { res.json(database.updateDealerProfile(dId, req.body)); }
+      if (req.user!.role !== 'DEALER') return res.sendStatus(403);
+      try { res.json(database.updateDealerProfile(req.user!.id, req.body)); }
       catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
@@ -341,13 +325,13 @@ async function startServer() {
 
   app.post('/api/admin/games/:id/declare-winner', authMiddleware, (req: AuthRequest, res) => {
       if (req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      try { res.json(database.declareWinnerForGame(req.params.id, req.body.winningNumber, req.user!.name)); }
+      try { res.json(database.declareWinnerForGame(req.params.id, req.body.winningNumber)); }
       catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
   app.put('/api/admin/games/:id/update-winner', authMiddleware, (req: AuthRequest, res) => {
       if (req.user!.role !== 'ADMIN') return res.sendStatus(403);
-      try { res.json(database.updateWinningNumber(req.params.id, req.body.newWinningNumber, req.user!.name)); }
+      try { res.json(database.updateWinningNumber(req.params.id, req.body.newWinningNumber)); }
       catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
