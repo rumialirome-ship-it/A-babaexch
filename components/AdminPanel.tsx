@@ -1569,9 +1569,10 @@ interface AdminPanelProps {
   }) => Promise<void>;
   updateGameDrawTime: (gameId: string, newDrawTime: string) => Promise<void>;
   onRefreshData?: () => Promise<void>;
+  onStartImpersonation?: (dealerId: string) => void;
 }
 
-const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData }) => {
+const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, onUpdateAdmin, users, setUsers, games, bets, declareWinner, updateWinner, approvePayouts, topUpDealerWallet, withdrawFromDealerWallet, toggleAccountRestriction, onPlaceAdminBets, updateGameDrawTime, onRefreshData, onStartImpersonation }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDealer, setSelectedDealer] = useState<Dealer | undefined>(undefined);
@@ -1590,6 +1591,32 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
   const { fetchWithAuth } = useAuth();
   const [isRefreshingManual, setIsRefreshingManual] = useState(false);
+
+  // Audit Logs state
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  const fetchAuditLogs = async () => {
+    try {
+      setLoadingLogs(true);
+      const response = await fetchWithAuth('/api/admin/audit-logs');
+      if (response.ok) {
+        const data = await response.json();
+        data.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setAuditLogs(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch audit logs', e);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      fetchAuditLogs();
+    }
+  }, [activeTab]);
 
   // User management modal state
   const [isUserEditModalOpen, setIsUserEditModalOpen] = useState(false);
@@ -1794,6 +1821,7 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
     { id: 'limits', label: 'Protocol', icon: <Icons.shield className="w-4 h-4" /> }, 
     { id: 'bettingSheet', label: 'Search', icon: <Icons.search className="w-4 h-4" /> }, 
     { id: 'history', label: 'Ledger', icon: <Icons.bookOpen className="w-4 h-4" /> },
+    { id: 'audit', label: 'Audit Logs', icon: <Icons.bookOpen className="w-4 h-4" /> },
     { id: 'settings', label: 'Core', icon: <Icons.settings className="w-4 h-4" /> },
   ];
 
@@ -1884,6 +1912,74 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                 {activeTab === 'numberSummary' && <NumberSummaryView games={games} dealers={dealers} users={users} onPlaceAdminBets={onPlaceAdminBets} />}
                 {activeTab === 'limits' && <NumberLimitsView />}
                 {activeTab === 'settings' && <SystemSettingsForm admin={admin} onSave={onUpdateAdmin} />}
+                {activeTab === 'audit' && (
+                  <div className="space-y-8">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="space-y-1">
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Audit Logs Matrix</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Authorized Action Records &amp; Session Tracks</p>
+                      </div>
+                      <button 
+                        onClick={fetchAuditLogs}
+                        disabled={loadingLogs}
+                        className="px-6 py-3.5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest transition-all border border-white/10"
+                      >
+                        {loadingLogs ? 'Syncing...' : 'Reload Logs'}
+                      </button>
+                    </div>
+
+                    <div className="glass-morphism rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl relative">
+                      <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left min-w-[800px]">
+                          <thead className="bg-slate-950/50 border-b border-white/5">
+                            <tr>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Timestamp</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Initiator (Admin ID)</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Target (Dealer ID)</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Action Event</th>
+                              <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Context Details</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {auditLogs.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="p-12 text-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
+                                  No records logged in current operational window
+                                </td>
+                              </tr>
+                            ) : (
+                              auditLogs.map((log, idx) => (
+                                <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
+                                  <td className="p-6 text-slate-400 font-mono text-[11px]">
+                                    {new Date(log.timestamp).toLocaleString()}
+                                  </td>
+                                  <td className="p-6">
+                                    <span className="text-xs font-black text-white bg-cyan-500/10 text-cyan-400 px-3 py-1 rounded-lg border border-cyan-500/10 font-mono">
+                                      {log.adminId}
+                                    </span>
+                                  </td>
+                                  <td className="p-6">
+                                    <span className="text-xs font-black text-white bg-amber-500/10 text-amber-400 px-3 py-1 rounded-lg border border-amber-500/10 font-mono">
+                                      {log.dealerId}
+                                    </span>
+                                  </td>
+                                  <td className="p-6 text-sm font-bold text-white uppercase tracking-tight">
+                                    {log.action}
+                                  </td>
+                                  <td className="p-6 max-w-sm">
+                                    <div className="text-[10px] text-slate-400 font-mono overflow-x-auto custom-scrollbar bg-slate-950/50 p-3 rounded-xl border border-white/5 font-medium whitespace-pre-wrap max-h-24">
+                                      {JSON.stringify(log.details, null, 2)}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {activeTab === 'history' && (
                   <div className="space-y-8">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -2029,6 +2125,15 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                 </td>
                                   <td className="p-6">
                                   <div className="flex items-center justify-center gap-2">
+                                    {onStartImpersonation && (
+                                      <button 
+                                        onClick={() => onStartImpersonation(dealer.id)} 
+                                        title="Access Dealer Panel (View/Manage)"
+                                        className="w-10 h-10 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 flex items-center justify-center transition-all border border-amber-500/20"
+                                      >
+                                        <Icons.moveUpRight className="w-4 h-4" />
+                                      </button>
+                                    )}
                                     <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5"><Icons.edit className="w-4 h-4" /></button>
                                     <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10"><Icons.bookOpen className="w-4 h-4" /></button>
                                     <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${dealer.isRestricted ? 'bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 hover:bg-red-500/10 text-red-400 border-red-500/10'}`}>

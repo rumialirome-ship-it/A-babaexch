@@ -109,6 +109,33 @@ const AppContent: React.FC = () => {
     const [bets, setBets] = useState<Bet[]>([]);
     const [hasInitialFetched, setHasInitialFetched] = useState(false);
     
+    // Impersonation state
+    const [impersonateDealerId, setImpersonateDealerId] = useState<string | null>(localStorage.getItem('impersonateDealerId'));
+
+    const onStartImpersonation = useCallback(async (dealerId: string) => {
+        localStorage.setItem('impersonateDealerId', dealerId);
+        setImpersonateDealerId(dealerId);
+        try {
+            await fetchWithAuth('/api/admin/log-action', {
+                method: 'POST',
+                body: JSON.stringify({
+                    dealerId,
+                    action: 'Accessed Dealer Panel',
+                    details: { timestamp: new Date().toISOString() }
+                })
+            });
+        } catch (e) {
+            console.error('Failed to log audit action', e);
+        }
+        fetchPrivateData();
+    }, [fetchWithAuth, fetchPrivateData]);
+
+    const onStopImpersonation = useCallback(() => {
+        localStorage.removeItem('impersonateDealerId');
+        setImpersonateDealerId(null);
+        fetchPrivateData();
+    }, [fetchPrivateData]);
+    
     const [activeReveal, setActiveReveal] = useState<{ name: string; number: string } | null>(null);
     const lastGamesRef = useRef<Game[]>([]);
 
@@ -344,21 +371,57 @@ const AppContent: React.FC = () => {
                             />
                         )}
                         {role === Role.Admin && (
-                            <AdminPanel 
-                                admin={account as Admin} dealers={dealers} 
-                                onSaveDealer={onSaveDealer} 
-                                onUpdateAdmin={onUpdateAdmin}
-                                users={users} setUsers={setUsers} games={games} bets={bets} 
-                                declareWinner={declareWinner}
-                                updateWinner={updateWinner}
-                                approvePayouts={approvePayouts}
-                                topUpDealerWallet={topUpDealerWallet}
-                                withdrawFromDealerWallet={withdrawFromDealerWallet}
-                                toggleAccountRestriction={toggleAccountRestriction}
-                                onPlaceAdminBets={onPlaceAdminBets}
-                                updateGameDrawTime={updateGameDrawTime}
-                                onRefreshData={fetchPrivateData} 
-                            />
+                            impersonateDealerId && dealers.find(d => d.id === impersonateDealerId) ? (
+                                <div className="flex flex-col">
+                                    <div className="bg-amber-500/10 border-b border-amber-500/20 py-3.5 px-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-amber-200">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                                            <span className="text-[11px] font-black uppercase tracking-widest">
+                                                Active Session Impersonation: Managing <span className="text-white font-mono bg-amber-500/20 px-2.5 py-1 rounded-xl">{dealers.find(d => d.id === impersonateDealerId)?.name} ({impersonateDealerId})</span>
+                                            </span>
+                                        </div>
+                                        <motion.button 
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={onStopImpersonation}
+                                            className="px-5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/10 cursor-pointer"
+                                        >
+                                            Return to Headquarters
+                                        </motion.button>
+                                    </div>
+                                    <DealerPanel 
+                                        dealer={dealers.find(d => d.id === impersonateDealerId) as Dealer} 
+                                        users={users.filter(u => u.dealerId === impersonateDealerId)} 
+                                        onSaveUser={onSaveUser} 
+                                        onDeleteUser={onDeleteUser}
+                                        topUpUserWallet={topUpUserWallet} 
+                                        withdrawFromUserWallet={withdrawFromUserWallet} 
+                                        toggleAccountRestriction={toggleAccountRestriction} 
+                                        bets={bets.filter(b => b.dealerId === impersonateDealerId)} 
+                                        games={games} 
+                                        placeBetAsDealer={placeBetAsDealer} 
+                                        isLoaded={hasInitialFetched}
+                                        onUpdateDealerProfile={onUpdateDealerProfile}
+                                    />
+                                </div>
+                            ) : (
+                                <AdminPanel 
+                                    admin={account as Admin} dealers={dealers} 
+                                    onSaveDealer={onSaveDealer} 
+                                    onUpdateAdmin={onUpdateAdmin}
+                                    users={users} setUsers={setUsers} games={games} bets={bets} 
+                                    declareWinner={declareWinner}
+                                    updateWinner={updateWinner}
+                                    approvePayouts={approvePayouts}
+                                    topUpDealerWallet={topUpDealerWallet}
+                                    withdrawFromDealerWallet={withdrawFromDealerWallet}
+                                    toggleAccountRestriction={toggleAccountRestriction}
+                                    onPlaceAdminBets={onPlaceAdminBets}
+                                    updateGameDrawTime={updateGameDrawTime}
+                                    onRefreshData={fetchPrivateData} 
+                                    onStartImpersonation={onStartImpersonation}
+                                />
+                            )
                         )}
                     </main>
                 </>
