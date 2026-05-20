@@ -878,7 +878,6 @@ const DashboardView = React.memo<{ summary: FinancialSummary | null; admin: Admi
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Market</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Inflow Stake</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Payouts</th>
-                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Dealer Margin</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Commissions</th>
                                     <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Net Liquidity</th>
                                 </tr>
@@ -898,7 +897,6 @@ const DashboardView = React.memo<{ summary: FinancialSummary | null; admin: Admi
                                         </td>
                                         <td className="p-6 text-right font-mono text-white text-xs">{game.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                         <td className="p-6 text-right font-mono text-amber-500/80 text-xs">{game.totalPayouts.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                        <td className="p-6 text-right font-mono text-emerald-500/80 text-xs">{game.totalDealerProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                         <td className="p-6 text-right font-mono text-sky-500/80 text-xs">{game.totalCommissions.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                         <td className={`p-6 text-right font-mono font-black text-sm ${game.netProfit >= 0 ? "text-emerald-400" : "text-red-400"} group-hover:scale-110 transition-transform origin-right`}>
                                             {game.netProfit >= 0 ? '+' : ''}{game.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -911,7 +909,6 @@ const DashboardView = React.memo<{ summary: FinancialSummary | null; admin: Admi
                                     <td className="p-6 text-[10px] uppercase tracking-[0.2em] font-black">Architecture Aggregate</td>
                                     <td className="p-6 text-right font-mono text-sm">{summary.totals.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                     <td className="p-6 text-right font-mono text-sm text-amber-400">{summary.totals.totalPayouts.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                    <td className="p-6 text-right font-mono text-sm text-emerald-400">{summary.totals.totalDealerProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                     <td className="p-6 text-right font-mono text-sm text-sky-400">{summary.totals.totalCommissions.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                     <td className={`p-6 text-right font-mono text-base ${summary.totals.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>{summary.totals.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                 </tr>
