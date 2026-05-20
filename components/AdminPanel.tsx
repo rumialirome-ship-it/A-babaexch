@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Dealer, User, Game, PrizeRates, LedgerEntry, Bet, NumberLimit, SubGameType, Admin } from '../types';
 import { Icons, GAME_LOGOS } from '../constants';
 import { useAuth } from '../hooks/useAuth';
-import { UserForm } from './DealerPanel'; // Import UserForm to reuse it
+import { UserForm } from './UserForm'; // Import UserForm to reuse it
 
 // --- TYPE DEFINITIONS ---
 interface GameSummary {
