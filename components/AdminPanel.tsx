@@ -2142,14 +2142,14 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                               maxLength={1} 
                                               value={winningNumbers[game.id] || ''} 
                                               onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} 
-                                              className="flex-grow bg-slate-950 p-3 border border-white/10 rounded-xl text-center font-black text-xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
+                                              className="w-0 flex-grow bg-slate-950 p-3 border border-white/10 rounded-xl text-center font-black text-xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
                                               placeholder="0" 
                                             />
                                             <motion.button 
                                               whileHover={{ scale: 1.05 }}
                                               whileTap={{ scale: 0.95 }}
                                               onClick={() => handleDeclareWinner(game.id, game.name)} 
-                                              className="px-6 rounded-xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 whitespace-nowrap"
+                                              className="flex-shrink-0 px-6 py-3 rounded-xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 whitespace-nowrap flex items-center justify-center hover:bg-cyan-400 transition-colors"
                                             >
                                               Commit Close
                                             </motion.button>
@@ -2182,14 +2182,14 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                       maxLength={isAK ? 1 : (isAKC ? 1 : 2)} 
                                       value={winningNumbers[game.id] || ''} 
                                       onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} 
-                                      className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
+                                      className="w-0 flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
                                       placeholder={isAK || isAKC ? '0' : '00'} 
                                     />
                                     <motion.button 
                                       whileHover={{ scale: 1.05 }}
                                       whileTap={{ scale: 0.95 }}
                                       onClick={() => handleDeclareWinner(game.id, game.name)} 
-                                      className="px-6 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20"
+                                      className="flex-shrink-0 px-6 py-4 rounded-2xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 whitespace-nowrap flex items-center justify-center hover:bg-cyan-400 transition-colors"
                                     >
                                       Commit
                                     </motion.button>
