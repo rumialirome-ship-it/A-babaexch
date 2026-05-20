@@ -379,43 +379,6 @@ async function startServer() {
       } catch (e) { res.status(500).json({ message: "AI error" }); }
   });
 
-  // --- ADMIN AUDIT LOGS ENDPOINTS ---
-  app.get('/api/admin/audit-logs', authMiddleware, (req: AuthRequest, res) => {
-      // Check if user is strictly ADMIN (can be authenticated directly or via token checking)
-      // Since req.user holds DECOED info, wait: under impersonation, req.user role is overwritten to DEALER.
-      // But we want to ensure only actual Admins can read audit logs!
-      // Since audit logs are only accessed under Admin context (where there is no active impersonation header sent), req.user is correct.
-      // But to be absolutely secure, we check if the request comes from an Admin or if they have an adminId in their impersonated user object.
-      const isOriginalAdmin = req.user && (req.user.role === 'ADMIN' || req.user.adminId);
-      if (!isOriginalAdmin) return res.sendStatus(403);
-
-      try {
-          const logsPath = path.join(process.cwd(), 'audit_logs.json');
-          if (fs.existsSync(logsPath)) {
-              res.json(JSON.parse(fs.readFileSync(logsPath, 'utf-8')));
-          } else {
-              res.json([]);
-          }
-      } catch (e: any) {
-          res.status(500).json({ message: e.message });
-      }
-  });
-
-  app.post('/api/admin/log-action', authMiddleware, (req: AuthRequest, res) => {
-      const isOriginalAdmin = req.user && (req.user.role === 'ADMIN' || req.user.adminId);
-      if (!isOriginalAdmin) return res.sendStatus(403);
-
-      try {
-          const { dealerId, action, details } = req.body;
-          const { logAdminAction } = require('./server/authMiddleware');
-          const finalAdminId = req.user!.adminId || req.user!.id;
-          logAdminAction(finalAdminId, dealerId, action, details || {});
-          res.json({ success: true });
-      } catch (e: any) {
-          res.status(500).json({ message: e.message });
-      }
-  });
-
   // Vite middleware for development
   if (!isProd) {
     const vite = await createViteServer({
