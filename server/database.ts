@@ -279,9 +279,7 @@ export const approvePayoutsForGame = (gameId: string) => {
 
 export const getFinancialSummary = () => {
     try {
-        const finalizedGames = db.prepare('SELECT * FROM games WHERE winningNumber IS NOT NULL AND winningNumber NOT LIKE "%\_"').all() as any[];
-        const partialGames = db.prepare('SELECT * FROM games WHERE winningNumber LIKE "%\_"').all() as any[];
-        const games = [...finalizedGames, ...partialGames];
+        const games = db.prepare('SELECT * FROM games').all() as any[];
         
         const allUsers = Object.fromEntries(getAllFromTable('users').map(u => [u.id, u]));
         const allDealers = Object.fromEntries(getAllFromTable('dealers').map(d => [d.id, d]));

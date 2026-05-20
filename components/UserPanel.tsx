@@ -374,11 +374,10 @@ const BetHistoryView = React.memo<{ bets: Bet[], games: Game[], user: User }>(({
                                     </td>
                                     <td className="p-4">
                                         <div className="text-[10px] font-black uppercase text-slate-400 mb-1">{bet.subGameType}</div>
-                                        <div className="flex flex-wrap gap-1">
-                                            {bet.numbers.slice(0, 5).map((n, i) => (
-                                                <span key={i} className="text-[10px] font-mono text-slate-500 bg-white/5 border border-white/5 px-1 rounded">{n}</span>
+                                        <div className="flex flex-wrap gap-1 max-w-[280px] sm:max-w-[400px] xl:max-w-none">
+                                            {bet.numbers.map((n, i) => (
+                                                <span key={i} className="text-[10px] font-mono text-slate-300 bg-white/10 border border-white/5 px-1.5 py-0.5 rounded shadow-sm inline-block">{n}</span>
                                             ))}
-                                            {bet.numbers.length > 5 && <span className="text-[10px] text-slate-600">+{bet.numbers.length - 5}</span>}
                                         </div>
                                     </td>
                                     <td className="p-4 text-right text-xs text-white font-mono">Rs {bet.totalAmount.toFixed(2)}</td>

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dealer, User, PrizeRates, LedgerEntry, BetLimits, Bet, Game, SubGameType } from '../types';
-import { Icons } from '../constants';
+import { Icons, GAME_LOGOS } from '../constants';
 import { useCountdown } from '../hooks/useCountdown';
 
 const getTodayDateString = () => new Date().toISOString().split('T')[0];
@@ -441,7 +441,7 @@ const DealerPanel = React.memo<DealerPanelProps>(({
     topUpUserWallet, withdrawFromUserWallet, toggleAccountRestriction, 
     bets, games, placeBetAsDealer, isLoaded = false 
 }) => {
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('monitor');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
@@ -465,6 +465,7 @@ const DealerPanel = React.memo<DealerPanelProps>(({
   }, [safeUsers, searchQuery]);
 
   const tabs = [
+    { id: 'monitor', label: 'Monitor', icon: <Icons.activity className="w-4 h-4" /> },
     { id: 'users', label: 'Users', icon: <Icons.userGroup className="w-4 h-4" /> },
     { id: 'terminal', label: 'Terminal', icon: <Icons.clipboardList className="w-4 h-4" /> },
     { id: 'wallet', label: 'Wallet', icon: <Icons.wallet className="w-4 h-4" /> },
@@ -534,6 +535,7 @@ const DealerPanel = React.memo<DealerPanelProps>(({
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.4 }}
         >
+            {activeTab === 'monitor' && <DealerMonitorView bets={bets} games={games} users={safeUsers} />}
             {activeTab === 'users' && (
                 <div className="space-y-8">
                    <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-6">
@@ -714,6 +716,242 @@ const DealerPanel = React.memo<DealerPanelProps>(({
       )}
     </div>
   );
+});
+
+const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[] }>(({ bets, games, users }) => {
+    const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+
+    // Calculate monitor aggregate data
+    const gameStats = useMemo(() => {
+        return games.map(game => {
+            const gameBets = bets.filter(b => b.gameId === game.id);
+            const totalStake = gameBets.reduce((sum, b) => sum + b.totalAmount, 0);
+            const totalBets = gameBets.length;
+            const uniqueUsers = new Set(gameBets.map(b => b.userId));
+            const activePlayersCount = uniqueUsers.size;
+
+            return {
+                ...game,
+                totalStake,
+                totalBets,
+                activePlayersCount,
+                bets: gameBets
+            };
+        }).sort((a, b) => b.totalStake - a.totalStake); 
+    }, [games, bets]);
+
+    const aggregateStats = useMemo(() => {
+        const totalStake = bets.reduce((sum, b) => sum + b.totalAmount, 0);
+        const totalBets = bets.length;
+        const totalActivePlayers = new Set(bets.map(b => b.userId)).size;
+        return { totalStake, totalBets, totalActivePlayers };
+    }, [bets]);
+
+    const selectedGameDetails = useMemo(() => {
+        if (!selectedGameId) return null;
+        const gStat = gameStats.find(g => g.id === selectedGameId);
+        if (!gStat) return null;
+
+        const userGroupMap: Record<string, { totalAmount: number; betsCount: number; userId: string; userName: string }> = {};
+        
+        gStat.bets.forEach(bet => {
+            if (!userGroupMap[bet.userId]) {
+                const user = users.find(u => u.id === bet.userId);
+                userGroupMap[bet.userId] = {
+                    userId: bet.userId,
+                    userName: user?.name || bet.userId,
+                    totalAmount: 0,
+                    betsCount: 0
+                };
+            }
+            userGroupMap[bet.userId].totalAmount += bet.totalAmount;
+            userGroupMap[bet.userId].betsCount += 1;
+        });
+
+        const usersBreakdown = Object.values(userGroupMap).sort((a, b) => b.totalAmount - a.totalAmount);
+
+        return {
+            game: gStat,
+            usersBreakdown
+        };
+    }, [selectedGameId, gameStats, users]);
+
+    return (
+        <div className="space-y-12">
+            {/* Top Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <motion.div 
+                    whileHover={{ scale: 1.01 }}
+                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-all" />
+                    <div className="relative z-10 flex items-center gap-4">
+                        <div className="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-400">
+                            <Icons.trendingUp className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Your Network Inflow Stake</p>
+                            <p className="text-2xl font-black font-mono text-emerald-400">Rs {aggregateStats.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        </div>
+                    </div>
+                </motion.div>
+                <motion.div 
+                    whileHover={{ scale: 1.01 }}
+                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-all" />
+                    <div className="relative z-10 flex items-center gap-4">
+                        <div className="p-3.5 rounded-2xl bg-cyan-500/10 text-cyan-400">
+                            <Icons.clipboardList className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Placed Bets</p>
+                            <p className="text-2xl font-black font-mono text-white">{aggregateStats.totalBets.toLocaleString()}</p>
+                        </div>
+                    </div>
+                </motion.div>
+                <motion.div 
+                    whileHover={{ scale: 1.01 }}
+                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-all" />
+                    <div className="relative z-10 flex items-center gap-4">
+                        <div className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-400">
+                            <Icons.userGroup className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Active Network Players</p>
+                            <p className="text-2xl font-black font-mono text-amber-400">{aggregateStats.totalActivePlayers}</p>
+                        </div>
+                    </div>
+                </motion.div>
+            </div>
+
+            {/* main body with Market Performance Matrix and breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <div className={`${selectedGameId ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-6 transition-all duration-300`}>
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-xl font-black text-white uppercase tracking-tighter">My Markets Matrix</h3>
+                        <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-white/5 px-4 py-1.5 rounded-full border border-white/5">Dealer Performance Stream</div>
+                    </div>
+
+                    <div className="glass-morphism rounded-[2rem] overflow-hidden border border-white/5 shadow-2xl">
+                        <div className="overflow-x-auto custom-scrollbar">
+                            <table className="w-full text-left min-w-[500px]">
+                                <thead className="bg-slate-950/50 border-b border-white/5">
+                                    <tr>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Market</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Inflow Stake</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Bets Played</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Players</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {gameStats.map((game, idx) => {
+                                        const isSelected = selectedGameId === game.id;
+                                        return (
+                                            <tr 
+                                                key={game.id} 
+                                                className={`transition-colors group hover:bg-white/[0.02] ${isSelected ? 'bg-emerald-500/[0.03]' : ''}`}
+                                            >
+                                                <td className="p-5">
+                                                    <div className="flex items-center gap-3">
+                                                        <img src={GAME_LOGOS[game.name] || game.logo} className="w-8 h-8 rounded-lg object-cover border border-white/10 shadow" />
+                                                        <div>
+                                                            <div className="text-sm font-black text-white tracking-tight">{game.name}</div>
+                                                            <div className="text-[9px] text-slate-500 font-mono">Draw: {game.drawTime}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-5 text-right font-mono text-emerald-400 font-black text-xs">
+                                                    Rs {game.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="p-5 text-center font-mono text-white text-xs">
+                                                    {game.totalBets}
+                                                </td>
+                                                <td className="p-5 text-center font-mono text-amber-400 text-xs">
+                                                    {game.activePlayersCount}
+                                                </td>
+                                                <td className="p-5 text-center">
+                                                    <button 
+                                                        onClick={() => setSelectedGameId(isSelected ? null : game.id)}
+                                                        className={`px-3 py-1.5 rounded-xl font-bold text-[9px] uppercase tracking-wider border transition-all ${isSelected ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/10' : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-white'}`}
+                                                    >
+                                                        {isSelected ? 'Auditing' : 'Detailed Audit'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                {selectedGameDetails && (
+                    <motion.div 
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="lg:col-span-5 space-y-6"
+                    >
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-black text-white uppercase tracking-tighter col-span-1">Client Distribution</h3>
+                            <button 
+                                onClick={() => setSelectedGameId(null)}
+                                className="text-[9px] font-black text-slate-500 hover:text-white uppercase tracking-widest flex items-center gap-1 transition-colors"
+                            >
+                                <Icons.close className="w-3 h-3" /> Close Audit
+                            </button>
+                        </div>
+
+                        <div className="glass-morphism p-6 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-6">
+                            <div className="flex items-center gap-4">
+                                <img src={GAME_LOGOS[selectedGameDetails.game.name] || selectedGameDetails.game.logo} className="w-12 h-12 rounded-xl object-cover border border-white/10 shadow-2xl" />
+                                <div>
+                                    <h4 className="text-lg font-black text-white uppercase tracking-tighter">{selectedGameDetails.game.name}</h4>
+                                    <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mt-0.5">Total Game Stake: Rs {selectedGameDetails.game.totalStake.toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                                {selectedGameDetails.usersBreakdown.length === 0 ? (
+                                    <p className="text-slate-600 font-black text-[10px] uppercase tracking-widest text-center py-12">No transactions recorded for this selected market.</p>
+                                ) : selectedGameDetails.usersBreakdown.map((item, idx) => {
+                                    const percentageOfTotal = selectedGameDetails.game.totalStake > 0 ? (item.totalAmount / selectedGameDetails.game.totalStake) * 100 : 0;
+                                    return (
+                                        <div key={item.userId} className="space-y-1 bg-slate-950/40 p-3 rounded-2xl border border-white/5">
+                                            <div className="flex justify-between items-end mb-1">
+                                                <div>
+                                                    <span className="text-[11px] font-black text-white/90 truncate capitalize tracking-tight block">{item.userName}</span>
+                                                    <span className="text-[8px] text-slate-500 font-mono block uppercase">{item.userId}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="font-mono text-emerald-400 font-black text-xs block">Rs {item.totalAmount.toLocaleString()}</span>
+                                                    <span className="text-[8px] text-slate-600 font-mono font-bold block">{item.betsCount} bets placed</span>
+                                                </div>
+                                            </div>
+                                            <div className="w-full bg-slate-900 rounded-full h-1 relative overflow-hidden">
+                                                <div 
+                                                    style={{ width: `${percentageOfTotal}%` }}
+                                                    className="bg-emerald-500 h-full rounded-full transition-all duration-500 ease-out" 
+                                                />
+                                            </div>
+                                            <div className="flex justify-between text-[8px] font-black text-slate-600 uppercase tracking-widest">
+                                                <span>{percentageOfTotal.toFixed(1)}% Share of Total Game</span>
+                                                <span className="text-emerald-500">{percentageOfTotal.toFixed(1)}%</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </div>
+        </div>
+    );
 });
 
 const WalletView = React.memo<{ dealer: Dealer }>(({ dealer }) => {

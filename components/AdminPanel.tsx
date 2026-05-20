@@ -893,7 +893,7 @@ const DashboardView = React.memo<{ summary: FinancialSummary | null; admin: Admi
                                     >
                                         <td className="p-6">
                                             <div className="text-sm font-black text-white tracking-tight">{game.gameName}</div>
-                                            <div className="text-[9px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-md inline-block uppercase mt-1">Result: {game.winningNumber}</div>
+                                            <div className={`text-[9px] font-mono px-2 py-0.5 rounded-md inline-block uppercase mt-1 ${game.winningNumber ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'}`}>Result: {game.winningNumber || 'Pending'}</div>
                                         </td>
                                         <td className="p-6 text-right font-mono text-white text-xs">{game.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                         <td className="p-6 text-right font-mono text-amber-500/80 text-xs">{game.totalPayouts.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -1116,8 +1116,12 @@ interface BookingData {
 
 const LiveBookingView = React.memo<{ games: Game[], users: User[], dealers: Dealer[], bets: Bet[] }>(({ games, users, dealers, bets }) => {
     const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+    const [showFinalized, setShowFinalized] = useState(false);
     
-    const ongoingGames = useMemo(() => games.filter(g => !g.winningNumber), [games]);
+    const ongoingGames = useMemo(() => {
+        if (showFinalized) return games;
+        return games.filter(g => !g.winningNumber);
+    }, [games, showFinalized]);
 
     const bookingData = useMemo(() => {
         if (!selectedGameId) return null;
@@ -1222,9 +1226,18 @@ const LiveBookingView = React.memo<{ games: Game[], users: User[], dealers: Deal
                     <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Live Traffic Analyzer</h3>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Real-time Game Booking Breakdown</p>
                 </div>
-                <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-2xl text-[10px] text-emerald-400 font-black uppercase tracking-widest animate-pulse transition-all">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50"></span>
-                    Operational Sync Active
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <button 
+                        onClick={() => setShowFinalized(!showFinalized)}
+                        className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300 flex items-center justify-center gap-2 ${showFinalized ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/15' : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-white'}`}
+                    >
+                        <Icons.eye className="w-3.5 h-3.5" />
+                        {showFinalized ? "Showing All Markets" : "Filter Finalized Markets"}
+                    </button>
+                    <div className="flex items-center justify-center gap-3 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-2xl text-[10px] text-emerald-400 font-black uppercase tracking-widest">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50 animate-pulse"></span>
+                        Operational Sync Active
+                    </div>
                 </div>
             </div>
 
@@ -2093,12 +2106,18 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                     </div>
                                   ) : (
                                     <div className="space-y-6">
-                                      <div className="flex items-end justify-between">
-                                        <div>
+                                      <div className="flex items-center justify-between gap-4">
+                                        <div className="min-w-0 flex-grow">
                                           <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">{isAKPending ? 'Open Vector Declared' : 'Verification Required'}</p>
-                                          <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
+                                          <p className="text-4xl font-black font-mono text-white tracking-widest truncate">{game.winningNumber}</p>
                                         </div>
-                                        <button onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} className="text-slate-500 hover:text-white transition-colors"><Icons.edit className="w-4 h-4" /></button>
+                                        <button 
+                                          onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} 
+                                          className="flex-shrink-0 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-bold text-[10px] uppercase tracking-wider border border-amber-500/20 flex items-center gap-1.5 transition-all duration-200 active:scale-95"
+                                        >
+                                          <Icons.edit className="w-3.5 h-3.5" />
+                                          Correct Number
+                                        </button>
                                       </div>
                                       {!isAKPending && (
                                         <motion.button 
