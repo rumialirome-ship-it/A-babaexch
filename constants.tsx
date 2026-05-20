@@ -26,7 +26,8 @@ import {
   ArrowUpRight,
   Settings,
   Edit2,
-  AlertTriangle
+  AlertTriangle,
+  Percent
 } from 'lucide-react';
 
 const svgToBase64Text = (svg: string) => {
@@ -135,5 +136,6 @@ export const Icons = {
     moveUpRight: ArrowUpRight,
     settings: Settings,
     edit: Edit2,
-    alertTriangle: AlertTriangle
+    alertTriangle: AlertTriangle,
+    percent: Percent
 };

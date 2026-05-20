@@ -856,10 +856,11 @@ const DashboardView = React.memo<{ summary: FinancialSummary | null; admin: Admi
     
     return (
         <div className="space-y-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                 <SummaryCard title="System Reserve" value={admin.wallet} color="text-cyan-400" icon={<Icons.wallet className="w-5 h-5" />} isWallet />
                 <SummaryCard title="Flow Stake" value={summary.totals.totalStake} color="text-white" icon={<Icons.trendingUp className="w-5 h-5" />} />
                 <SummaryCard title="Payout Commit" value={summary.totals.totalPayouts} color="text-amber-400" icon={<Icons.checkCircle className="w-5 h-5" />} />
+                <SummaryCard title="Commission Detail" value={summary.totals.totalCommissions} color="text-sky-400" icon={<Icons.percent className="w-5 h-5" />} />
                 <SummaryCard title="Net Yield" value={summary.totals.netProfit} color={summary.totals.netProfit >= 0 ? "text-emerald-400" : "text-red-400"} icon={<Icons.trendingUp className="w-5 h-5" />} />
             </div>
 
@@ -1114,6 +1115,55 @@ interface BookingData {
     userData: { name: string; amount: number }[];
 }
 
+const BreakdownCard: React.FC<{ 
+    title: string; 
+    data: { name: string; amount: number }[] | { type: string; amount: number }[]; 
+    total: number; 
+    variant: 'cyan' | 'emerald' | 'amber' 
+}> = ({ title, data, total, variant }) => {
+    const colors = {
+        cyan: { bg: 'bg-cyan-500', glow: 'shadow-cyan-500/20', text: 'text-cyan-400' },
+        emerald: { bg: 'bg-emerald-500', glow: 'shadow-emerald-500/20', text: 'text-emerald-400' },
+        amber: { bg: 'bg-amber-500', glow: 'shadow-amber-500/20', text: 'text-amber-400' }
+    }[variant];
+
+    return (
+        <div className="glass-morphism p-6 rounded-[2rem] border border-white/5 h-full flex flex-col shadow-xl">
+            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${colors.bg}`} />
+                {title}
+            </h4>
+            <div className="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-4">
+                {data.length === 0 ? (
+                    <p className="text-slate-600 font-black text-[9px] uppercase tracking-widest text-center py-8">Awaiting Data...</p>
+                ) : data.map((item) => {
+                    const name = 'name' in item ? item.name : item.type;
+                    const amount = item.amount;
+                    const percentage = total > 0 ? (amount / total) * 100 : 0;
+                    return (
+                        <div key={name} className="space-y-1.5 animate-fade-in">
+                            <div className="flex justify-between items-end mb-1 px-1">
+                                <span className="text-[10px] font-black text-white/80 truncate uppercase tracking-tighter">{name}</span>
+                                <span className={`font-mono ${colors.text} font-black text-xs`}>Rs {amount.toLocaleString()}</span>
+                            </div>
+                            <div className="w-full bg-slate-900 rounded-full h-1 relative overflow-hidden">
+                                <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${percentage}%` }}
+                                    className={`${colors.bg} h-full rounded-full transition-all duration-1000 ease-out`} 
+                                />
+                            </div>
+                            <div className="flex justify-end">
+                                <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{percentage.toFixed(1)}% LOAD</span>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
 const LiveBookingView = React.memo<{ games: Game[], users: User[], dealers: Dealer[], bets: Bet[] }>(({ games, users, dealers, bets }) => {
     const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
     const [showFinalized, setShowFinalized] = useState(false);
@@ -1169,55 +1219,6 @@ const LiveBookingView = React.memo<{ games: Game[], users: User[], dealers: Deal
             userData
         } as BookingData;
     }, [selectedGameId, bets, users, dealers]);
-    
-    const BreakdownCard: React.FC<{ title: string; data: { name: string; amount: number }[] | { type: string; amount: number }[]; total: number; variant: 'cyan' | 'emerald' | 'amber' }> = ({ title, data, total, variant }) => {
-        const colors = {
-            cyan: { bg: 'bg-cyan-500', glow: 'shadow-cyan-500/20', text: 'text-cyan-400' },
-            emerald: { bg: 'bg-emerald-500', glow: 'shadow-emerald-500/20', text: 'text-emerald-400' },
-            amber: { bg: 'bg-amber-500', glow: 'shadow-amber-500/20', text: 'text-amber-400' }
-        }[variant];
-
-        return (
-            <div className="glass-morphism p-6 rounded-[2rem] border border-white/5 h-full flex flex-col shadow-xl">
-                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${colors.bg}`} />
-                    {title}
-                </h4>
-                <div className="flex-grow overflow-y-auto custom-scrollbar pr-2 space-y-4">
-                    {data.length === 0 ? (
-                        <p className="text-slate-600 font-black text-[9px] uppercase tracking-widest text-center py-8">Awaiting Data...</p>
-                    ) : data.map((item, index) => {
-                        const name = 'name' in item ? item.name : item.type;
-                        const amount = item.amount;
-                        const percentage = total > 0 ? (amount / total) * 100 : 0;
-                        return (
-                            <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: '100%' }}
-                                key={index} 
-                                className="space-y-1.5"
-                            >
-                                <div className="flex justify-between items-end mb-1 px-1">
-                                    <span className="text-[10px] font-black text-white/80 truncate uppercase tracking-tighter">{name}</span>
-                                    <span className={`font-mono ${colors.text} font-black text-xs`}>Rs {amount.toLocaleString()}</span>
-                                </div>
-                                <div className="w-full bg-slate-900 rounded-full h-1 relative overflow-hidden">
-                                    <motion.div 
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${percentage}%` }}
-                                        className={`${colors.bg} h-full rounded-full transition-all duration-1000 ease-out`} 
-                                    />
-                                </div>
-                                <div className="flex justify-end">
-                                    <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">{percentage.toFixed(1)}% LOAD</span>
-                                </div>
-                            </motion.div>
-                        );
-                    })}
-                </div>
-            </div>
-        );
-    };
 
     return (
         <div className="space-y-8">

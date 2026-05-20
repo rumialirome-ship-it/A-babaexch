@@ -535,7 +535,7 @@ const DealerPanel = React.memo<DealerPanelProps>(({
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.4 }}
         >
-            {activeTab === 'monitor' && <DealerMonitorView bets={bets} games={games} users={safeUsers} />}
+            {activeTab === 'monitor' && <DealerMonitorView bets={bets} games={games} users={safeUsers} dealer={safeDealer} />}
             {activeTab === 'users' && (
                 <div className="space-y-8">
                    <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-6">
@@ -718,7 +718,7 @@ const DealerPanel = React.memo<DealerPanelProps>(({
   );
 });
 
-const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[] }>(({ bets, games, users }) => {
+const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]; dealer: Dealer }>(({ bets, games, users, dealer }) => {
     const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
 
     // Calculate monitor aggregate data
@@ -744,8 +744,68 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
         const totalStake = bets.reduce((sum, b) => sum + b.totalAmount, 0);
         const totalBets = bets.length;
         const totalActivePlayers = new Set(bets.map(b => b.userId)).size;
-        return { totalStake, totalBets, totalActivePlayers };
-    }, [bets]);
+
+        let totalPayouts = 0;
+        let totalDealerProfit = 0;
+        let totalCommissions = 0;
+
+        const getMultiplier = (r: any, t: string) => {
+            if (!r) return 0;
+            return t === "1 Digit Open" ? (r.oneDigitOpen || 0) : t === "1 Digit Close" ? (r.oneDigitClose || 0) : (r.twoDigit || 0);
+        };
+
+        bets.forEach(bet => {
+            const user = users.find(u => u.id === bet.userId);
+            const game = games.find(g => g.id === bet.gameId);
+
+            // Network commission is immediately earned during placement
+            if (user && dealer) {
+                totalCommissions += (bet.totalAmount * (user.commissionRate / 100)) + 
+                                     (bet.totalAmount * ((dealer.commissionRate - user.commissionRate) / 100));
+            }
+
+            // Calculations are done when the winning number is complete (does not end with underscore)
+            if (game && game.winningNumber && !game.winningNumber.endsWith('_')) {
+                const winningNumber = game.winningNumber;
+                const winningNumbersInBet = bet.numbers.filter(num => {
+                    switch (bet.subGameType) {
+                        case SubGameType.OneDigitOpen:
+                            return winningNumber.length === 2 && num === winningNumber[0];
+                        case SubGameType.OneDigitClose:
+                            if (game.name === 'AKC') return num === winningNumber;
+                            return winningNumber.length === 2 && num === winningNumber[1];
+                        default: // 2 Digit, Bulk, Combo
+                            return num === winningNumber;
+                    }
+                });
+
+                if (winningNumbersInBet.length > 0) {
+                    if (user && dealer) {
+                        const userMultiplier = getMultiplier(user.prizeRates, bet.subGameType);
+                        const dealerMultiplier = getMultiplier(dealer.prizeRates, bet.subGameType);
+
+                        const payout = winningNumbersInBet.length * bet.amountPerNumber * userMultiplier;
+                        const dProfit = winningNumbersInBet.length * bet.amountPerNumber * (dealerMultiplier - userMultiplier);
+
+                        totalPayouts += payout;
+                        totalDealerProfit += dProfit;
+                    }
+                }
+            }
+        });
+
+        const netProfit = totalStake - totalPayouts - totalDealerProfit - totalCommissions;
+
+        return { 
+            totalStake, 
+            totalBets, 
+            totalActivePlayers, 
+            totalPayouts, 
+            totalDealerProfit, 
+            totalCommissions, 
+            netProfit 
+        };
+    }, [bets, games, users, dealer]);
 
     const selectedGameDetails = useMemo(() => {
         if (!selectedGameId) return null;
@@ -779,49 +839,83 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
     return (
         <div className="space-y-12">
             {/* Top Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                 <motion.div 
                     whileHover={{ scale: 1.01 }}
-                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group"
+                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group/card"
                 >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-all" />
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover/card:scale-150 transition-all duration-500" />
                     <div className="relative z-10 flex items-center gap-4">
                         <div className="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-400">
                             <Icons.trendingUp className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Your Network Inflow Stake</p>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Flow Stake</p>
                             <p className="text-2xl font-black font-mono text-emerald-400">Rs {aggregateStats.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                         </div>
                     </div>
                 </motion.div>
+
                 <motion.div 
                     whileHover={{ scale: 1.01 }}
-                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group"
+                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group/card"
                 >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-all" />
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover/card:scale-150 transition-all duration-500" />
                     <div className="relative z-10 flex items-center gap-4">
-                        <div className="p-3.5 rounded-2xl bg-cyan-500/10 text-cyan-400">
-                            <Icons.clipboardList className="w-5 h-5" />
+                        <div className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-400">
+                            <Icons.checkCircle className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Placed Bets</p>
-                            <p className="text-2xl font-black font-mono text-white">{aggregateStats.totalBets.toLocaleString()}</p>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Payout Commit</p>
+                            <p className="text-2xl font-black font-mono text-amber-400">Rs {aggregateStats.totalPayouts.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                         </div>
                     </div>
                 </motion.div>
+
                 <motion.div 
                     whileHover={{ scale: 1.01 }}
-                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group"
+                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group/card"
                 >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-all" />
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover/card:scale-150 transition-all duration-500" />
                     <div className="relative z-10 flex items-center gap-4">
-                        <div className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-400">
+                        <div className={`p-3.5 rounded-2xl ${aggregateStats.netProfit >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                            <Icons.trendingUp className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Net Yield</p>
+                            <p className={`text-2xl font-black font-mono ${aggregateStats.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>Rs {aggregateStats.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        </div>
+                    </div>
+                </motion.div>
+
+                <motion.div 
+                    whileHover={{ scale: 1.01 }}
+                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group/card"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover/card:scale-150 transition-all duration-500" />
+                    <div className="relative z-10 flex items-center gap-4">
+                        <div className="p-3.5 rounded-2xl bg-sky-500/10 text-sky-400">
+                            <Icons.percent className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Commission</p>
+                            <p className="text-2xl font-black font-mono text-sky-400">Rs {aggregateStats.totalCommissions.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        </div>
+                    </div>
+                </motion.div>
+
+                <motion.div 
+                    whileHover={{ scale: 1.01 }}
+                    className="glass-morphism p-6 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group/card"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 blur-3xl rounded-full -mr-12 -mt-12 group-hover/card:scale-150 transition-all duration-500" />
+                    <div className="relative z-10 flex items-center gap-4">
+                        <div className="p-3.5 rounded-2xl bg-cyan-500/10 text-cyan-400">
                             <Icons.userGroup className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Active Network Players</p>
-                            <p className="text-2xl font-black font-mono text-amber-400">{aggregateStats.totalActivePlayers}</p>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Network Traffic</p>
+                            <p className="text-2xl font-black font-mono text-white">{aggregateStats.totalActivePlayers} <span className="text-xs font-normal text-slate-500 uppercase tracking-tighter">Players</span></p>
                         </div>
                     </div>
                 </motion.div>
