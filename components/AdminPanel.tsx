@@ -1655,28 +1655,30 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
 
   const handleDeclareWinner = (gameId: string, gameName: string) => {
     const num = winningNumbers[gameId];
-    const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
-    const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
+    const isAK = gameName === 'AK';
+    const isAKC = gameName === 'AKC';
+    const isValid = num && !isNaN(parseInt(num)) && ((isAK || isAKC) ? num.length === 1 : num.length === 2);
 
     if (isValid) {
         declareWinner(gameId, num);
         setWinningNumbers(prev => ({...prev, [gameId]: ''}));
     } else {
-        alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
+        alert(`Please enter a valid ${isAK || isAKC ? '1-digit' : '2-digit'} number.`);
     }
   };
 
   const handleUpdateWinner = (gameId: string, gameName: string) => {
-    const isSingleDigitGame = gameName === 'AK' || gameName === 'AKC';
     if (editingGame) {
         const num = editingGame.number;
-        const isValid = num && !isNaN(parseInt(num)) && (isSingleDigitGame ? num.length === 1 : num.length === 2);
+        const isAK = gameName === 'AK';
+        const isAKC = gameName === 'AKC';
+        const isValid = num && !isNaN(parseInt(num)) && (isAK ? (num.length === 1 || num.length === 2) : isAKC ? num.length === 1 : num.length === 2);
 
         if (isValid) {
             updateWinner(gameId, num);
             setEditingGame(null);
         } else {
-            alert(`Please enter a valid ${isSingleDigitGame ? '1-digit' : '2-digit'} number.`);
+            alert(`Please enter a valid ${isAK ? '1 or 2-digit' : isAKC ? '1-digit' : '2-digit'} number.`);
         }
     }
   };
@@ -2084,12 +2086,18 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
 
                             <div className="space-y-6 relative z-10">
                               {game.winningNumber ? (
-                                <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5">
+                                <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5 space-y-4">
                                   {editingGame?.id === game.id ? (
                                     <div className="space-y-4">
                                       <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Dealer Re-calibration</p>
                                       <div className="flex gap-2">
-                                        <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" />
+                                        <input 
+                                          type="text" 
+                                          maxLength={isAK ? 2 : (isAKC ? 1 : 2)} 
+                                          value={editingGame.number} 
+                                          onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} 
+                                          className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
+                                        />
                                         <button onClick={() => handleUpdateWinner(game.id, game.name)} className="px-6 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20">Save</button>
                                       </div>
                                       <button onClick={() => setEditingGame(null)} className="w-full py-3 rounded-2xl bg-white/5 text-slate-400 font-black text-[10px] uppercase tracking-widest border border-white/5">Discard</button>
@@ -2107,16 +2115,48 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                               <span className="text-yellow-500 flex items-center gap-1">● Verification Required</span>
                                             )}
                                           </p>
-                                          <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
+                                          {isAKPending ? (
+                                            <div className="flex items-center gap-2">
+                                              <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber.slice(0, 1)}</p>
+                                              <span className="text-2xl font-black text-amber-400 font-mono animate-pulse">_</span>
+                                            </div>
+                                          ) : (
+                                            <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
+                                          )}
                                         </div>
                                         <button 
-                                          onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} 
+                                          onClick={() => setEditingGame({ id: game.id, number: isAK ? (game.winningNumber!.endsWith('_') ? game.winningNumber!.slice(0, 1) : game.winningNumber!) : game.winningNumber! })} 
                                           className="w-full sm:w-auto flex-shrink-0 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-bold text-[10px] uppercase tracking-wider border border-amber-500/20 flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95"
                                         >
                                           <Icons.edit className="w-3.5 h-3.5" />
                                           Correct Number
                                         </button>
                                       </div>
+
+                                      {isAKPending && (
+                                        <div className="pt-4 border-t border-white/5 space-y-3">
+                                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Declare Close Digit</p>
+                                          <div className="flex gap-2">
+                                            <input 
+                                              type="text" 
+                                              maxLength={1} 
+                                              value={winningNumbers[game.id] || ''} 
+                                              onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} 
+                                              className="flex-grow bg-slate-950 p-3 border border-white/10 rounded-xl text-center font-black text-xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
+                                              placeholder="0" 
+                                            />
+                                            <motion.button 
+                                              whileHover={{ scale: 1.05 }}
+                                              whileTap={{ scale: 0.95 }}
+                                              onClick={() => handleDeclareWinner(game.id, game.name)} 
+                                              className="px-6 rounded-xl bg-cyan-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-500/20 whitespace-nowrap"
+                                            >
+                                              Commit Close
+                                            </motion.button>
+                                          </div>
+                                        </div>
+                                      )}
+
                                       {!game.payoutsApproved && !isAKPending && (
                                         <motion.button 
                                           whileHover={{ scale: 1.02 }}
@@ -2133,9 +2173,18 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                 </div>
                               ) : (
                                 <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5 space-y-4">
-                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Declare Game Result</p>
+                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                                    {isAK ? 'Declare Open Digit' : 'Declare Game Result'}
+                                  </p>
                                   <div className="flex gap-2">
-                                    <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={winningNumbers[game.id] || ''} onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" placeholder={isSingleDigitGame ? '0' : '00'} />
+                                    <input 
+                                      type="text" 
+                                      maxLength={isAK ? 1 : (isAKC ? 1 : 2)} 
+                                      value={winningNumbers[game.id] || ''} 
+                                      onChange={(e) => setWinningNumbers({...winningNumbers, [game.id]: e.target.value.replace(/\D/g, '')})} 
+                                      className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" 
+                                      placeholder={isAK || isAKC ? '0' : '00'} 
+                                    />
                                     <motion.button 
                                       whileHover={{ scale: 1.05 }}
                                       whileTap={{ scale: 0.95 }}
