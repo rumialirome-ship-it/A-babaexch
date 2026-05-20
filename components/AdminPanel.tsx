@@ -2085,41 +2085,39 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                             <div className="space-y-6 relative z-10">
                               {game.winningNumber ? (
                                 <div className="bg-slate-950/50 p-6 rounded-3xl border border-white/5">
-                                  {game.payoutsApproved ? (
-                                    <div className="flex items-center justify-between">
-                                      <div>
-                                        <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Audit Complete</p>
-                                        <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
-                                      </div>
-                                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
-                                        <Icons.checkCircle className="w-6 h-6" />
-                                      </div>
-                                    </div>
-                                  ) : editingGame?.id === game.id ? (
+                                  {editingGame?.id === game.id ? (
                                     <div className="space-y-4">
                                       <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Dealer Re-calibration</p>
                                       <div className="flex gap-2">
                                         <input type="text" maxLength={isSingleDigitGame ? 1 : 2} value={editingGame.number} onChange={(e) => setEditingGame({...editingGame, number: e.target.value.replace(/\D/g, '')})} className="flex-grow bg-slate-950 p-4 border border-white/10 rounded-2xl text-center font-black text-2xl text-white font-mono focus:ring-2 focus:ring-cyan-500/50" />
                                         <button onClick={() => handleUpdateWinner(game.id, game.name)} className="px-6 rounded-2xl bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20">Save</button>
                                       </div>
-                                      <button onClick={() => setEditingGame(null)} className="w-full py-3 rounded-2xl bg-white/5 text-slate-500 font-black text-[10px] uppercase tracking-widest border border-white/5">Discard</button>
+                                      <button onClick={() => setEditingGame(null)} className="w-full py-3 rounded-2xl bg-white/5 text-slate-400 font-black text-[10px] uppercase tracking-widest border border-white/5">Discard</button>
                                     </div>
                                   ) : (
                                     <div className="space-y-6">
-                                      <div className="flex items-center justify-between gap-4">
-                                        <div className="min-w-0 flex-grow">
-                                          <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">{isAKPending ? 'Open Vector Declared' : 'Verification Required'}</p>
-                                          <p className="text-4xl font-black font-mono text-white tracking-widest truncate">{game.winningNumber}</p>
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <div className="min-w-0">
+                                          <p className="text-[9px] font-black uppercase tracking-widest mb-1">
+                                            {game.payoutsApproved ? (
+                                              <span className="text-emerald-400 flex items-center gap-1">● Audit Complete (Paid)</span>
+                                            ) : isAKPending ? (
+                                              <span className="text-amber-400 flex items-center gap-1">● Open Vector Declared</span>
+                                            ) : (
+                                              <span className="text-yellow-500 flex items-center gap-1">● Verification Required</span>
+                                            )}
+                                          </p>
+                                          <p className="text-4xl font-black font-mono text-white tracking-widest">{game.winningNumber}</p>
                                         </div>
                                         <button 
                                           onClick={() => setEditingGame({ id: game.id, number: isAK ? game.winningNumber!.slice(0, 1) : game.winningNumber! })} 
-                                          className="flex-shrink-0 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-bold text-[10px] uppercase tracking-wider border border-amber-500/20 flex items-center gap-1.5 transition-all duration-200 active:scale-95"
+                                          className="w-full sm:w-auto flex-shrink-0 px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-bold text-[10px] uppercase tracking-wider border border-amber-500/20 flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95"
                                         >
                                           <Icons.edit className="w-3.5 h-3.5" />
                                           Correct Number
                                         </button>
                                       </div>
-                                      {!isAKPending && (
+                                      {!game.payoutsApproved && !isAKPending && (
                                         <motion.button 
                                           whileHover={{ scale: 1.02 }}
                                           whileTap={{ scale: 0.98 }}
