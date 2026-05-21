@@ -725,11 +725,18 @@ const DealerTransactionForm = React.memo<{
     onTransaction: (dealerId: string, amount: number) => Promise<void>; 
     onCancel: () => void;
     type: 'Top-Up' | 'Withdrawal';
-}>(({ dealers, onTransaction, onCancel, type }) => {
-    const [selectedDealerId, setSelectedDealerId] = useState<string>('');
+    initialDealerId?: string;
+}>(({ dealers, onTransaction, onCancel, type, initialDealerId }) => {
+    const [selectedDealerId, setSelectedDealerId] = useState<string>(initialDealerId || '');
     const [amount, setAmount] = useState<number | ''>('');
     const [isLoading, setIsLoading] = useState(false);
     const themeColor = type === 'Top-Up' ? 'emerald' : 'amber';
+    
+    useEffect(() => {
+        if (initialDealerId) {
+            setSelectedDealerId(initialDealerId);
+        }
+    }, [initialDealerId]);
     
     const inputClass = `w-full bg-slate-950/50 p-4 rounded-2xl border border-white/10 focus:ring-2 focus:ring-${themeColor}-500/50 text-white text-sm font-bold shadow-inner transition-all appearance-none`;
     const labelClass = "block text-[10px] uppercase font-black text-slate-500 mb-1.5 tracking-widest ml-1";
@@ -1582,6 +1589,7 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
   const [betSearchQuery, setBetSearchQuery] = useState('');
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+  const [transactionDealerId, setTransactionDealerId] = useState<string | undefined>(undefined);
   const [summaryData, setSummaryData] = useState<FinancialSummary | null>(null);
   const [editingGame, setEditingGame] = useState<{ id: string, number: string } | null>(null);
   const [editingDrawTime, setEditingDrawTime] = useState<{ gameId: string; time: string } | null>(null);
@@ -1646,8 +1654,9 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
 
           setIsModalOpen(false);
           setSelectedDealer(undefined);
-      } catch (error) {
+      } catch (error: any) {
           console.error("Failed to save dealer:", error);
+          alert(error.message || "Failed to save dealer.");
       }
   };
 
@@ -1773,6 +1782,9 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                 alert('User updated successfully.');
                 setIsUserEditModalOpen(false);
                 if (onRefreshData) await onRefreshData();
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                alert(errData.message || 'Failed to update user.');
             }
         } catch (error) {
             console.error('Error updating user as admin:', error);
@@ -1892,7 +1904,7 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                         <motion.button 
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
-                          onClick={() => setIsTopUpModalOpen(true)} 
+                          onClick={() => { setTransactionDealerId(undefined); setIsTopUpModalOpen(true); }} 
                           className="px-6 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-500/20 transition-all flex items-center gap-2"
                         >
                           <Icons.plus className="w-4 h-4" /> Inject Reserve
@@ -1900,7 +1912,7 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                         <motion.button 
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
-                          onClick={() => setIsWithdrawalModalOpen(true)} 
+                          onClick={() => { setTransactionDealerId(undefined); setIsWithdrawalModalOpen(true); }} 
                           className="px-6 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-amber-500/20 transition-all flex items-center gap-2"
                         >
                           <Icons.minus className="w-4 h-4" /> Liquidate Funds
@@ -2026,9 +2038,11 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                                 </td>
                                   <td className="p-6">
                                   <div className="flex items-center justify-center gap-2">
-                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5"><Icons.edit className="w-4 h-4" /></button>
-                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10"><Icons.bookOpen className="w-4 h-4" /></button>
-                                    <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${dealer.isRestricted ? 'bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 hover:bg-red-500/10 text-red-400 border-red-500/10'}`}>
+                                    <button onClick={() => { setTransactionDealerId(dealer.id); setIsTopUpModalOpen(true); }} className="w-10 h-10 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/20 text-emerald-400 flex items-center justify-center transition-all border border-emerald-500/10" title="Deposit (Top-up)"><Icons.plus className="w-4 h-4" /></button>
+                                    <button onClick={() => { setTransactionDealerId(dealer.id); setIsWithdrawalModalOpen(true); }} className="w-10 h-10 rounded-xl bg-amber-500/5 hover:bg-amber-500/20 text-amber-400 flex items-center justify-center transition-all border border-amber-500/10" title="Withdraw"><Icons.minus className="w-4 h-4" /></button>
+                                    <button onClick={() => { setSelectedDealer(dealer); setIsModalOpen(true); }} className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all border border-white/5" title="Configure"><Icons.edit className="w-4 h-4" /></button>
+                                    <button onClick={() => { setViewingLedgerId(dealer.id); setViewingLedgerType('dealer'); }} className="w-10 h-10 rounded-xl bg-sky-500/5 hover:bg-sky-500/10 text-sky-400 flex items-center justify-center transition-all border border-sky-500/10" title="Ledger Archive"><Icons.bookOpen className="w-4 h-4" /></button>
+                                    <button onClick={() => toggleAccountRestriction(dealer.id, 'dealer')} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all border ${dealer.isRestricted ? 'bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-red-500/5 hover:bg-red-500/10 text-red-400 border-red-500/10'}`} title={dealer.isRestricted ? "Enable Operational Status" : "Restrict Account Status"}>
                                       {dealer.isRestricted ? <Icons.checkCircle className="w-4 h-4" /> : <Icons.close className="w-4 h-4" />}
                                     </button>
                                   </div>
@@ -2379,17 +2393,18 @@ const AdminPanel = React.memo<AdminPanelProps>(({ admin, dealers, onSaveDealer, 
                   onCancel={() => setIsUserEditModalOpen(false)} 
                   dealerPrizeRates={dealers.find(d => d.id === selectedUserToEdit.dealerId)?.prizeRates || admin.prizeRates} 
                   dealerId={selectedUserToEdit.dealerId} 
+                  dealerCommissionRate={dealers.find(d => d.id === selectedUserToEdit.dealerId)?.commissionRate ?? 0}
                   showToast={(m) => alert(m)} 
               />
           )}
       </Modal>
 
       <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Top-Up Dealer Wallet" themeColor="emerald">
-          <DealerTransactionForm type="Top-Up" dealers={dealers} onTransaction={(dealerId, amount) => { topUpDealerWallet(dealerId, amount); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
+          <DealerTransactionForm type="Top-Up" dealers={dealers} initialDealerId={transactionDealerId} onTransaction={async (dealerId, amount) => { await topUpDealerWallet(dealerId, amount); setIsTopUpModalOpen(false); }} onCancel={() => setIsTopUpModalOpen(false)} />
       </Modal>
 
       <Modal isOpen={isWithdrawalModalOpen} onClose={() => setIsWithdrawalModalOpen(false)} title="Withdraw from Dealer Wallet" themeColor="amber">
-          <DealerTransactionForm type="Withdrawal" dealers={dealers} onTransaction={(dealerId, amount) => { withdrawFromDealerWallet(dealerId, amount); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
+          <DealerTransactionForm type="Withdrawal" dealers={dealers} initialDealerId={transactionDealerId} onTransaction={async (dealerId, amount) => { await withdrawFromDealerWallet(dealerId, amount); setIsWithdrawalModalOpen(false); }} onCancel={() => setIsWithdrawalModalOpen(false)} />
       </Modal>
 
       {activeLedgerAccount && (

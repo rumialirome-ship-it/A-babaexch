@@ -165,8 +165,9 @@ export const UserForm = React.memo<{
     onCancel: () => void; 
     dealerPrizeRates: PrizeRates, 
     dealerId: string;
+    dealerCommissionRate: number;
     showToast: (msg: string, type: 'success' | 'error') => void 
-}>(({ user, users, onSave, onCancel, dealerId, showToast }) => {
+}>(({ user, users, onSave, onCancel, dealerId, dealerCommissionRate, showToast }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [password, setPassword] = useState('');
@@ -229,6 +230,13 @@ export const UserForm = React.memo<{
         
         const isIdTaken = !user && users.some(u => u.id.toLowerCase() === formData.id.toLowerCase());
         if (isIdTaken) { showToast("⚠️ Username already exists.", "error"); return; }
+
+        const inputComm = Number(formData.commissionRate) || 0;
+        if (inputComm < 0) { showToast("⚠️ Commission rate cannot be negative.", "error"); return; }
+        if (inputComm > dealerCommissionRate) {
+            showToast(`⚠️ Member commission rate (${inputComm}%) cannot exceed their Dealer's commission rate of (${dealerCommissionRate}%).`, "error");
+            return;
+        }
 
         setIsLoading(true);
         try {
@@ -698,7 +706,7 @@ const DealerPanel = React.memo<DealerPanelProps>(({
       </AnimatePresence>
 
       <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={selectedUser ? "Modify Asset Identity" : "Onboard New User"}>
-          <UserForm user={selectedUser} users={safeUsers} onSave={onSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={safeDealer.prizeRates as PrizeRates} dealerId={safeDealer.id} showToast={showToast} />
+          <UserForm user={selectedUser} users={safeUsers} onSave={onSaveUser} onCancel={() => setIsUserModalOpen(false)} dealerPrizeRates={safeDealer.prizeRates as PrizeRates} dealerId={safeDealer.id} dealerCommissionRate={safeDealer.commissionRate} showToast={showToast} />
       </Modal>
 
       <Modal isOpen={isTopUpModalOpen} onClose={() => setIsTopUpModalOpen(false)} title="Inject Liquidity Credential">

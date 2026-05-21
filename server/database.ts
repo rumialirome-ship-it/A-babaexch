@@ -369,6 +369,14 @@ export const createDealer = (d: any) => {
 };
 
 export const updateDealer = (d: any, originalId: string) => {
+    const users = db.prepare('SELECT id, name, commissionRate FROM users WHERE LOWER(dealerId) = LOWER(?)').all(originalId) as any[];
+    const newComm = Number(d.commissionRate);
+    for (const u of users) {
+        if (Number(u.commissionRate) > newComm) {
+            throw new Error(`Cannot lower Dealer commission rate to ${newComm}% because User "${u.name}" (${u.id}) has a commission rate of ${u.commissionRate}%. Please lower user commission rates first.`);
+        }
+    }
+
     db.prepare('UPDATE dealers SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, avatarUrl = ? WHERE LOWER(id) = LOWER(?)')
       .run(d.id, d.name, d.password, d.area, d.contact, Number(d.commissionRate), JSON.stringify(d.prizeRates), d.avatarUrl, originalId);
       
@@ -446,6 +454,11 @@ export const createUser = (u: any, dId: string, dep = 0) => {
     
     // User dealer prize rates as default if not explicitly provided in u
     const dealer = findAccountById(dId, 'dealers');
+    const dComm = dealer ? (dealer.commissionRate ?? 0) : 0;
+    if (Number(u.commissionRate) > dComm) {
+        throw new Error(`User commission rate (${u.commissionRate}%) cannot exceed the Dealer's commission rate of (${dComm}%).`);
+    }
+    
     const finalPrizeRates = u.prizeRates || (dealer ? dealer.prizeRates : { oneDigitOpen: 9.5, oneDigitClose: 9.5, twoDigit: 90 });
     
     db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(u.id, u.name, u.password, dId, u.area, u.contact, 0, u.commissionRate, 0, JSON.stringify(finalPrizeRates), JSON.stringify(u.betLimits), u.avatarUrl);
@@ -454,6 +467,12 @@ export const createUser = (u: any, dId: string, dep = 0) => {
 };
 
 export const updateUser = (u: any, uId: string, dId: string) => {
+    const dealer = findAccountById(dId, 'dealers');
+    const dComm = dealer ? (dealer.commissionRate ?? 0) : 0;
+    if (Number(u.commissionRate) > dComm) {
+        throw new Error(`User commission rate (${u.commissionRate}%) cannot exceed the Dealer's commission rate of (${dComm}%).`);
+    }
+
     db.prepare('UPDATE users SET id = ?, name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimits = ?, avatarUrl = ? WHERE LOWER(id) = LOWER(?) AND LOWER(dealerId) = LOWER(?)')
       .run(u.id, u.name, u.password, u.area, u.contact, Number(u.commissionRate), JSON.stringify(u.prizeRates), JSON.stringify(u.betLimits), u.avatarUrl, uId, dId);
     
@@ -465,6 +484,14 @@ export const updateUser = (u: any, uId: string, dId: string) => {
 };
 
 export const updateUserByAdmin = (u: any, uId: string) => {
+    const user = findAccountById(uId, 'users');
+    if (!user) throw new Error("User not found.");
+    const dealer = findAccountById(user.dealerId, 'dealers');
+    const dComm = dealer ? (dealer.commissionRate ?? 0) : 0;
+    if (Number(u.commissionRate) > dComm) {
+        throw new Error(`User commission rate (${u.commissionRate}%) cannot exceed the Dealer's commission rate of (${dComm}%).`);
+    }
+
     db.prepare('UPDATE users SET name = ?, password = ?, area = ?, contact = ?, commissionRate = ?, prizeRates = ?, betLimits = ?, avatarUrl = ? WHERE LOWER(id) = LOWER(?)').run(u.name, u.password, u.area, u.contact, Number(u.commissionRate), JSON.stringify(u.prizeRates), JSON.stringify(u.betLimits), u.avatarUrl, uId);
     return findAccountById(uId, 'users');
 };
