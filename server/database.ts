@@ -1,6 +1,8 @@
 import path from 'path';
 import Database from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
+import { execSync } from 'child_process';
 
 const DB_PATH = path.join(process.cwd(), 'database.sqlite');
 let db: Database.Database;
@@ -50,9 +52,35 @@ export const connect = () => {
         db.pragma('journal_mode = WAL');
         db.pragma('foreign_keys = ON');
         console.error('--- Database Opened at ' + DB_PATH + ' ---');
-    } catch (error) {
-        logError('DB_CONNECT', error);
-        process.exit(1);
+        // Test query to verify integrity immediately
+        db.prepare("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1").get();
+    } catch (error: any) {
+        logError('DB_CONNECT_OR_QUERY', error);
+        console.error('--- [DATABASE] Wiping and rebuilding corrupt/malformed database... ---');
+        try {
+            if (db) {
+                db.close();
+            }
+        } catch (e) {}
+        
+        try {
+            if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
+            if (fs.existsSync(DB_PATH + '-wal')) fs.unlinkSync(DB_PATH + '-wal');
+            if (fs.existsSync(DB_PATH + '-shm')) fs.unlinkSync(DB_PATH + '-shm');
+        } catch (unlinkErr) {
+            console.error('Error deleting corrupted DB files:', unlinkErr);
+        }
+
+        try {
+            execSync('npx tsx scripts/setup-db.ts', { stdio: 'inherit' });
+            db = new Database(DB_PATH);
+            db.pragma('journal_mode = WAL');
+            db.pragma('foreign_keys = ON');
+            console.error('--- Clean Database successfully restored and connected ---');
+        } catch (setupErr) {
+            logError('REBUILD_FAILED', setupErr);
+            process.exit(1);
+        }
     }
 };
 
@@ -66,9 +94,31 @@ export const verifySchema = () => {
         }
         const gamesCount = (db.prepare('SELECT COUNT(*) as count FROM games').get() as any).count;
         console.error('[DEBUG] Games count in existing DB: ' + gamesCount);
-    } catch (error) {
+    } catch (error: any) {
         logError('SCHEMA_VERIFY', error);
-        process.exit(1);
+        console.error('--- [DATABASE] Wiping and rebuilding corrupt/malformed database inside verifySchema... ---');
+        try {
+            if (db) {
+                db.close();
+            }
+        } catch (e) {}
+        
+        try {
+            if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
+            if (fs.existsSync(DB_PATH + '-wal')) fs.unlinkSync(DB_PATH + '-wal');
+            if (fs.existsSync(DB_PATH + '-shm')) fs.unlinkSync(DB_PATH + '-shm');
+        } catch (unlinkErr) {}
+
+        try {
+            execSync('npx tsx scripts/setup-db.ts', { stdio: 'inherit' });
+            db = new Database(DB_PATH);
+            db.pragma('journal_mode = WAL');
+            db.pragma('foreign_keys = ON');
+            console.error('--- Clean Database successfully restored and connected inside verifySchema ---');
+        } catch (setupErr) {
+            logError('REBUILD_FAILED_VERIFY', setupErr);
+            process.exit(1);
+        }
     }
 };
 
