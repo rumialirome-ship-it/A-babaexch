@@ -801,7 +801,7 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
             }
         });
 
-        const netProfit = totalDealerProfit + totalDealerCommission;
+        const netProfit = totalStake + totalDealerCommission + totalDealerProfit - totalPayouts;
 
         return { 
             totalStake, 
