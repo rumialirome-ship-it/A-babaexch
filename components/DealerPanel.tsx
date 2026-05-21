@@ -755,7 +755,7 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
 
         let totalPayouts = 0;
         let totalDealerProfit = 0;
-        let totalCommissions = 0;
+        let totalDealerCommission = 0;
 
         const getMultiplier = (r: any, t: string) => {
             if (!r) return 0;
@@ -768,8 +768,7 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
 
             // Network commission is immediately earned during placement
             if (user && dealer) {
-                totalCommissions += (bet.totalAmount * (user.commissionRate / 100)) + 
-                                     (bet.totalAmount * ((dealer.commissionRate - user.commissionRate) / 100));
+                totalDealerCommission += bet.totalAmount * (((dealer.commissionRate ?? 0) - (user.commissionRate ?? 0)) / 100);
             }
 
             // Calculations are done when the winning number is complete (does not end with underscore)
@@ -802,7 +801,7 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
             }
         });
 
-        const netProfit = totalStake - totalPayouts - totalDealerProfit - totalCommissions;
+        const netProfit = totalDealerProfit + totalDealerCommission;
 
         return { 
             totalStake, 
@@ -810,7 +809,7 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
             totalActivePlayers, 
             totalPayouts, 
             totalDealerProfit, 
-            totalCommissions, 
+            totalCommissions: totalDealerCommission, 
             netProfit 
         };
     }, [bets, games, users, dealer]);
