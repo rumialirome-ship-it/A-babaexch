@@ -643,17 +643,32 @@ export const placeBulkBets = (uId: string, gId: string, groups: any[]) => {
             }
         }
 
+        let newOneDigitTotal = 0;
+        let newTwoDigitTotal = 0;
         for (var idxG = 0; idxG < groups.length; idxG++) {
             const g = groups[idxG];
             const isOneDigit = g.subGameType === '1 Digit Open' || g.subGameType === '1 Digit Close' || g.subGameType === 'OneDigitOpen' || g.subGameType === 'OneDigitClose';
+            const groupTotal = (g.numbers?.length || 0) * (g.amountPerNumber || 0);
             if (isOneDigit) {
-                if (oneDigitLimit > 0 && g.amountPerNumber > oneDigitLimit) {
-                    throw new Error(`Amount per number (Rs ${g.amountPerNumber}) exceeds the 1-Digit limit of Rs ${oneDigitLimit.toLocaleString()}.`);
-                }
+                newOneDigitTotal += groupTotal;
             } else {
-                if (twoDigitLimit > 0 && g.amountPerNumber > twoDigitLimit) {
-                    throw new Error(`Amount per number (Rs ${g.amountPerNumber}) exceeds the 2-Digit limit of Rs ${twoDigitLimit.toLocaleString()}.`);
-                }
+                newTwoDigitTotal += groupTotal;
+            }
+        }
+
+        if (oneDigitLimit > 0 && newOneDigitTotal > 0) {
+            const existingOneDigitSum = db.prepare("SELECT SUM(totalAmount) as total FROM bets WHERE LOWER(userId) = LOWER(?) AND gameId = ? AND subGameType IN ('1 Digit Open', '1 Digit Close', 'OneDigitOpen', 'OneDigitClose')").get(uId, gId) as any;
+            const existingOneDigitTotal = existingOneDigitSum ? (Number(existingOneDigitSum.total) || 0) : 0;
+            if ((existingOneDigitTotal + newOneDigitTotal) > oneDigitLimit) {
+                throw new Error(`Bet exceeds the 1-Digit total limit of Rs ${oneDigitLimit.toLocaleString()}. (Current total on 1-Digit for this market: Rs ${existingOneDigitTotal.toLocaleString()})`);
+            }
+        }
+
+        if (twoDigitLimit > 0 && newTwoDigitTotal > 0) {
+            const existingTwoDigitSum = db.prepare("SELECT SUM(totalAmount) as total FROM bets WHERE LOWER(userId) = LOWER(?) AND gameId = ? AND subGameType NOT IN ('1 Digit Open', '1 Digit Close', 'OneDigitOpen', 'OneDigitClose')").get(uId, gId) as any;
+            const existingTwoDigitTotal = existingTwoDigitSum ? (Number(existingTwoDigitSum.total) || 0) : 0;
+            if ((existingTwoDigitTotal + newTwoDigitTotal) > twoDigitLimit) {
+                throw new Error(`Bet exceeds the 2-Digit total limit of Rs ${twoDigitLimit.toLocaleString()}. (Current total on 2-Digit for this market: Rs ${existingTwoDigitTotal.toLocaleString()})`);
             }
         }
         

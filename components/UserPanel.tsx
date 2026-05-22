@@ -697,11 +697,46 @@ const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose
         if (!game) return;
         setError(null); setIsSubmitting(true);
         try {
+            const checkLimitsForGame = (targetGameId: string, requestTotal: number, newOneDigit: number, newTwoDigit: number, gameName: string) => {
+                const limits = user.betLimits || { oneDigit: 1000, twoDigit: 5000, perDraw: 20000 };
+                const oneDigitLimit = Number(limits.oneDigit) || 0;
+                const twoDigitLimit = Number(limits.twoDigit) || 0;
+                const perDrawLimit = Number(limits.perDraw) || 0;
+
+                const existingGameBets = bets.filter(b => b.gameId === targetGameId);
+                const existingTotal = existingGameBets.reduce((sum, b) => sum + b.totalAmount, 0);
+
+                if (perDrawLimit > 0 && (existingTotal + requestTotal) > perDrawLimit) {
+                    throw new Error(`Bet exceeds the per-draw limit of Rs ${perDrawLimit.toLocaleString()} for ${gameName}. (Current total on this market: Rs ${existingTotal.toLocaleString()})`);
+                }
+
+                if (oneDigitLimit > 0 && newOneDigit > 0) {
+                    const existingOneDigit = existingGameBets
+                        .filter(b => b.subGameType === SubGameType.OneDigitOpen || b.subGameType === SubGameType.OneDigitClose)
+                        .reduce((sum, b) => sum + b.totalAmount, 0);
+                    if ((existingOneDigit + newOneDigit) > oneDigitLimit) {
+                        throw new Error(`Bet exceeds the 1-Digit total limit of Rs ${oneDigitLimit.toLocaleString()} for ${gameName}. (Current total on 1-Digit: Rs ${existingOneDigit.toLocaleString()})`);
+                    }
+                }
+
+                if (twoDigitLimit > 0 && newTwoDigit > 0) {
+                    const existingTwoDigit = existingGameBets
+                        .filter(b => b.subGameType !== SubGameType.OneDigitOpen && b.subGameType !== SubGameType.OneDigitClose)
+                        .reduce((sum, b) => sum + b.totalAmount, 0);
+                    if ((existingTwoDigit + newTwoDigit) > twoDigitLimit) {
+                        throw new Error(`Bet exceeds the 2-Digit total limit of Rs ${twoDigitLimit.toLocaleString()} for ${gameName}. (Current total on 2-Digit: Rs ${existingTwoDigit.toLocaleString()})`);
+                    }
+                }
+            };
+
             if (subGameType === SubGameType.Combo) {
                 const validBets = generatedCombos.filter(c => c.selected && parseFloat(c.stake) > 0);
                 if (validBets.length === 0) throw new Error("Select combinations and enter stakes.");
                 const totalCost = validBets.reduce((sum, c) => sum + parseFloat(c.stake), 0);
                 if (totalCost > user.wallet) throw new Error(`Insufficient balance.`);
+
+                checkLimitsForGame(game.id, totalCost, 0, totalCost, game.name);
+
                 const groups = new Map<number, string[]>();
                 validBets.forEach(bet => {
                     const stake = parseFloat(bet.stake);
@@ -715,6 +750,27 @@ const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose
                 if (errors.length > 0) throw new Error(errors[0]);
                 if (betsByGame.size === 0) throw new Error("No valid bets entered.");
                 
+                betsByGame.forEach((gameData: any, gId: string) => {
+                    const targetGame = games.find(g => g.id === gId);
+                    const gameName = targetGame?.name || 'Selected Game';
+                    let totalRequest = 0;
+                    let bulkOneDigit = 0;
+                    let bulkTwoDigit = 0;
+                    
+                    const betGroupsArray = Array.from(gameData.betGroups.values()) as any[];
+                    for (const bg of betGroupsArray) {
+                        const bgCost = (bg.numbers?.length || 0) * (bg.amountPerNumber || 0);
+                        totalRequest += bgCost;
+                        const isOneDigit = bg.subGameType === SubGameType.OneDigitOpen || bg.subGameType === SubGameType.OneDigitClose;
+                        if (isOneDigit) {
+                            bulkOneDigit += bgCost;
+                        } else {
+                            bulkTwoDigit += bgCost;
+                        }
+                    }
+                    checkLimitsForGame(gId, totalRequest, bulkOneDigit, bulkTwoDigit, gameName);
+                });
+
                 const multiGameBetsObj: any = {};
                 betsByGame.forEach((gameData: any, gameId: string) => { 
                     multiGameBetsObj[gameId] = { 
@@ -730,6 +786,12 @@ const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose
                 if (parseError) throw new Error(parseError);
                 if (numbers.length === 0) throw new Error("Enter at least one number.");
                 if (totalCost > user.wallet) throw new Error(`Insufficient balance.`);
+
+                const isOneDigit = subGameType === SubGameType.OneDigitOpen || subGameType === SubGameType.OneDigitClose;
+                const newOneDigitTotal = isOneDigit ? totalCost : 0;
+                const newTwoDigitTotal = isOneDigit ? 0 : totalCost;
+                checkLimitsForGame(game.id, totalCost, newOneDigitTotal, newTwoDigitTotal, game.name);
+
                 await onPlaceBet({ gameId: game.id, betGroups: [{ subGameType, numbers, amountPerNumber: stake }] });
             }
             setIsCompleted(true);

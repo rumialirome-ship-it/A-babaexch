@@ -690,7 +690,7 @@ const DealerPanel = React.memo<DealerPanelProps>(({
                 </div>
             )}
 
-            {activeTab === 'terminal' && <BettingTerminalView users={safeUsers} games={games} placeBetAsDealer={placeBetAsDealer} />}
+            {activeTab === 'terminal' && <BettingTerminalView users={safeUsers} games={games} placeBetAsDealer={placeBetAsDealer} bets={bets} />}
             {activeTab === 'wallet' && <WalletView dealer={safeDealer as Dealer} />}
             {activeTab === 'history' && <BetHistoryView bets={bets} games={games} users={safeUsers} />}
             {activeTab === 'settings' && (
@@ -1155,7 +1155,7 @@ const OpenGameOption = React.memo<{ game: Game }>(({ game }) => {
     return <option value={game.id}>{game.name} (Draw: {game.drawTime})</option>;
 });
 
-const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetAsDealer: (details: any) => Promise<void> }>(({ users, games, placeBetAsDealer }) => {
+const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetAsDealer: (details: any) => Promise<void>; bets?: Bet[] }>(({ users, games, placeBetAsDealer, bets = [] }) => {
     const [selectedUserId, setSelectedUserId] = useState('');
     const [selectedGameId, setSelectedGameId] = useState('');
     const [bulkInput, setBulkInput] = useState('');
@@ -1348,6 +1348,54 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
                 alert("Invalid Format. Use 'e.g. 12 34 54 rs5' or 'x1 x2 x3' or '1x 4x 5x' or '2345 rs5'"); 
                 setIsLoading(false); 
                 return; 
+            }
+
+            // Stake Threshold / Limits Validation
+            if (targetUser) {
+                const limits = targetUser.betLimits || { oneDigit: 1000, twoDigit: 5000, perDraw: 20000 };
+                const oneDigitLimit = Number(limits.oneDigit) || 0;
+                const twoDigitLimit = Number(limits.twoDigit) || 0;
+                const perDrawLimit = Number(limits.perDraw) || 0;
+
+                let requestTotal = 0;
+                let newOneDigitTotal = 0;
+                let newTwoDigitTotal = 0;
+
+                betGroups.forEach((bg: any) => {
+                    const bgCost = (bg.numbers?.length || 0) * (bg.amountPerNumber || 0);
+                    requestTotal += bgCost;
+                    const isOneDigit = bg.subGameType === '1 Digit Open' || bg.subGameType === '1 Digit Close' || bg.subGameType === 'OneDigitOpen' || bg.subGameType === 'OneDigitClose';
+                    if (isOneDigit) {
+                        newOneDigitTotal += bgCost;
+                    } else {
+                        newTwoDigitTotal += bgCost;
+                    }
+                });
+
+                const existingGameBets = bets.filter(b => b.userId === selectedUserId && b.gameId === selectedGameId);
+                const existingTotal = existingGameBets.reduce((sum, b) => sum + b.totalAmount, 0);
+
+                if (perDrawLimit > 0 && (existingTotal + requestTotal) > perDrawLimit) {
+                    throw new Error(`Bet exceeds the per-draw limit of Rs ${perDrawLimit.toLocaleString()} for this account. (Current total on this market: Rs ${existingTotal.toLocaleString()})`);
+                }
+
+                if (oneDigitLimit > 0 && newOneDigitTotal > 0) {
+                    const existingOneDigit = existingGameBets
+                        .filter(b => b.subGameType === '1 Digit Open' || b.subGameType === '1 Digit Close' || b.subGameType === 'OneDigitOpen' || b.subGameType === 'OneDigitClose')
+                        .reduce((sum, b) => sum + b.totalAmount, 0);
+                    if ((existingOneDigit + newOneDigitTotal) > oneDigitLimit) {
+                        throw new Error(`Bet exceeds the 1-Digit total limit of Rs ${oneDigitLimit.toLocaleString()} for this account. (Current total on 1-Digit: Rs ${existingOneDigit.toLocaleString()})`);
+                    }
+                }
+
+                if (twoDigitLimit > 0 && newTwoDigitTotal > 0) {
+                    const existingTwoDigit = existingGameBets
+                        .filter(b => b.subGameType !== '1 Digit Open' && b.subGameType !== '1 Digit Close' && b.subGameType !== 'OneDigitOpen' && b.subGameType !== 'OneDigitClose')
+                        .reduce((sum, b) => sum + b.totalAmount, 0);
+                    if ((existingTwoDigit + newTwoDigitTotal) > twoDigitLimit) {
+                        throw new Error(`Bet exceeds the 2-Digit total limit of Rs ${twoDigitLimit.toLocaleString()} for this account. (Current total on 2-Digit: Rs ${existingTwoDigit.toLocaleString()})`);
+                    }
+                }
             }
 
             setPendingBets({
