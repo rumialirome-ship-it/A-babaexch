@@ -484,11 +484,12 @@ interface BettingModalProps {
     game: Game | null;
     games: Game[];
     user: User;
+    bets: Bet[];
     onClose: () => void;
     onPlaceBet: (details: any) => Promise<void>;
 }
 
-const BettingModal = React.memo<BettingModalProps>(({ game, games, user, onClose, onPlaceBet }) => {
+const BettingModal = React.memo<BettingModalProps>(({ game, games, user, bets, onClose, onPlaceBet }) => {
     const { fetchWithAuth } = useAuth();
     const [subGameType, setSubGameType] = useState<SubGameType>(SubGameType.TwoDigit);
     const [manualNumbersInput, setManualNumbersInput] = useState('');
@@ -1150,7 +1151,8 @@ const UserPanel = React.memo<UserPanelProps>(({ user, games, bets, placeBet }) =
                 <BettingModal 
                     game={selectedGame} 
                     games={games}
-                    user={user} 
+                    user={user}
+                    bets={bets}
                     onClose={() => setSelectedGame(null)} 
                     onPlaceBet={handlePlaceBet}
                 />
