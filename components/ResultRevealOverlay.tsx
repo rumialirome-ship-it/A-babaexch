@@ -5,6 +5,7 @@ interface ResultRevealOverlayProps {
   gameName: string;
   winningNumber: string;
   onClose: () => void;
+  customRollTime?: number;
 }
 
 const TENSION_PHRASES = [
@@ -53,7 +54,7 @@ const Confetti: React.FC = () => {
     );
 };
 
-const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, winningNumber, onClose }) => {
+const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, winningNumber, onClose, customRollTime }) => {
   const [phase, setPhase] = useState<'ROLLING' | 'REVEAL'>('ROLLING');
   const [displayNum, setDisplayNum] = useState('00');
   const [isShaking, setIsShaking] = useState(false);
@@ -61,7 +62,7 @@ const ResultRevealOverlay: React.FC<ResultRevealOverlayProps> = ({ gameName, win
   const [elapsed, setElapsed] = useState(0);
   const [showFlash, setShowFlash] = useState(false);
 
-  const TOTAL_ROLL_TIME = 48500; // Original + 45s for maximum tension
+  const TOTAL_ROLL_TIME = customRollTime !== undefined ? customRollTime : 48500; // Original + 45s for maximum tension or custom roll time
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;

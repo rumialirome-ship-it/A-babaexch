@@ -738,15 +738,68 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
             const uniqueUsers = new Set(gameBets.map(b => b.userId));
             const activePlayersCount = uniqueUsers.size;
 
+            let totalPayouts = 0;
+            let totalDealerProfit = 0;
+            let totalDealerCommission = 0;
+
+            const getMultiplier = (r: any, t: string) => {
+                if (!r) return 0;
+                return t === "1 Digit Open" ? (r.oneDigitOpen || 0) : t === "1 Digit Close" ? (r.oneDigitClose || 0) : (r.twoDigit || 0);
+            };
+
+            gameBets.forEach(bet => {
+                const user = users.find(u => u.id === bet.userId);
+                
+                // Network commission is immediately earned during placement
+                if (user && dealer) {
+                    totalDealerCommission += bet.totalAmount * (((dealer.commissionRate ?? 0) - (user.commissionRate ?? 0)) / 100);
+                }
+
+                // Calculations are done when the winning number is complete (does not end with underscore)
+                if (game && game.winningNumber && !game.winningNumber.endsWith('_')) {
+                    const winningNumber = game.winningNumber;
+                    const winningNumbersInBet = bet.numbers.filter(num => {
+                        switch (bet.subGameType) {
+                            case SubGameType.OneDigitOpen:
+                                return winningNumber.length === 2 && num === winningNumber[0];
+                            case SubGameType.OneDigitClose:
+                                if (game.name === 'AKC') return num === winningNumber;
+                                return winningNumber.length === 2 && num === winningNumber[1];
+                            default: // 2 Digit, Bulk, Combo
+                                return num === winningNumber;
+                        }
+                    });
+
+                    if (winningNumbersInBet.length > 0) {
+                        if (user && dealer) {
+                            const userMultiplier = getMultiplier(user.prizeRates, bet.subGameType);
+                            const dealerMultiplier = getMultiplier(dealer.prizeRates, bet.subGameType);
+
+                            const payout = winningNumbersInBet.length * bet.amountPerNumber * userMultiplier;
+                            const dProfit = winningNumbersInBet.length * bet.amountPerNumber * (dealerMultiplier - userMultiplier);
+
+                            totalPayouts += payout;
+                            totalDealerProfit += dProfit;
+                        }
+                    }
+                }
+            });
+
+            const netProfit = totalStake + totalDealerCommission + totalDealerProfit - totalPayouts;
+
             return {
                 ...game,
                 totalStake,
                 totalBets,
                 activePlayersCount,
+                totalPayouts,
+                totalDealerProfit,
+                totalDealerCommission,
+                netProfit,
                 bets: gameBets
             };
         }).sort((a, b) => b.totalStake - a.totalStake); 
-    }, [games, bets]);
+    }, [games, bets, users, dealer]);
 
     const aggregateStats = useMemo(() => {
         const totalStake = bets.reduce((sum, b) => sum + b.totalAmount, 0);
@@ -943,8 +996,9 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
                                     <tr>
                                         <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Market</th>
                                         <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Inflow Stake</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Bets Played</th>
-                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Players</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Payouts</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Commission</th>
+                                        <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Total Amount</th>
                                         <th className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">Action</th>
                                     </tr>
                                 </thead>
@@ -968,11 +1022,14 @@ const DealerMonitorView = React.memo<{ bets: Bet[]; games: Game[]; users: User[]
                                                 <td className="p-5 text-right font-mono text-emerald-400 font-black text-xs">
                                                     Rs {game.totalStake.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </td>
-                                                <td className="p-5 text-center font-mono text-white text-xs">
-                                                    {game.totalBets}
+                                                <td className="p-5 text-right font-mono text-rose-400 font-black text-xs">
+                                                    Rs {game.totalPayouts.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </td>
-                                                <td className="p-5 text-center font-mono text-amber-400 text-xs">
-                                                    {game.activePlayersCount}
+                                                <td className="p-5 text-right font-mono text-cyan-400 font-black text-xs">
+                                                    Rs {game.totalDealerCommission.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="p-5 text-right font-mono text-amber-400 font-black text-xs">
+                                                    Rs {game.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </td>
                                                 <td className="p-5 text-center">
                                                     <button 
@@ -1108,19 +1165,125 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
         if (!selectedUserId || !selectedGameId || !bulkInput) return;
         setIsLoading(true);
         try {
+            const activeGame = games.find(g => g.id === selectedGameId);
             const lines = bulkInput.split('\n').filter(l => l.trim());
             const betGroups: any[] = [];
-            lines.forEach(line => {
+            
+            lines.forEach((line, idx) => {
                 const stakeMatch = line.match(/(?:rs|r)?\s*(\d+\.?\d*)$/i);
                 const stake = stakeMatch ? parseFloat(stakeMatch[1]) : 0;
                 if (stake <= 0) return;
-                const numbersPart = line.substring(0, stakeMatch!.index).trim();
-                const numbers = numbersPart.split(/[-.,\s]+/).filter(n => n.length > 0);
-                if (numbers.length > 0) {
-                    betGroups.push({ subGameType: SubGameType.TwoDigit, numbers, amountPerNumber: stake });
+                
+                let betPart = line.substring(0, stakeMatch!.index).trim();
+                
+                // Check if this line is a Kanchi (Combo)
+                const isCombo = /\b(k|combo)\b/i.test(betPart) || /[0-9]{3,6}[kK]\b/i.test(betPart);
+                betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
+                
+                const delimiterRegex = /[-.,\s|]+/;
+                const tokens = betPart.split(delimiterRegex).filter(Boolean);
+                const isAkcGame = activeGame?.name === 'AKC';
+                
+                const determineType = (token: string): SubGameType | null => {
+                    const cleanToken = token.trim();
+                    if (/[0-9]{3,6}[kK]$/i.test(cleanToken)) {
+                        return SubGameType.Combo;
+                    }
+                    if (isAkcGame) {
+                        return /^[xX]?\d$/.test(cleanToken) ? SubGameType.OneDigitClose : null;
+                    }
+                    if (/^\d{1,2}$/.test(cleanToken)) {
+                        return SubGameType.TwoDigit;
+                    }
+                    if (/^\d[xX]$/i.test(cleanToken)) {
+                        return SubGameType.OneDigitOpen;
+                    }
+                    if (/^[xX]\d$/i.test(cleanToken)) {
+                        return SubGameType.OneDigitClose;
+                    }
+                    return null;
+                };
+
+                const lineBets: { number: string; subGameType: SubGameType }[] = [];
+
+                if (isCombo) {
+                    const digits = betPart.replace(/\D/g, '');
+                    const uniqueDigits = [...new Set(digits.split(''))];
+                    if (uniqueDigits.length >= 3 && uniqueDigits.length <= 6) {
+                        for (let i = 0; i < uniqueDigits.length; i++) {
+                            for (let j = 0; j < uniqueDigits.length; j++) {
+                                if (i !== j) {
+                                    lineBets.push({
+                                        number: uniqueDigits[i] + uniqueDigits[j],
+                                        subGameType: SubGameType.Combo
+                                    });
+                                }
+                            }
+                        }
+                    } else {
+                        throw new Error(`Line ${idx + 1}: Combo (Kanchi) requires 3 to 6 unique digits.`);
+                    }
+                } else {
+                    for (const token of tokens) {
+                        const tokenType = determineType(token);
+                        if (!tokenType) {
+                            throw new Error(`Line ${idx + 1}: Invalid token "${token}" found.`);
+                        }
+                        
+                        if (tokenType === SubGameType.Combo) {
+                            const digits = token.replace(/\D/g, '');
+                            const uniqueDigits = [...new Set(digits.split(''))];
+                            if (uniqueDigits.length >= 3 && uniqueDigits.length <= 6) {
+                                for (let i = 0; i < uniqueDigits.length; i++) {
+                                    for (let j = 0; j < uniqueDigits.length; j++) {
+                                        if (i !== j) {
+                                            lineBets.push({
+                                                number: uniqueDigits[i] + uniqueDigits[j],
+                                                subGameType: SubGameType.Combo
+                                            });
+                                        }
+                                    }
+                                }
+                            } else {
+                                throw new Error(`Line ${idx + 1}: Combo token "${token}" requires 3 to 6 unique digits.`);
+                            }
+                        } else {
+                            let numberValue = "";
+                            if (tokenType === SubGameType.TwoDigit) {
+                                numberValue = token.padStart(2, '0');
+                            } else if (tokenType === SubGameType.OneDigitOpen) {
+                                numberValue = token.replace(/[xX]/g, '');
+                            } else if (tokenType === SubGameType.OneDigitClose) {
+                                numberValue = token.replace(/[xX]/g, '');
+                            }
+                            lineBets.push({ number: numberValue, subGameType: tokenType });
+                        }
+                    }
                 }
+
+                lineBets.forEach(bet => {
+                    const existingGroup = betGroups.find(
+                        bg => bg.subGameType === bet.subGameType && bg.amountPerNumber === stake
+                    );
+                    if (existingGroup) {
+                        if (!existingGroup.numbers.includes(bet.number)) {
+                            existingGroup.numbers.push(bet.number);
+                        }
+                    } else {
+                        betGroups.push({
+                            subGameType: bet.subGameType,
+                            numbers: [bet.number],
+                            amountPerNumber: stake
+                        });
+                    }
+                });
             });
-            if (betGroups.length === 0) { alert("Invalid Format: use '14, 25 100'"); setIsLoading(false); return; }
+
+            if (betGroups.length === 0) { 
+                alert("Invalid Format. Use 'e.g. 14, 25 100' or '123k 50' or '1x, x2 50'"); 
+                setIsLoading(false); 
+                return; 
+            }
             await placeBetAsDealer({ userId: selectedUserId, gameId: selectedGameId, betGroups });
             setBulkInput('');
             alert("Bets successfully committed to ledger.");

@@ -20,6 +20,8 @@ const formatTime12h = (time24: string) => {
 const GameDisplayCard = React.memo<{ game: Game; onClick: () => void }>(({ game, onClick }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
+    const isAK = game.name === 'AK';
+    const isAKPending = isAK && game.winningNumber && game.winningNumber.endsWith('_');
     const isMarketClosedForDisplay = !game.isMarketOpen;
     const logo = (game && game.name) ? (GAME_LOGOS[game.name] || game.logo || '') : '';
 
@@ -56,6 +58,14 @@ const GameDisplayCard = React.memo<{ game: Game; onClick: () => void }>(({ game,
                             <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-black mb-1">Result</div>
                             <div className="text-4xl font-mono font-bold text-white tracking-widest drop-shadow-glow-emerald">
                                 {game.winningNumber}
+                            </div>
+                        </>
+                    ) : isAKPending ? (
+                        <>
+                            <div className="text-[10px] uppercase tracking-widest text-amber-400 font-black mb-1">Open Declared</div>
+                            <div className="flex items-center justify-center gap-1 text-3xl font-mono font-bold text-white tracking-widest">
+                                <span>{game.winningNumber.slice(0, 1)}</span>
+                                <span className="text-2xl font-black text-amber-400 font-mono animate-pulse">_</span>
                             </div>
                         </>
                     ) : isMarketClosedForDisplay ? (

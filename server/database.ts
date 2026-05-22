@@ -134,6 +134,9 @@ const findAccountByIdInternal = (id: string, table: string) => {
             if (account.prizeRates && typeof account.prizeRates === 'string') {
                 account.prizeRates = JSON.parse(account.prizeRates);
             }
+            if (account.betLimits && typeof account.betLimits === 'string') {
+                account.betLimits = JSON.parse(account.betLimits);
+            }
         }
         if ('isRestricted' in account) account.isRestricted = !!account.isRestricted;
         return account;
@@ -511,7 +514,7 @@ export const createUser = (u: any, dId: string, dep = 0) => {
     
     const finalPrizeRates = u.prizeRates || (dealer ? dealer.prizeRates : { oneDigitOpen: 9.5, oneDigitClose: 9.5, twoDigit: 90 });
     
-    db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(u.id, u.name, u.password, dId, u.area, u.contact, 0, u.commissionRate, 0, JSON.stringify(finalPrizeRates), JSON.stringify(u.betLimits), u.avatarUrl);
+    db.prepare('INSERT INTO users (id, name, password, dealerId, area, contact, wallet, commissionRate, isRestricted, prizeRates, betLimits, avatarUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(u.id, u.name, u.password, dId, u.area, u.contact, 0, u.commissionRate, 0, JSON.stringify(finalPrizeRates), JSON.stringify(u.betLimits || { oneDigit: 1000, twoDigit: 5000, perDraw: 20000 }), u.avatarUrl);
     if (dep > 0) { addLedgerEntry(dId, 'DEALER', 'Seed funding: ' + u.name, dep, 0); addLedgerEntry(u.id, 'USER', 'Initial deposit', 0, dep); }
     return findAccountById(u.id, 'users');
 };
@@ -625,6 +628,34 @@ export const placeBulkBets = (uId: string, gId: string, groups: any[]) => {
         const requestTotal = groups.reduce((s, g) => s + (g.numbers?.length || 0) * (g.amountPerNumber || 0), 0);
         if (requestTotal <= 0) throw new Error('Invalid stake.');
         if (user.wallet < requestTotal) throw new Error('Balance too low.');
+        
+        // Bet threshold / limit validations
+        const limits = user.betLimits || {};
+        const oneDigitLimit = Number(limits.oneDigit) || 0;
+        const twoDigitLimit = Number(limits.twoDigit) || 0;
+        const perDrawLimit = Number(limits.perDraw) || 0;
+
+        if (perDrawLimit > 0) {
+            const existingSum = db.prepare('SELECT SUM(totalAmount) as total FROM bets WHERE LOWER(userId) = LOWER(?) AND gameId = ?').get(uId, gId) as any;
+            const existingTotal = existingSum ? (Number(existingSum.total) || 0) : 0;
+            if ((existingTotal + requestTotal) > perDrawLimit) {
+                throw new Error(`Bet exceeds the per-draw limit of Rs ${perDrawLimit.toLocaleString()}. (Current total on this market: Rs ${existingTotal.toLocaleString()})`);
+            }
+        }
+
+        for (var idxG = 0; idxG < groups.length; idxG++) {
+            const g = groups[idxG];
+            const isOneDigit = g.subGameType === '1 Digit Open' || g.subGameType === '1 Digit Close' || g.subGameType === 'OneDigitOpen' || g.subGameType === 'OneDigitClose';
+            if (isOneDigit) {
+                if (oneDigitLimit > 0 && g.amountPerNumber > oneDigitLimit) {
+                    throw new Error(`Amount per number (Rs ${g.amountPerNumber}) exceeds the 1-Digit limit of Rs ${oneDigitLimit.toLocaleString()}.`);
+                }
+            } else {
+                if (twoDigitLimit > 0 && g.amountPerNumber > twoDigitLimit) {
+                    throw new Error(`Amount per number (Rs ${g.amountPerNumber}) exceeds the 2-Digit limit of Rs ${twoDigitLimit.toLocaleString()}.`);
+                }
+            }
+        }
         
         const admin = findAccountByIdInternal('Guru', 'admins');
         if (!admin) throw new Error('System account missing.');

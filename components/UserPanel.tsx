@@ -411,6 +411,8 @@ const formatTime12h = (time24: string) => {
 const GameCard = React.memo<{ game: Game; onPlay: (game: Game) => void; isRestricted: boolean; }>(({ game, onPlay, isRestricted }) => {
     const { status, text: countdownText } = useCountdown(game.drawTime);
     const hasFinalWinner = !!game.winningNumber && !game.winningNumber.endsWith('_');
+    const isAK = game.name === 'AK';
+    const isAKPending = isAK && game.winningNumber && game.winningNumber.endsWith('_');
     const isPlayable = !!game.isMarketOpen && !isRestricted;
 
     return (
@@ -439,6 +441,14 @@ const GameCard = React.memo<{ game: Game; onPlay: (game: Game) => void; isRestri
                         <>
                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-1">Market Result</p>
                             <p className="text-3xl font-mono font-black text-white tracking-widest">{game.winningNumber}</p>
+                        </>
+                    ) : isAKPending ? (
+                        <>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500 mb-1">Open Declared</p>
+                            <div className="flex items-center justify-center gap-1">
+                                <span className="text-3xl font-mono font-black text-white tracking-widest">{game.winningNumber.slice(0, 1)}</span>
+                                <span className="text-2xl font-black text-amber-400 font-mono animate-pulse">_</span>
+                            </div>
                         </>
                     ) : !game.isMarketOpen ? (
                         <>

@@ -101,6 +101,11 @@ const parseAllDates = (data: any) => {
     return data;
 };
 
+const isAcceptedGame = (name: string): boolean => {
+    const clean = name.toLowerCase().replace(/\s+/g, '');
+    return clean === 'alibaba' || clean === 'oyotv' || clean === 'olatv';
+};
+
 const AppContent: React.FC = () => {
     const { role, account, loading, fetchWithAuth, verifyData, setAccount } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
@@ -109,7 +114,7 @@ const AppContent: React.FC = () => {
     const [bets, setBets] = useState<Bet[]>([]);
     const [hasInitialFetched, setHasInitialFetched] = useState(false);
     
-    const [activeReveal, setActiveReveal] = useState<{ name: string; number: string } | null>(null);
+    const [activeReveal, setActiveReveal] = useState<{ name: string; number: string; customRollTime?: number } | null>(null);
     const lastGamesRef = useRef<Game[]>([]);
 
     const fetchPublicData = useCallback(async () => {
@@ -185,12 +190,22 @@ const AppContent: React.FC = () => {
             games.forEach(newGame => {
                 const oldGame = lastGamesRef.current.find(g => g.id === newGame.id);
                 if (newGame.winningNumber && !newGame.winningNumber.endsWith('_') && (!oldGame?.winningNumber || oldGame.winningNumber.endsWith('_'))) {
-                    setActiveReveal({ name: newGame.name, number: newGame.winningNumber });
+                    const isAdmin = role === Role.Admin;
+                    const accepted = isAcceptedGame(newGame.name);
+                    
+                    if (isAdmin) {
+                        if (accepted) {
+                            setActiveReveal({ name: newGame.name, number: newGame.winningNumber, customRollTime: 15000 });
+                        }
+                        // Non-accepted games do not trigger reveal in Admin Panel
+                    } else {
+                        setActiveReveal({ name: newGame.name, number: newGame.winningNumber });
+                    }
                 }
             });
         }
         lastGamesRef.current = games;
-    }, [games]);
+    }, [games, role]);
 
     const placeBet = useCallback(async (d: any) => { 
         try {
@@ -363,7 +378,14 @@ const AppContent: React.FC = () => {
                     </main>
                 </>
             )}
-            {activeReveal && <ResultRevealOverlay gameName={activeReveal.name} winningNumber={activeReveal.number} onClose={() => setActiveReveal(null)} />}
+            {activeReveal && (
+                <ResultRevealOverlay 
+                    gameName={activeReveal.name} 
+                    winningNumber={activeReveal.number} 
+                    customRollTime={activeReveal.customRollTime}
+                    onClose={() => setActiveReveal(null)} 
+                />
+            )}
         </div>
     );
 };
