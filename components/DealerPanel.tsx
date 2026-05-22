@@ -1175,10 +1175,11 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
                 if (!clean) return null;
 
                 // 1. Kanchi / Combo check
-                // Matches e.g. 2345, 123k, 23456K, etc. (3 to 6 digits, optional 'k' or 'combo' at the end)
-                if (/^\d{3,6}[kK]?$/i.test(clean)) {
+                // Matches e.g. 2345, k2345, K2345, 123k, 123K, etc. (3 to 6 digits, optional 'k' or 'combo' prefix/suffix)
+                const isComboToken = /^[kK]\d{3,6}$/i.test(clean) || /^\d{3,6}[kK]?$/i.test(clean) || /^combo\d{3,6}$/i.test(clean) || /^\d{3,6}combo$/i.test(clean);
+                if (isComboToken) {
                     return {
-                        number: clean.toLowerCase().replace(/k/g, ''),
+                        number: clean.replace(/\D/g, ''),
                         subGameType: SubGameType.Combo
                     };
                 }
@@ -1267,6 +1268,19 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
                 if (betTokens.length === 0) {
                     throw new Error(`Line ${idx + 1}: No bet tokens found.`);
                 }
+
+                // Normalize prefixed combos like "K 2345" or "k 2345" or "combo 2345"
+                const mergedTokens: string[] = [];
+                for (let i = 0; i < betTokens.length; i++) {
+                    const t = betTokens[i];
+                    if ((t.toLowerCase() === 'k' || t.toLowerCase() === 'combo') && i + 1 < betTokens.length && /^\d{3,6}$/.test(betTokens[i+1])) {
+                        mergedTokens.push("k" + betTokens[i+1]);
+                        i++; // skip next since it has been merged
+                    } else {
+                        mergedTokens.push(t);
+                    }
+                }
+                betTokens = mergedTokens;
 
                 const lineBets: { number: string; subGameType: SubGameType }[] = [];
 
