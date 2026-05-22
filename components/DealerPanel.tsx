@@ -1166,101 +1166,140 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
         setIsLoading(true);
         try {
             const activeGame = games.find(g => g.id === selectedGameId);
+            const isAkcGame = activeGame?.name === 'AKC';
             const lines = bulkInput.split('\n').filter(l => l.trim());
             const betGroups: any[] = [];
-            
-            lines.forEach((line, idx) => {
-                const stakeMatch = line.match(/(?:rs|r)?\s*(\d+\.?\d*)$/i);
-                const stake = stakeMatch ? parseFloat(stakeMatch[1]) : 0;
-                if (stake <= 0) return;
-                
-                let betPart = line.substring(0, stakeMatch!.index).trim();
-                
-                // Check if this line is a Kanchi (Combo)
-                const isCombo = /\b(k|combo)\b/i.test(betPart) || /[0-9]{3,6}[kK]\b/i.test(betPart);
-                betPart = betPart.replace(/\b(k|combo)\b/i, '').trim();
-                
-                const delimiterRegex = /[-.,\s|]+/;
-                const tokens = betPart.split(delimiterRegex).filter(Boolean);
-                const isAkcGame = activeGame?.name === 'AKC';
-                
-                const determineType = (token: string): SubGameType | null => {
-                    const cleanToken = token.trim();
-                    if (/[0-9]{3,6}[kK]$/i.test(cleanToken)) {
-                        return SubGameType.Combo;
-                    }
-                    if (isAkcGame) {
-                        return /^[xX]?\d$/.test(cleanToken) ? SubGameType.OneDigitClose : null;
-                    }
-                    if (/^\d{1,2}$/.test(cleanToken)) {
-                        return SubGameType.TwoDigit;
-                    }
-                    if (/^\d[xX]$/i.test(cleanToken)) {
-                        return SubGameType.OneDigitOpen;
-                    }
-                    if (/^[xX]\d$/i.test(cleanToken)) {
-                        return SubGameType.OneDigitClose;
-                    }
-                    return null;
-                };
 
-                const lineBets: { number: string; subGameType: SubGameType }[] = [];
+            const classifyToken = (token: string): { number: string; subGameType: SubGameType } | null => {
+                const clean = token.trim();
+                if (!clean) return null;
 
-                if (isCombo) {
-                    const digits = betPart.replace(/\D/g, '');
-                    const uniqueDigits = [...new Set(digits.split(''))];
-                    if (uniqueDigits.length >= 3 && uniqueDigits.length <= 6) {
-                        for (let i = 0; i < uniqueDigits.length; i++) {
-                            for (let j = 0; j < uniqueDigits.length; j++) {
-                                if (i !== j) {
-                                    lineBets.push({
-                                        number: uniqueDigits[i] + uniqueDigits[j],
-                                        subGameType: SubGameType.Combo
-                                    });
-                                }
-                            }
-                        }
-                    } else {
-                        throw new Error(`Line ${idx + 1}: Combo (Kanchi) requires 3 to 6 unique digits.`);
-                    }
-                } else {
-                    for (const token of tokens) {
-                        const tokenType = determineType(token);
-                        if (!tokenType) {
-                            throw new Error(`Line ${idx + 1}: Invalid token "${token}" found.`);
-                        }
-                        
-                        if (tokenType === SubGameType.Combo) {
-                            const digits = token.replace(/\D/g, '');
-                            const uniqueDigits = [...new Set(digits.split(''))];
-                            if (uniqueDigits.length >= 3 && uniqueDigits.length <= 6) {
-                                for (let i = 0; i < uniqueDigits.length; i++) {
-                                    for (let j = 0; j < uniqueDigits.length; j++) {
-                                        if (i !== j) {
-                                            lineBets.push({
-                                                number: uniqueDigits[i] + uniqueDigits[j],
-                                                subGameType: SubGameType.Combo
-                                            });
-                                        }
-                                    }
-                                }
-                            } else {
-                                throw new Error(`Line ${idx + 1}: Combo token "${token}" requires 3 to 6 unique digits.`);
-                            }
-                        } else {
-                            let numberValue = "";
-                            if (tokenType === SubGameType.TwoDigit) {
-                                numberValue = token.padStart(2, '0');
-                            } else if (tokenType === SubGameType.OneDigitOpen) {
-                                numberValue = token.replace(/[xX]/g, '');
-                            } else if (tokenType === SubGameType.OneDigitClose) {
-                                numberValue = token.replace(/[xX]/g, '');
-                            }
-                            lineBets.push({ number: numberValue, subGameType: tokenType });
-                        }
+                // 1. Kanchi / Combo check
+                // Matches e.g. 2345, 123k, 23456K, etc. (3 to 6 digits, optional 'k' or 'combo' at the end)
+                if (/^\d{3,6}[kK]?$/i.test(clean)) {
+                    return {
+                        number: clean.toLowerCase().replace(/k/g, ''),
+                        subGameType: SubGameType.Combo
+                    };
+                }
+
+                // 2. Open Game Option: 1x, 4x, etc. (starts with a digit, followed by 'x')
+                if (/^\d[xX]$/.test(clean)) {
+                    return {
+                        number: clean[0],
+                        subGameType: SubGameType.OneDigitOpen
+                    };
+                }
+
+                // 3. Close Game Option: x1, x2, etc. (starts with 'x', followed by a digit)
+                if (/^[xX]\d$/.test(clean)) {
+                    return {
+                        number: clean[1],
+                        subGameType: SubGameType.OneDigitClose
+                    };
+                }
+
+                // 4. Special AKC checks (AKC works with single digits or regular x1/x2)
+                if (isAkcGame) {
+                    if (/^[xX]?\d$/.test(clean)) {
+                        return {
+                            number: clean.replace(/[xX]/g, ''),
+                            subGameType: SubGameType.OneDigitClose
+                        };
                     }
                 }
 
+                // 5. 2-Digit option: 12, 34, 54, etc.
+                if (/^\d{1,2}$/.test(clean)) {
+                    return {
+                        number: clean.padStart(2, '0'),
+                        subGameType: SubGameType.TwoDigit
+                    };
+                }
+
+                return null;
+            };
+            
+            lines.forEach((line, idx) => {
+                const trimmedLine = line.trim();
+                if (!trimmedLine) return;
+
+                // Split line into raw tokens
+                const rawTokens = trimmedLine.split(/[-.,\s|]+/).filter(Boolean);
+                if (rawTokens.length === 0) return;
+
+                let stake = 5; // Default stake
+                let betTokens = [...rawTokens];
+
+                // Check for trailing stake of the form "rs 5" or "r 5"
+                if (betTokens.length >= 2) {
+                    const last = betTokens[betTokens.length - 1];
+                    const prev = betTokens[betTokens.length - 2];
+                    if (/^[rR](?:s|S)?$/.test(prev) && /^\d+(?:\.\d+)?$/.test(last)) {
+                        stake = parseFloat(last);
+                        betTokens.splice(betTokens.length - 2, 2);
+                    }
+                }
+
+                // Check for trailing stake of the form "rs5" or "r5"
+                if (betTokens.length >= 1) {
+                    const last = betTokens[betTokens.length - 1];
+                    const match = last.match(/^[rR](?:s|S)?\s*(\d+(?:\.\d+)?)$/i);
+                    if (match) {
+                        stake = parseFloat(match[1]);
+                        betTokens.pop();
+                    }
+                }
+
+                // Check for trailing pure number stake (e.g. "12 34 5" where 5 is the stake)
+                if (betTokens.length >= 2) {
+                    const last = betTokens[betTokens.length - 1];
+                    if (/^\d+(?:\.\d+)?$/.test(last)) {
+                        stake = parseFloat(last);
+                        betTokens.pop();
+                    }
+                }
+
+                if (stake <= 0) {
+                    throw new Error(`Line ${idx + 1}: Invalid line stake "${stake}".`);
+                }
+
+                if (betTokens.length === 0) {
+                    throw new Error(`Line ${idx + 1}: No bet tokens found.`);
+                }
+
+                const lineBets: { number: string; subGameType: SubGameType }[] = [];
+
+                betTokens.forEach(token => {
+                    const classification = classifyToken(token);
+                    if (!classification) {
+                        throw new Error(`Line ${idx + 1}: Invalid token "${token}" found.`);
+                    }
+
+                    if (classification.subGameType === SubGameType.Combo) {
+                        // Kanchi / Combo token: generate permutations
+                        const digits = classification.number.replace(/\D/g, '');
+                        const uniqueDigits = [...new Set(digits.split(''))];
+                        if (uniqueDigits.length >= 3 && uniqueDigits.length <= 6) {
+                            for (let i = 0; i < uniqueDigits.length; i++) {
+                                for (let j = 0; j < uniqueDigits.length; j++) {
+                                    if (i !== j) {
+                                        lineBets.push({
+                                            number: uniqueDigits[i] + uniqueDigits[j],
+                                            subGameType: SubGameType.Combo
+                                        });
+                                    }
+                                }
+                            }
+                        } else {
+                            throw new Error(`Line ${idx + 1}: Combo (Kanchi) "${token}" requires 3 to 6 unique digits.`);
+                        }
+                    } else {
+                        lineBets.push(classification);
+                    }
+                });
+
+                // Group bets into betGroups by subGameType and stake
                 lineBets.forEach(bet => {
                     const existingGroup = betGroups.find(
                         bg => bg.subGameType === bet.subGameType && bg.amountPerNumber === stake
@@ -1280,7 +1319,7 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
             });
 
             if (betGroups.length === 0) { 
-                alert("Invalid Format. Use 'e.g. 14, 25 100' or '123k 50' or '1x, x2 50'"); 
+                alert("Invalid Format. Use 'e.g. 12 34 54 rs5' or 'x1 x2 x3' or '1x 4x 5x' or '2345 rs5'"); 
                 setIsLoading(false); 
                 return; 
             }
