@@ -1161,11 +1161,23 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
     const [bulkInput, setBulkInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    // Confirmation dialog and success checksign states
+    const [pendingBets, setPendingBets] = useState<{
+        userId: string;
+        userName: string;
+        gameId: string;
+        gameName: string;
+        betGroups: any[];
+    } | null>(null);
+
+    const [showSuccessCheck, setShowSuccessCheck] = useState(false);
+
     const handleProcessBets = async () => {
         if (!selectedUserId || !selectedGameId || !bulkInput) return;
         setIsLoading(true);
         try {
             const activeGame = games.find(g => g.id === selectedGameId);
+            const targetUser = users.find(u => u.id === selectedUserId);
             const isAkcGame = activeGame?.name === 'AKC';
             const lines = bulkInput.split('\n').filter(l => l.trim());
             const betGroups: any[] = [];
@@ -1175,7 +1187,7 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
                 if (!clean) return null;
 
                 // 1. Kanchi / Combo check
-                // Matches e.g. 2345, k2345, K2345, 123k, 123K, etc. (3 to 6 digits, optional 'k' or 'combo' prefix/suffix)
+                // Matches e.g. 2345, k2345, K2345, 123k, 123G, etc. (3 to 6 digits, optional 'k' or 'combo' prefix/suffix)
                 const isComboToken = /^[kK]\d{3,6}$/i.test(clean) || /^\d{3,6}[kK]?$/i.test(clean) || /^combo\d{3,6}$/i.test(clean) || /^\d{3,6}combo$/i.test(clean);
                 if (isComboToken) {
                     return {
@@ -1337,11 +1349,35 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
                 setIsLoading(false); 
                 return; 
             }
-            await placeBetAsDealer({ userId: selectedUserId, gameId: selectedGameId, betGroups });
-            setBulkInput('');
-            alert("Bets successfully committed to ledger.");
+
+            setPendingBets({
+                userId: selectedUserId,
+                userName: targetUser?.name || selectedUserId,
+                gameId: selectedGameId,
+                gameName: activeGame?.name || selectedGameId,
+                betGroups
+            });
         } catch (error: any) {
             alert(error.message || "Terminal processing conflict.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleConfirmBets = async () => {
+        if (!pendingBets) return;
+        setIsLoading(true);
+        try {
+            await placeBetAsDealer({
+                userId: pendingBets.userId,
+                gameId: pendingBets.gameId,
+                betGroups: pendingBets.betGroups
+            });
+            setBulkInput('');
+            setPendingBets(null);
+            setShowSuccessCheck(true);
+        } catch (error: any) {
+            alert(error.message || "Terminal booking failed.");
         } finally {
             setIsLoading(false);
         }
@@ -1350,60 +1386,177 @@ const BettingTerminalView = React.memo<{ users: User[]; games: Game[]; placeBetA
     const selClass = "bg-slate-950/50 text-white p-4 rounded-2xl border border-white/5 text-xs font-black uppercase tracking-widest focus:ring-2 focus:ring-emerald-500/50 appearance-none";
 
     return (
-        <div className="glass-morphism p-8 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden group max-w-4xl mx-auto">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-3xl rounded-full" />
-            <div className="relative z-10">
-                <div className="flex items-center gap-4 mb-8">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-emerald-500">
-                        <Icons.clipboardList className="w-6 h-6" />
+        <>
+            <div className="glass-morphism p-8 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden group max-w-4xl mx-auto">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-3xl rounded-full" />
+                <div className="relative z-10">
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-emerald-500">
+                            <Icons.clipboardList className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-white uppercase tracking-tighter">Bulk Entry Terminal</h3>
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">Rapid Input System</p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-xl font-black text-white uppercase tracking-tighter">Bulk Entry Terminal</h3>
-                        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">Rapid Input System</p>
-                    </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-                    <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Target Account</label>
-                        <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} className={selClass}>
-                            <option value="">-- Discovered Users --</option>
-                            {Array.isArray(users) && users.filter(u => !u.isRestricted).map(u => <option key={u.id} value={u.id}>{u.name} ({u.id})</option>)}
-                        </select>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Target Account</label>
+                            <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)} className={selClass}>
+                                <option value="">-- Discovered Users --</option>
+                                {Array.isArray(users) && users.filter(u => !u.isRestricted).map(u => <option key={u.id} value={u.id}>{u.name} ({u.id})</option>)}
+                            </select>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Active Market</label>
+                            <select value={selectedGameId} onChange={e => setSelectedGameId(e.target.value)} className={selClass}>
+                                <option value="">-- LIVE Feeds --</option>
+                                {Array.isArray(games) && games.map(g => <OpenGameOption key={g.id} game={g} />)}
+                            </select>
+                        </div>
                     </div>
-                    <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Active Market</label>
-                        <select value={selectedGameId} onChange={e => setSelectedGameId(e.target.value)} className={selClass}>
-                            <option value="">-- LIVE Feeds --</option>
-                            {Array.isArray(games) && games.map(g => <OpenGameOption key={g.id} game={g} />)}
-                        </select>
-                    </div>
-                </div>
 
-                <div className="flex flex-col gap-2 mb-8">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Command Input</label>
-                    <textarea 
-                        rows={6} 
-                        value={bulkInput} 
-                        onChange={e => setBulkInput(e.target.value)} 
-                        placeholder="Format: NUMBERS [SPACE] STAKE&#10;Example: 14, 25 100" 
-                        className="w-full bg-slate-950/50 text-emerald-400 p-6 rounded-2xl border border-white/5 font-mono text-sm focus:ring-2 focus:ring-emerald-500/50 shadow-inner placeholder:text-slate-700 custom-scrollbar" 
-                    />
-                     <div className="flex justify-end">
-                    <motion.button 
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={handleProcessBets} 
-                        disabled={!selectedUserId || !selectedGameId || !bulkInput || isLoading} 
-                        className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 px-12 rounded-2xl disabled:opacity-50 transition-all uppercase tracking-widest text-xs shadow-xl shadow-emerald-500/20"
-                    >
-                        {isLoading ? 'EXECUTING...' : 'COMMIT ENTRIES'}
-                    </motion.button>
+                    <div className="flex flex-col gap-2 mb-8">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Command Input</label>
+                        <textarea 
+                            rows={6} 
+                            value={bulkInput} 
+                            onChange={e => setBulkInput(e.target.value)} 
+                            placeholder="Format: NUMBERS [SPACE] STAKE&#10;Example: 14, 25 100" 
+                            className="w-full bg-slate-950/50 text-emerald-400 p-6 rounded-2xl border border-white/5 font-mono text-sm focus:ring-2 focus:ring-emerald-500/50 shadow-inner placeholder:text-slate-700 custom-scrollbar" 
+                        />
+                        <div className="flex justify-end">
+                            <motion.button 
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={handleProcessBets} 
+                                disabled={!selectedUserId || !selectedGameId || !bulkInput || isLoading} 
+                                className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 px-12 rounded-2xl disabled:opacity-50 transition-all uppercase tracking-widest text-xs shadow-xl shadow-emerald-500/20"
+                            >
+                                {isLoading ? 'PROCESSING...' : 'COMMIT ENTRIES'}
+                            </motion.button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
-);
+
+            {/* Confirmation Modal */}
+            <Modal 
+                isOpen={pendingBets !== null} 
+                onClose={() => setPendingBets(null)} 
+                title="Confirm booking entries"
+                size="lg"
+            >
+                {pendingBets && (
+                    <div className="space-y-6">
+                        <div className="bg-slate-950/40 p-5 rounded-2xl border border-white/5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest block">Account</span>
+                                <span className="text-white font-bold text-sm block mt-1 truncate">{pendingBets.userName}</span>
+                                <span className="text-xs text-slate-400 block font-mono">ID: {pendingBets.userId}</span>
+                            </div>
+                            <div>
+                                <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest block">Market</span>
+                                <span className="text-white font-bold text-sm block mt-1">{pendingBets.gameName}</span>
+                            </div>
+                            <div>
+                                <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest block">Wallet Liquidity</span>
+                                <span className="text-emerald-500 font-black text-sm block mt-1">Rs {users.find(u => u.id === pendingBets.userId)?.wallet.toLocaleString() || '0'}</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-950/40 rounded-2xl border border-white/5 overflow-hidden">
+                            <div className="p-4 bg-white/[0.02] border-b border-white/5 grid grid-cols-4 text-[10px] font-extrabold uppercase tracking-widest text-slate-400 text-center">
+                                <div className="text-left">Type</div>
+                                <div>Rate/Stake</div>
+                                <div>Numbers</div>
+                                <div>Subtotal</div>
+                            </div>
+                            <div className="max-h-60 overflow-y-auto divide-y divide-white/5 custom-scrollbar">
+                                {pendingBets.betGroups.map((bg, idx) => (
+                                    <div key={idx} className="p-4 grid grid-cols-4 items-center text-xs text-slate-300 text-center">
+                                        <div className="text-left font-bold text-white capitalize">{bg.subGameType}</div>
+                                        <div className="font-mono">Rs {bg.amountPerNumber}</div>
+                                        <div className="flex flex-wrap gap-1 justify-center max-w-xs font-mono">
+                                            {bg.numbers.map((n: string) => (
+                                                <span key={n} className="bg-white/5 text-white py-0.5 px-2 rounded-md border border-white/5 inline-block text-[11px] font-bold">
+                                                    {n}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <div className="font-black text-emerald-400">Rs {(bg.numbers.length * bg.amountPerNumber).toLocaleString()}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-950/60 p-5 rounded-2xl border border-white/5 gap-4">
+                            <div className="text-center sm:text-left">
+                                <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-widest block">Total Payable Booking Amount</span>
+                                <span className="text-2xl font-black text-emerald-400 block mt-1">Rs {pendingBets.betGroups.reduce((acc, bg) => acc + (bg.numbers.length * bg.amountPerNumber), 0).toLocaleString()}</span>
+                            </div>
+                            <div className="flex gap-3 w-full sm:w-auto">
+                                <button 
+                                    onClick={() => setPendingBets(null)}
+                                    className="flex-1 sm:flex-initial bg-white/5 hover:bg-white/10 text-white font-bold py-3.5 px-8 rounded-xl text-xs transition-all uppercase tracking-widest border border-white/5"
+                                >
+                                    Go Back
+                                </button>
+                                <motion.button 
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={handleConfirmBets}
+                                    disabled={isLoading}
+                                    className="flex-1 sm:flex-initial bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 px-10 rounded-xl transition-all uppercase tracking-widest text-xs shadow-xl shadow-emerald-500/20"
+                                >
+                                    {isLoading ? 'EXECUTING...' : 'CONFIRMED — BOOK'}
+                                </motion.button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Success Confirmation Check Sign */}
+            <Modal 
+                isOpen={showSuccessCheck} 
+                onClose={() => setShowSuccessCheck(false)} 
+                title="Committed successfully"
+            >
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <motion.div 
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                        className="w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500 mb-6 border border-emerald-500/20 shadow-lg shadow-emerald-500/10"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <motion.path 
+                                initial={{ pathLength: 0 }}
+                                animate={{ pathLength: 1 }}
+                                transition={{ delay: 0.2, duration: 0.4 }}
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                d="M5 13l4 4L19 7" 
+                            />
+                        </svg>
+                    </motion.div>
+                    <h4 className="text-2xl font-black text-white uppercase tracking-tighter mb-2">Booking success</h4>
+                    <p className="text-slate-400 text-sm max-w-sm">The terminal has written all entries directly to the ledger and updated the wallet balance.</p>
+                    
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowSuccessCheck(false)}
+                        className="mt-8 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-8 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-colors shadow-lg shadow-emerald-500/20"
+                    >
+                        Got it!
+                    </motion.button>
+                </div>
+            </Modal>
+        </>
+    );
 });
 
 const UserTransactionForm = React.memo<{ users: User[]; onTransaction: (userId: string, amount: number) => Promise<void>; onCancel: () => void; type: 'Top-Up' | 'Withdrawal' }>(({ users, onTransaction, onCancel, type }) => {
